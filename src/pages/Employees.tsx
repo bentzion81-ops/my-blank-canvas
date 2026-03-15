@@ -1,0 +1,121 @@
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { AppHeader } from "@/components/layout/AppHeader";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Plus, Search, Users } from "lucide-react";
+
+const Employees = () => {
+  const navigate = useNavigate();
+  const [search, setSearch] = useState("");
+
+  const { data: employees = [], isLoading } = useQuery({
+    queryKey: ["employees"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("employees")
+        .select("*, employee_client_assignments(client_id, clients(name))")
+        .order("first_name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const filtered = employees.filter((e: any) =>
+    `${e.first_name} ${e.last_name} ${e.passport_number || ""} ${e.israeli_phone || ""}`
+      .toLowerCase()
+      .includes(search.toLowerCase())
+  );
+
+  return (
+    <div className="flex flex-col">
+      <AppHeader title="Employees" subtitle={`${employees.length} total employees`} />
+      <div className="flex-1 space-y-4 p-4 lg:p-6">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="relative flex-1 max-w-sm">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search by name, phone, passport..."
+              className="pl-9 h-9"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+          <Button size="sm" onClick={() => navigate("/employees/new")}>
+            <Plus className="h-4 w-4 mr-1" /> Add Employee
+          </Button>
+        </div>
+
+        <Card className="border-0 shadow-sm">
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead className="hidden md:table-cell">Phone</TableHead>
+                  <TableHead className="hidden md:table-cell">Citizenship</TableHead>
+                  <TableHead className="hidden lg:table-cell">Client</TableHead>
+                  <TableHead className="hidden lg:table-cell">Type</TableHead>
+                  <TableHead>Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                      Loading...
+                    </TableCell>
+                  </TableRow>
+                ) : filtered.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                      <Users className="h-8 w-8 mx-auto mb-2 opacity-40" />
+                      No employees found
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filtered.map((emp: any) => {
+                    const primaryAssignment = emp.employee_client_assignments?.find((a: any) => a.clients);
+                    return (
+                      <TableRow
+                        key={emp.id}
+                        className="cursor-pointer"
+                        onClick={() => navigate(`/employees/${emp.id}`)}
+                      >
+                        <TableCell className="font-medium">
+                          {emp.first_name} {emp.last_name}
+                        </TableCell>
+                        <TableCell className="hidden md:table-cell">
+                          {emp.israeli_phone || emp.foreign_phone || "—"}
+                        </TableCell>
+                        <TableCell className="hidden md:table-cell">
+                          {emp.citizenship || "—"}
+                        </TableCell>
+                        <TableCell className="hidden lg:table-cell">
+                          {primaryAssignment?.clients?.name || "Unassigned"}
+                        </TableCell>
+                        <TableCell className="hidden lg:table-cell capitalize">
+                          {emp.employee_type}
+                        </TableCell>
+                        <TableCell>
+                          <StatusBadge status={emp.status} />
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+};
+
+export default Employees;

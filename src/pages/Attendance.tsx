@@ -29,7 +29,7 @@ const Attendance = () => {
   const { data: scheduledToday } = useQuery({
     queryKey: ["scheduled-today"],
     queryFn: async () => {
-      const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+      const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"] as const;
       const todayDay = dayNames[new Date().getDay()];
       const { data } = await supabase
         .from("work_schedules")

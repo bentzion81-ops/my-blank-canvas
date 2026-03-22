@@ -1,6 +1,6 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,27 +13,61 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { Loader2, ArrowLeft } from "lucide-react";
 
+const defaultForm = {
+  name: "",
+  client_type: "business" as "institution" | "business" | "factory" | "other",
+  company_id: "",
+  address: "",
+  city: "",
+  google_maps_link: "",
+  billing_type: "fixed" as "fixed" | "hourly",
+  monthly_payment: 0,
+  hourly_rate: 0,
+  daily_planned_hours: 0,
+  include_friday: false,
+  include_saturday: false,
+  status: "active" as "active" | "paused" | "ended",
+  notes: "",
+};
+
 const ClientForm = () => {
+  const { id } = useParams();
+  const isEdit = !!id;
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState(defaultForm);
 
-  const [form, setForm] = useState({
-    name: "",
-    client_type: "business" as "institution" | "business" | "factory" | "other",
-    company_id: "",
-    address: "",
-    city: "",
-    google_maps_link: "",
-    billing_type: "fixed" as "fixed" | "hourly",
-    monthly_payment: 0,
-    hourly_rate: 0,
-    daily_planned_hours: 0,
-    include_friday: false,
-    include_saturday: false,
-    status: "active" as "active" | "paused" | "ended",
-    notes: "",
+  const { data: existing, isLoading } = useQuery({
+    queryKey: ["client", id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("clients").select("*").eq("id", id!).single();
+      if (error) throw error;
+      return data;
+    },
+    enabled: isEdit,
   });
+
+  useEffect(() => {
+    if (existing) {
+      setForm({
+        name: existing.name || "",
+        client_type: existing.client_type || "business",
+        company_id: existing.company_id || "",
+        address: existing.address || "",
+        city: existing.city || "",
+        google_maps_link: existing.google_maps_link || "",
+        billing_type: existing.billing_type || "fixed",
+        monthly_payment: existing.monthly_payment || 0,
+        hourly_rate: existing.hourly_rate || 0,
+        daily_planned_hours: existing.daily_planned_hours || 0,
+        include_friday: existing.include_friday || false,
+        include_saturday: existing.include_saturday || false,
+        status: existing.status || "active",
+        notes: existing.notes || "",
+      });
+    }
+  }, [existing]);
 
   const update = (field: string, value: any) =>
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -42,16 +76,24 @@ const ClientForm = () => {
     if (!form.name) { toast.error("Client name is required"); return; }
     setSaving(true);
     try {
-      const { error } = await supabase.from("clients").insert({
+      const payload = {
         ...form,
         monthly_payment: Number(form.monthly_payment) || 0,
         hourly_rate: Number(form.hourly_rate) || 0,
         daily_planned_hours: Number(form.daily_planned_hours) || 0,
-      });
-      if (error) throw error;
+      };
+      if (isEdit) {
+        const { error } = await supabase.from("clients").update(payload).eq("id", id!);
+        if (error) throw error;
+        toast.success("Client updated");
+      } else {
+        const { error } = await supabase.from("clients").insert(payload);
+        if (error) throw error;
+        toast.success("Client created");
+      }
       queryClient.invalidateQueries({ queryKey: ["clients"] });
-      toast.success("Client created");
-      navigate("/clients");
+      queryClient.invalidateQueries({ queryKey: ["client", id] });
+      navigate(isEdit ? `/clients/${id}` : "/clients");
     } catch (err: any) {
       toast.error(err.message);
     } finally {
@@ -59,11 +101,19 @@ const ClientForm = () => {
     }
   };
 
+  if (isEdit && isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col">
-      <AppHeader title="Add Client" />
+      <AppHeader title={isEdit ? "Edit Client" : "Add Client"} />
       <div className="flex-1 space-y-4 p-4 lg:p-6 max-w-3xl">
-        <Button variant="ghost" size="sm" onClick={() => navigate("/clients")}>
+        <Button variant="ghost" size="sm" onClick={() => navigate(isEdit ? `/clients/${id}` : "/clients")}>
           <ArrowLeft className="h-4 w-4 mr-1" /> Back
         </Button>
 
@@ -177,10 +227,10 @@ const ClientForm = () => {
         </Card>
 
         <div className="flex gap-2 justify-end pb-8">
-          <Button variant="outline" onClick={() => navigate("/clients")}>Cancel</Button>
+          <Button variant="outline" onClick={() => navigate(isEdit ? `/clients/${id}` : "/clients")}>Cancel</Button>
           <Button onClick={handleSave} disabled={saving}>
             {saving && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
-            Save Client
+            {isEdit ? "Update Client" : "Save Client"}
           </Button>
         </div>
       </div>

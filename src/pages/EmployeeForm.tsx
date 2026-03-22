@@ -1,6 +1,6 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,37 +12,94 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { Loader2, ArrowLeft } from "lucide-react";
 
+const defaultForm = {
+  first_name: "",
+  last_name: "",
+  israeli_phone: "",
+  foreign_phone: "",
+  citizenship: "",
+  passport_number: "",
+  employee_type: "permanent" as "permanent" | "temporary",
+  status: "active" as "active" | "inactive",
+  target_monthly_hours: 0,
+  hourly_wage: 0,
+  transportation: 0,
+  medical_insurance: 0,
+  food: 0,
+  other_expenses: 0,
+  rent_deduction: 0,
+  loan_deduction: 0,
+  equipment_deduction: 0,
+  other_deductions: 0,
+  notes: "",
+  passport_expiration: "",
+  visa_expiration: "",
+};
+
 const EmployeeForm = () => {
+  const { id } = useParams();
+  const isEdit = !!id;
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState(defaultForm);
 
-  const [form, setForm] = useState({
-    first_name: "",
-    last_name: "",
-    israeli_phone: "",
-    foreign_phone: "",
-    citizenship: "",
-    passport_number: "",
-    employee_type: "permanent" as "permanent" | "temporary",
-    status: "active" as "active" | "inactive",
-    target_monthly_hours: 0,
-    hourly_wage: 0,
-    transportation: 0,
-    medical_insurance: 0,
-    food: 0,
-    other_expenses: 0,
-    rent_deduction: 0,
-    loan_deduction: 0,
-    equipment_deduction: 0,
-    other_deductions: 0,
-    notes: "",
-    passport_expiration: "",
-    visa_expiration: "",
+  const { data: existing, isLoading } = useQuery({
+    queryKey: ["employee", id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("employees").select("*").eq("id", id!).single();
+      if (error) throw error;
+      return data;
+    },
+    enabled: isEdit,
   });
+
+  useEffect(() => {
+    if (existing) {
+      setForm({
+        first_name: existing.first_name || "",
+        last_name: existing.last_name || "",
+        israeli_phone: existing.israeli_phone || "",
+        foreign_phone: existing.foreign_phone || "",
+        citizenship: existing.citizenship || "",
+        passport_number: existing.passport_number || "",
+        employee_type: existing.employee_type || "permanent",
+        status: existing.status || "active",
+        target_monthly_hours: existing.target_monthly_hours || 0,
+        hourly_wage: existing.hourly_wage || 0,
+        transportation: existing.transportation || 0,
+        medical_insurance: existing.medical_insurance || 0,
+        food: existing.food || 0,
+        other_expenses: existing.other_expenses || 0,
+        rent_deduction: existing.rent_deduction || 0,
+        loan_deduction: existing.loan_deduction || 0,
+        equipment_deduction: existing.equipment_deduction || 0,
+        other_deductions: existing.other_deductions || 0,
+        notes: existing.notes || "",
+        passport_expiration: existing.passport_expiration || "",
+        visa_expiration: existing.visa_expiration || "",
+      });
+    }
+  }, [existing]);
 
   const update = (field: string, value: any) =>
     setForm((prev) => ({ ...prev, [field]: value }));
+
+  const numericPayload = () => ({
+    ...form,
+    target_monthly_hours: Number(form.target_monthly_hours) || 0,
+    hourly_wage: Number(form.hourly_wage) || 0,
+    transportation: Number(form.transportation) || 0,
+    medical_insurance: Number(form.medical_insurance) || 0,
+    food: Number(form.food) || 0,
+    other_expenses: Number(form.other_expenses) || 0,
+    rent_deduction: Number(form.rent_deduction) || 0,
+    loan_deduction: Number(form.loan_deduction) || 0,
+    equipment_deduction: Number(form.equipment_deduction) || 0,
+    other_deductions: Number(form.other_deductions) || 0,
+    passport_expiration: form.passport_expiration || null,
+    visa_expiration: form.visa_expiration || null,
+  });
 
   const handleSave = async () => {
     if (!form.first_name || !form.last_name) {
@@ -51,25 +108,18 @@ const EmployeeForm = () => {
     }
     setSaving(true);
     try {
-      const { error } = await supabase.from("employees").insert({
-        ...form,
-        target_monthly_hours: Number(form.target_monthly_hours) || 0,
-        hourly_wage: Number(form.hourly_wage) || 0,
-        transportation: Number(form.transportation) || 0,
-        medical_insurance: Number(form.medical_insurance) || 0,
-        food: Number(form.food) || 0,
-        other_expenses: Number(form.other_expenses) || 0,
-        rent_deduction: Number(form.rent_deduction) || 0,
-        loan_deduction: Number(form.loan_deduction) || 0,
-        equipment_deduction: Number(form.equipment_deduction) || 0,
-        other_deductions: Number(form.other_deductions) || 0,
-        passport_expiration: form.passport_expiration || null,
-        visa_expiration: form.visa_expiration || null,
-      });
-      if (error) throw error;
+      if (isEdit) {
+        const { error } = await supabase.from("employees").update(numericPayload()).eq("id", id!);
+        if (error) throw error;
+        toast.success("Employee updated");
+      } else {
+        const { error } = await supabase.from("employees").insert(numericPayload());
+        if (error) throw error;
+        toast.success("Employee created");
+      }
       queryClient.invalidateQueries({ queryKey: ["employees"] });
-      toast.success("Employee created");
-      navigate("/employees");
+      queryClient.invalidateQueries({ queryKey: ["employee", id] });
+      navigate(isEdit ? `/employees/${id}` : "/employees");
     } catch (err: any) {
       toast.error(err.message);
     } finally {
@@ -77,11 +127,19 @@ const EmployeeForm = () => {
     }
   };
 
+  if (isEdit && isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col">
-      <AppHeader title="Add Employee" />
+      <AppHeader title={isEdit ? "Edit Employee" : "Add Employee"} />
       <div className="flex-1 space-y-4 p-4 lg:p-6 max-w-3xl">
-        <Button variant="ghost" size="sm" onClick={() => navigate("/employees")}>
+        <Button variant="ghost" size="sm" onClick={() => navigate(isEdit ? `/employees/${id}` : "/employees")}>
           <ArrowLeft className="h-4 w-4 mr-1" /> Back
         </Button>
 
@@ -209,10 +267,10 @@ const EmployeeForm = () => {
         </Card>
 
         <div className="flex gap-2 justify-end pb-8">
-          <Button variant="outline" onClick={() => navigate("/employees")}>Cancel</Button>
+          <Button variant="outline" onClick={() => navigate(isEdit ? `/employees/${id}` : "/employees")}>Cancel</Button>
           <Button onClick={handleSave} disabled={saving}>
             {saving && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
-            Save Employee
+            {isEdit ? "Update Employee" : "Save Employee"}
           </Button>
         </div>
       </div>

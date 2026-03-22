@@ -6,7 +6,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Loader2, MapPin } from "lucide-react";
+import { ArrowLeft, Edit, Loader2, MapPin } from "lucide-react";
 
 const ClientProfile = () => {
   const { id } = useParams();
@@ -44,7 +44,12 @@ const ClientProfile = () => {
           <Button variant="ghost" size="sm" onClick={() => navigate("/clients")}>
             <ArrowLeft className="h-4 w-4 mr-1" /> Back
           </Button>
-          <StatusBadge status={client.status} />
+          <div className="flex items-center gap-2">
+            <StatusBadge status={client.status} />
+            <Button size="sm" variant="outline" onClick={() => navigate(`/clients/${id}/edit`)}>
+              <Edit className="h-4 w-4 mr-1" /> Edit
+            </Button>
+          </div>
         </div>
 
         <Tabs defaultValue="overview" className="space-y-4">

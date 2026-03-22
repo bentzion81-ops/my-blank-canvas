@@ -59,7 +59,12 @@ const EmployeeProfile = () => {
           <Button variant="ghost" size="sm" onClick={() => navigate("/employees")}>
             <ArrowLeft className="h-4 w-4 mr-1" /> Back
           </Button>
-          <StatusBadge status={employee.status} />
+          <div className="flex items-center gap-2">
+            <StatusBadge status={employee.status} />
+            <Button size="sm" variant="outline" onClick={() => navigate(`/employees/${id}/edit`)}>
+              <Edit className="h-4 w-4 mr-1" /> Edit
+            </Button>
+          </div>
         </div>
 
         <Tabs defaultValue="overview" className="space-y-4">

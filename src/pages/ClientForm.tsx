@@ -24,6 +24,8 @@ const defaultForm = {
   monthly_payment: 0,
   hourly_rate: 0,
   daily_planned_hours: 0,
+  friday_hours: 0,
+  saturday_hours: 0,
   include_friday: false,
   include_saturday: false,
   status: "active" as "active" | "paused" | "ended",
@@ -61,6 +63,8 @@ const ClientForm = () => {
         monthly_payment: existing.monthly_payment || 0,
         hourly_rate: existing.hourly_rate || 0,
         daily_planned_hours: existing.daily_planned_hours || 0,
+        friday_hours: (existing as any).friday_hours || 0,
+        saturday_hours: (existing as any).saturday_hours || 0,
         include_friday: existing.include_friday || false,
         include_saturday: existing.include_saturday || false,
         status: existing.status || "active",
@@ -81,6 +85,8 @@ const ClientForm = () => {
         monthly_payment: Number(form.monthly_payment) || 0,
         hourly_rate: Number(form.hourly_rate) || 0,
         daily_planned_hours: Number(form.daily_planned_hours) || 0,
+        friday_hours: Number(form.friday_hours) || 0,
+        saturday_hours: Number(form.saturday_hours) || 0,
       };
       if (isEdit) {
         const { error } = await supabase.from("clients").update(payload).eq("id", id!);
@@ -174,20 +180,28 @@ const ClientForm = () => {
 
         <Card className="border-0 shadow-sm">
           <CardHeader><CardTitle className="text-sm">Work Planning</CardTitle></CardHeader>
-          <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-1.5">
-              <Label>Daily Planned Hours</Label>
+              <Label>Sun–Thu Hours/Day</Label>
               <Input type="number" value={form.daily_planned_hours} onChange={(e) => update("daily_planned_hours", e.target.value)} />
             </div>
-            <div className="space-y-4">
-              <div className="flex items-center gap-2">
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2 mb-1.5">
                 <Checkbox checked={form.include_friday} onCheckedChange={(v) => update("include_friday", v)} id="friday" />
                 <Label htmlFor="friday">Include Friday</Label>
               </div>
-              <div className="flex items-center gap-2">
+              {form.include_friday && (
+                <Input type="number" placeholder="Friday hours" value={form.friday_hours} onChange={(e) => update("friday_hours", e.target.value)} />
+              )}
+            </div>
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2 mb-1.5">
                 <Checkbox checked={form.include_saturday} onCheckedChange={(v) => update("include_saturday", v)} id="saturday" />
                 <Label htmlFor="saturday">Include Saturday</Label>
               </div>
+              {form.include_saturday && (
+                <Input type="number" placeholder="Saturday hours" value={form.saturday_hours} onChange={(e) => update("saturday_hours", e.target.value)} />
+              )}
             </div>
           </CardContent>
         </Card>

@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Edit, Loader2, MapPin } from "lucide-react";
 import { ClientEmployeesTab, ClientHoursAndBilling } from "@/components/clients/ClientEmployeesAndBilling";
+import { ClientWorkPlanningCard } from "@/components/clients/ClientWorkPlanningCard";
 
 const ClientProfile = () => {
   const { id } = useParams();
@@ -88,14 +89,7 @@ const ClientProfile = () => {
                 </CardContent>
               </Card>
             </div>
-            <Card className="border-0 shadow-sm">
-              <CardHeader><CardTitle className="text-sm">Work Planning</CardTitle></CardHeader>
-              <CardContent className="space-y-3 text-sm">
-                <div className="flex justify-between"><span className="text-muted-foreground">Daily Hours</span><span>{client.daily_planned_hours || 0}h</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Includes Friday</span><span>{client.include_friday ? "Yes" : "No"}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Includes Saturday</span><span>{client.include_saturday ? "Yes" : "No"}</span></div>
-              </CardContent>
-            </Card>
+            <ClientWorkPlanningCard client={client} clientId={id!} />
             {client.client_contacts && client.client_contacts.length > 0 && (
               <Card className="border-0 shadow-sm">
                 <CardHeader><CardTitle className="text-sm">Contacts</CardTitle></CardHeader>

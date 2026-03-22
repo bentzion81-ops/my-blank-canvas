@@ -317,6 +317,7 @@ export type Database = {
           company_id: string | null
           created_at: string
           daily_planned_hours: number | null
+          friday_hours: number | null
           google_maps_link: string | null
           hourly_rate: number | null
           id: string
@@ -325,6 +326,7 @@ export type Database = {
           monthly_payment: number | null
           name: string
           notes: string | null
+          saturday_hours: number | null
           status: Database["public"]["Enums"]["client_status"]
           updated_at: string
         }
@@ -336,6 +338,7 @@ export type Database = {
           company_id?: string | null
           created_at?: string
           daily_planned_hours?: number | null
+          friday_hours?: number | null
           google_maps_link?: string | null
           hourly_rate?: number | null
           id?: string
@@ -344,6 +347,7 @@ export type Database = {
           monthly_payment?: number | null
           name: string
           notes?: string | null
+          saturday_hours?: number | null
           status?: Database["public"]["Enums"]["client_status"]
           updated_at?: string
         }
@@ -355,6 +359,7 @@ export type Database = {
           company_id?: string | null
           created_at?: string
           daily_planned_hours?: number | null
+          friday_hours?: number | null
           google_maps_link?: string | null
           hourly_rate?: number | null
           id?: string
@@ -363,6 +368,7 @@ export type Database = {
           monthly_payment?: number | null
           name?: string
           notes?: string | null
+          saturday_hours?: number | null
           status?: Database["public"]["Enums"]["client_status"]
           updated_at?: string
         }

@@ -7,6 +7,7 @@ import { KpiCard } from "@/components/ui/kpi-card";
 import { Loader2, Users, Clock, DollarSign } from "lucide-react";
 import { useState } from "react";
 import { format, startOfMonth, subMonths } from "date-fns";
+import { ClientAdditionalCharges } from "./ClientAdditionalCharges";
 
 interface Props {
   clientId: string;
@@ -164,6 +165,8 @@ export const ClientHoursAndBilling = ({ clientId, hourlyRate, billingType, month
           </CardContent>
         </Card>
       )}
+
+      <ClientAdditionalCharges clientId={clientId} selectedMonth={selectedMonth} />
     </div>
   );
 };

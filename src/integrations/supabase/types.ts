@@ -188,6 +188,62 @@ export type Database = {
           },
         ]
       }
+      client_additional_charges: {
+        Row: {
+          client_id: string
+          created_at: string
+          id: string
+          month: string
+          name: string
+          notes: string | null
+          profit: number | null
+          quantity: number
+          total_charge: number | null
+          total_cost: number | null
+          unit_charge: number
+          unit_cost: number
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          id?: string
+          month: string
+          name: string
+          notes?: string | null
+          profit?: number | null
+          quantity?: number
+          total_charge?: number | null
+          total_cost?: number | null
+          unit_charge?: number
+          unit_cost?: number
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          id?: string
+          month?: string
+          name?: string
+          notes?: string | null
+          profit?: number | null
+          quantity?: number
+          total_charge?: number | null
+          total_cost?: number | null
+          unit_charge?: number
+          unit_cost?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_additional_charges_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       client_contacts: {
         Row: {
           client_id: string

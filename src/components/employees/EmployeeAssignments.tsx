@@ -53,9 +53,11 @@ export const EmployeeAssignments = ({ employeeId }: Props) => {
       employee_id: employeeId,
       client_id: selectedClient,
       is_primary: assignments.length === 0,
+      start_date: new Date().toISOString().split("T")[0],
     });
     if (error) {
-      toast.error("Failed to assign client");
+      console.error("Assignment insert error:", error);
+      toast.error(error.message || "Failed to assign client");
     } else {
       toast.success("Client assigned");
       setSelectedClient("");

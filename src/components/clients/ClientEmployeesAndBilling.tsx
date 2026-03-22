@@ -118,7 +118,7 @@ export const ClientHoursAndBilling = ({ clientId, hourlyRate, billingType, month
           title="Profit"
           value={`₪${profit.toLocaleString()}`}
           icon={DollarSign}
-          className={profit < 0 ? "text-destructive" : ""}
+          
         />
       </div>
 

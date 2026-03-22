@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Edit, Loader2, MapPin } from "lucide-react";
+import { ClientEmployeesTab, ClientHoursAndBilling } from "@/components/clients/ClientEmployeesAndBilling";
 
 const ClientProfile = () => {
   const { id } = useParams();
@@ -117,19 +118,16 @@ const ClientProfile = () => {
           </TabsContent>
 
           <TabsContent value="employees">
-            <Card className="border-0 shadow-sm">
-              <CardContent className="py-12 text-center text-muted-foreground">
-                Assigned employees will appear here.
-              </CardContent>
-            </Card>
+            <ClientEmployeesTab clientId={id!} />
           </TabsContent>
 
           <TabsContent value="hours">
-            <Card className="border-0 shadow-sm">
-              <CardContent className="py-12 text-center text-muted-foreground">
-                Planned vs actual hours data will appear here.
-              </CardContent>
-            </Card>
+            <ClientHoursAndBilling
+              clientId={id!}
+              hourlyRate={client.hourly_rate || 0}
+              billingType={client.billing_type}
+              monthlyPayment={client.monthly_payment || 0}
+            />
           </TabsContent>
 
           <TabsContent value="billing">

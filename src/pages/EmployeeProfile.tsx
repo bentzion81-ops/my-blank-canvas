@@ -5,9 +5,10 @@ import { AppHeader } from "@/components/layout/AppHeader";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Edit, Loader2 } from "lucide-react";
+import { EmployeeAssignments } from "@/components/employees/EmployeeAssignments";
+import { EmployeeMonthlyHours } from "@/components/employees/EmployeeMonthlyHours";
 
 const EmployeeProfile = () => {
   const { id } = useParams();
@@ -70,7 +71,7 @@ const EmployeeProfile = () => {
         <Tabs defaultValue="overview" className="space-y-4">
           <TabsList>
             <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="attendance">Attendance</TabsTrigger>
+            <TabsTrigger value="attendance">Assignments & Hours</TabsTrigger>
             <TabsTrigger value="payroll">Payroll</TabsTrigger>
             <TabsTrigger value="expenses">Expenses</TabsTrigger>
             <TabsTrigger value="documents">Documents</TabsTrigger>
@@ -129,12 +130,9 @@ const EmployeeProfile = () => {
             )}
           </TabsContent>
 
-          <TabsContent value="attendance">
-            <Card className="border-0 shadow-sm">
-              <CardContent className="py-12 text-center text-muted-foreground">
-                Attendance records will appear here once data is imported.
-              </CardContent>
-            </Card>
+          <TabsContent value="attendance" className="space-y-4">
+            <EmployeeAssignments employeeId={id!} />
+            <EmployeeMonthlyHours employeeId={id!} />
           </TabsContent>
 
           <TabsContent value="payroll">

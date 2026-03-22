@@ -73,6 +73,7 @@ export const ClientEmployeesTab = ({ clientId }: { clientId: string }) => {
 
 export const ClientHoursAndBilling = ({ clientId, hourlyRate, billingType, monthlyPayment }: Props) => {
   const [selectedMonth, setSelectedMonth] = useState(format(startOfMonth(new Date()), "yyyy-MM-dd"));
+  const { ClientAdditionalCharges } = require("@/components/clients/ClientAdditionalCharges");
 
   const monthOptions = Array.from({ length: 12 }, (_, i) => {
     const d = startOfMonth(subMonths(new Date(), i));

@@ -165,6 +165,8 @@ export const ClientHoursAndBilling = ({ clientId, hourlyRate, billingType, month
           </CardContent>
         </Card>
       )}
+
+      <ClientAdditionalCharges clientId={clientId} selectedMonth={selectedMonth} />
     </div>
   );
 };

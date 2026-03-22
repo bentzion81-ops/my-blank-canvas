@@ -36,6 +36,7 @@ const typeStyles: Record<StatusType, string> = {
 };
 
 export function StatusBadge({ status, type, className }: StatusBadgeProps) {
+  if (!status) return null;
   const resolvedType = type || statusMap[status.toLowerCase()] || "default";
   return (
     <Badge

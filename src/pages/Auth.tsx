@@ -42,7 +42,7 @@ const Auth = () => {
           options: { data: { full_name: fullName } },
         });
         if (error) throw error;
-        toast.success("Account created! Check your email to verify.");
+        toast.success("Account created successfully! You can now sign in.");
       }
     } catch (err: any) {
       toast.error(err.message);

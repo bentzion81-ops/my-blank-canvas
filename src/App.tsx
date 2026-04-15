@@ -20,6 +20,7 @@ import Reports from "./pages/Reports";
 import Documents from "./pages/Documents";
 import UserManagement from "./pages/UserManagement";
 import SettingsPage from "./pages/Settings";
+import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
 import { Loader2 } from "lucide-react";
 
@@ -47,6 +48,7 @@ const App = () => (
         <AuthProvider>
           <Routes>
             <Route path="/auth" element={<Auth />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
             <Route
               element={
                 <ProtectedRoute>

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Navigate } from "react-router-dom";
+import { Navigate, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,7 @@ const Auth = () => {
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [forgotMode, setForgotMode] = useState(false);
 
   if (loading) {
     return (
@@ -31,7 +32,14 @@ const Auth = () => {
     e.preventDefault();
     setSubmitting(true);
     try {
-      if (isLogin) {
+      if (forgotMode) {
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: `${window.location.origin}/reset-password`,
+        });
+        if (error) throw error;
+        toast.success("Password reset link sent! Check your email.");
+        setForgotMode(false);
+      } else if (isLogin) {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
         toast.success("Welcome back!");
@@ -59,10 +67,12 @@ const Auth = () => {
             <Building2 className="h-7 w-7" />
           </div>
           <CardTitle className="text-2xl font-bold">
-            {isLogin ? "Sign In" : "Create Account"}
+            {forgotMode ? "Reset Password" : isLogin ? "Sign In" : "Create Account"}
           </CardTitle>
           <CardDescription>
-            {isLogin
+            {forgotMode
+              ? "Enter your email to receive a reset link"
+              : isLogin
               ? "Enter your credentials to access the platform"
               : "Set up your admin account"}
           </CardDescription>
@@ -92,31 +102,55 @@ const Auth = () => {
                 required
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                required
-                minLength={6}
-              />
-            </div>
+            {!forgotMode && (
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  required
+                  minLength={6}
+                />
+                {isLogin && (
+                  <div className="text-right">
+                    <button
+                      type="button"
+                      className="text-sm text-primary hover:underline"
+                      onClick={() => setForgotMode(true)}
+                    >
+                      Forgot password?
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
             <Button type="submit" className="w-full" disabled={submitting}>
               {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {isLogin ? "Sign In" : "Create Account"}
+              {forgotMode ? "Send Reset Link" : isLogin ? "Sign In" : "Create Account"}
             </Button>
           </form>
           <div className="mt-4 text-center text-sm text-muted-foreground">
-            {isLogin ? "Don't have an account?" : "Already have an account?"}{" "}
+            {forgotMode ? (
             <button
-              className="text-primary font-medium hover:underline"
-              onClick={() => setIsLogin(!isLogin)}
-            >
-              {isLogin ? "Sign Up" : "Sign In"}
-            </button>
+                className="text-primary font-medium hover:underline"
+                onClick={() => setForgotMode(false)}
+              >
+                Back to Sign In
+              </button>
+            ) : (
+              <>
+                {isLogin ? "Don't have an account?" : "Already have an account?"}{" "}
+                <button
+                  className="text-primary font-medium hover:underline"
+                  onClick={() => setIsLogin(!isLogin)}
+                >
+                  {isLogin ? "Sign Up" : "Sign In"}
+                </button>
+              </>
+            )}
           </div>
         </CardContent>
       </Card>

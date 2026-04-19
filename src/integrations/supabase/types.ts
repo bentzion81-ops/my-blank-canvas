@@ -1105,6 +1105,183 @@ export type Database = {
         }
         Relationships: []
       }
+      replacement_change_requests: {
+        Row: {
+          created_at: string
+          description: string
+          handled_at: string | null
+          handled_by: string | null
+          id: string
+          report_id: string
+          status: Database["public"]["Enums"]["replacement_change_request_status"]
+          updated_at: string
+          worker_id: string
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          handled_at?: string | null
+          handled_by?: string | null
+          id?: string
+          report_id: string
+          status?: Database["public"]["Enums"]["replacement_change_request_status"]
+          updated_at?: string
+          worker_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          handled_at?: string | null
+          handled_by?: string | null
+          id?: string
+          report_id?: string
+          status?: Database["public"]["Enums"]["replacement_change_request_status"]
+          updated_at?: string
+          worker_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "replacement_change_requests_report_id_fkey"
+            columns: ["report_id"]
+            isOneToOne: false
+            referencedRelation: "replacement_reports"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "replacement_change_requests_worker_id_fkey"
+            columns: ["worker_id"]
+            isOneToOne: false
+            referencedRelation: "replacement_workers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      replacement_reports: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          assigned_client_id: string | null
+          assigned_custom_workplace: string | null
+          check_in: string
+          check_out: string
+          created_at: string
+          hourly_wage: number | null
+          id: string
+          maps_link: string | null
+          notes: string | null
+          passport_number: string
+          rejection_reason: string | null
+          status: Database["public"]["Enums"]["replacement_report_status"]
+          total_hours: number
+          total_payment: number | null
+          updated_at: string
+          work_date: string
+          worker_id: string
+          worker_name: string
+          workplace_address: string | null
+          workplace_description: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          assigned_client_id?: string | null
+          assigned_custom_workplace?: string | null
+          check_in: string
+          check_out: string
+          created_at?: string
+          hourly_wage?: number | null
+          id?: string
+          maps_link?: string | null
+          notes?: string | null
+          passport_number: string
+          rejection_reason?: string | null
+          status?: Database["public"]["Enums"]["replacement_report_status"]
+          total_hours?: number
+          total_payment?: number | null
+          updated_at?: string
+          work_date: string
+          worker_id: string
+          worker_name: string
+          workplace_address?: string | null
+          workplace_description: string
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          assigned_client_id?: string | null
+          assigned_custom_workplace?: string | null
+          check_in?: string
+          check_out?: string
+          created_at?: string
+          hourly_wage?: number | null
+          id?: string
+          maps_link?: string | null
+          notes?: string | null
+          passport_number?: string
+          rejection_reason?: string | null
+          status?: Database["public"]["Enums"]["replacement_report_status"]
+          total_hours?: number
+          total_payment?: number | null
+          updated_at?: string
+          work_date?: string
+          worker_id?: string
+          worker_name?: string
+          workplace_address?: string | null
+          workplace_description?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "replacement_reports_assigned_client_id_fkey"
+            columns: ["assigned_client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "replacement_reports_worker_id_fkey"
+            columns: ["worker_id"]
+            isOneToOne: false
+            referencedRelation: "replacement_workers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      replacement_workers: {
+        Row: {
+          created_at: string
+          full_name: string
+          id: string
+          is_active: boolean
+          notes: string | null
+          passport_number: string
+          phone: string | null
+          preferred_language: Database["public"]["Enums"]["replacement_language"]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          full_name: string
+          id?: string
+          is_active?: boolean
+          notes?: string | null
+          passport_number: string
+          phone?: string | null
+          preferred_language?: Database["public"]["Enums"]["replacement_language"]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          full_name?: string
+          id?: string
+          is_active?: boolean
+          notes?: string | null
+          passport_number?: string
+          phone?: string | null
+          preferred_language?: Database["public"]["Enums"]["replacement_language"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
       settings: {
         Row: {
           category: string
@@ -1313,6 +1490,13 @@ export type Database = {
         | "credit_card"
         | "other"
       payroll_status: "draft" | "ready" | "partially_paid" | "paid"
+      replacement_change_request_status: "open" | "resolved" | "dismissed"
+      replacement_language: "he" | "en" | "si"
+      replacement_report_status:
+        | "pending"
+        | "approved"
+        | "rejected"
+        | "needs_clarification"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1493,6 +1677,14 @@ export const Constants = {
         "other",
       ],
       payroll_status: ["draft", "ready", "partially_paid", "paid"],
+      replacement_change_request_status: ["open", "resolved", "dismissed"],
+      replacement_language: ["he", "en", "si"],
+      replacement_report_status: [
+        "pending",
+        "approved",
+        "rejected",
+        "needs_clarification",
+      ],
     },
   },
 } as const

@@ -1,0 +1,544 @@
+import { useEffect, useMemo, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { toast } from "sonner";
+import { LANGS, Lang, dirFor, t } from "@/lib/replacementI18n";
+import { Loader2, MapPin, Plus, ArrowLeft, LogOut } from "lucide-react";
+
+type Worker = {
+  id: string;
+  full_name: string;
+  passport_number: string;
+  phone: string | null;
+  preferred_language: Lang;
+};
+
+type Report = {
+  id: string;
+  work_date: string;
+  check_in: string;
+  check_out: string;
+  total_hours: number;
+  total_payment: number;
+  workplace_description: string;
+  workplace_address: string | null;
+  status: string;
+  hourly_wage: number;
+};
+
+type Step = "lang" | "passport" | "register" | "home" | "form" | "list";
+
+const STORAGE_KEY = "replacement_worker_id";
+
+export default function ReplacementPortal() {
+  const [lang, setLang] = useState<Lang | null>(null);
+  const [step, setStep] = useState<Step>("lang");
+  const [worker, setWorker] = useState<Worker | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [passport, setPassport] = useState("");
+
+  useEffect(() => {
+    const wid = localStorage.getItem(STORAGE_KEY);
+    if (wid) {
+      supabase
+        .from("replacement_workers")
+        .select("*")
+        .eq("id", wid)
+        .maybeSingle()
+        .then(({ data }) => {
+          if (data) {
+            setWorker(data as Worker);
+            setLang(data.preferred_language as Lang);
+            setStep("home");
+          }
+        });
+    }
+  }, []);
+
+  const dir = useMemo(() => (lang ? dirFor(lang) : "ltr"), [lang]);
+
+  if (!lang || step === "lang") {
+    return <LangPicker onPick={(l) => { setLang(l); setStep("passport"); }} />;
+  }
+
+  return (
+    <div dir={dir} className="min-h-screen bg-muted/30">
+      <div className="mx-auto max-w-2xl p-4 space-y-4">
+        <Header
+          lang={lang}
+          worker={worker}
+          onLogout={() => {
+            localStorage.removeItem(STORAGE_KEY);
+            setWorker(null);
+            setStep("lang");
+          }}
+          onChangeLang={() => setStep("lang")}
+        />
+
+        {step === "passport" && (
+          <PassportStep
+            lang={lang}
+            loading={loading}
+            value={passport}
+            onChange={setPassport}
+            onSubmit={async () => {
+              if (!passport.trim()) return;
+              setLoading(true);
+              const { data } = await supabase
+                .from("replacement_workers")
+                .select("*")
+                .eq("passport_number", passport.trim())
+                .maybeSingle();
+              setLoading(false);
+              if (data) {
+                setWorker(data as Worker);
+                localStorage.setItem(STORAGE_KEY, data.id);
+                setLang(data.preferred_language as Lang);
+                setStep("home");
+              } else {
+                setStep("register");
+              }
+            }}
+          />
+        )}
+
+        {step === "register" && (
+          <RegisterStep
+            lang={lang}
+            passport={passport}
+            onRegistered={(w) => {
+              setWorker(w);
+              localStorage.setItem(STORAGE_KEY, w.id);
+              setLang(w.preferred_language);
+              setStep("home");
+            }}
+          />
+        )}
+
+        {step === "home" && worker && (
+          <HomeStep
+            lang={lang}
+            onNew={() => setStep("form")}
+            onList={() => setStep("list")}
+          />
+        )}
+
+        {step === "form" && worker && (
+          <ReportForm
+            lang={lang}
+            worker={worker}
+            onDone={() => setStep("list")}
+            onBack={() => setStep("home")}
+          />
+        )}
+
+        {step === "list" && worker && (
+          <ReportsList lang={lang} worker={worker} onBack={() => setStep("home")} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function LangPicker({ onPick }: { onPick: (l: Lang) => void }) {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-muted/30 p-4">
+      <Card className="w-full max-w-md">
+        <CardHeader>
+          <CardTitle className="text-center">Choose language / בחר שפה</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          {LANGS.map((l) => (
+            <Button key={l.code} size="lg" variant="outline" className="h-14 text-lg" onClick={() => onPick(l.code)}>
+              {l.label}
+            </Button>
+          ))}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function Header({
+  lang,
+  worker,
+  onLogout,
+  onChangeLang,
+}: {
+  lang: Lang;
+  worker: Worker | null;
+  onLogout: () => void;
+  onChangeLang: () => void;
+}) {
+  return (
+    <div className="flex items-center justify-between">
+      <div>
+        {worker && (
+          <div className="text-sm">
+            <span className="text-muted-foreground">{t("hello", lang)}, </span>
+            <span className="font-semibold">{worker.full_name}</span>
+          </div>
+        )}
+      </div>
+      <div className="flex gap-2">
+        <Button variant="ghost" size="sm" onClick={onChangeLang}>
+          🌐
+        </Button>
+        {worker && (
+          <Button variant="ghost" size="sm" onClick={onLogout}>
+            <LogOut className="h-4 w-4" />
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function PassportStep({
+  lang,
+  value,
+  onChange,
+  onSubmit,
+  loading,
+}: {
+  lang: Lang;
+  value: string;
+  onChange: (v: string) => void;
+  onSubmit: () => void;
+  loading: boolean;
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{t("enterPassport", lang)}</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="space-y-2">
+          <Label className="text-base">{t("passportNumber", lang)}</Label>
+          <Input
+            className="h-12 text-lg"
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            autoFocus
+          />
+        </div>
+        <Button className="w-full h-12 text-base" onClick={onSubmit} disabled={loading || !value.trim()}>
+          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : t("identify", lang)}
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+function RegisterStep({
+  lang,
+  passport,
+  onRegistered,
+}: {
+  lang: Lang;
+  passport: string;
+  onRegistered: (w: Worker) => void;
+}) {
+  const [fullName, setFullName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [pref, setPref] = useState<Lang>(lang);
+  const [loading, setLoading] = useState(false);
+
+  const submit = async () => {
+    if (!fullName.trim()) return toast.error(t("required", lang));
+    setLoading(true);
+    const { data, error } = await supabase
+      .from("replacement_workers")
+      .insert({
+        full_name: fullName.trim(),
+        passport_number: passport.trim(),
+        phone: phone.trim() || null,
+        preferred_language: pref,
+      })
+      .select()
+      .single();
+    setLoading(false);
+    if (error) return toast.error(error.message);
+    onRegistered(data as Worker);
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{t("newWorkerTitle", lang)}</CardTitle>
+        <p className="text-sm text-muted-foreground">{t("newWorkerHelp", lang)}</p>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="space-y-2">
+          <Label>{t("passportNumber", lang)}</Label>
+          <Input value={passport} disabled className="h-12" />
+        </div>
+        <div className="space-y-2">
+          <Label>{t("fullName", lang)} *</Label>
+          <Input className="h-12 text-lg" value={fullName} onChange={(e) => setFullName(e.target.value)} />
+        </div>
+        <div className="space-y-2">
+          <Label>{t("phone", lang)}</Label>
+          <Input className="h-12 text-lg" value={phone} onChange={(e) => setPhone(e.target.value)} />
+        </div>
+        <div className="space-y-2">
+          <Label>{t("language", lang)}</Label>
+          <Select value={pref} onValueChange={(v) => setPref(v as Lang)}>
+            <SelectTrigger className="h-12"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {LANGS.map((l) => (
+                <SelectItem key={l.code} value={l.code}>{l.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <Button className="w-full h-12" onClick={submit} disabled={loading}>
+          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : t("register", lang)}
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+function HomeStep({
+  lang,
+  onNew,
+  onList,
+}: {
+  lang: Lang;
+  onNew: () => void;
+  onList: () => void;
+}) {
+  return (
+    <div className="grid gap-3">
+      <Button className="h-20 text-lg" onClick={onNew}>
+        <Plus className="h-5 w-5" /> {t("newReport", lang)}
+      </Button>
+      <Button variant="outline" className="h-20 text-lg" onClick={onList}>
+        {t("myReports", lang)}
+      </Button>
+    </div>
+  );
+}
+
+function ReportForm({
+  lang,
+  worker,
+  onDone,
+  onBack,
+}: {
+  lang: Lang;
+  worker: Worker;
+  onDone: () => void;
+  onBack: () => void;
+}) {
+  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [checkIn, setCheckIn] = useState("08:00");
+  const [checkOut, setCheckOut] = useState("17:00");
+  const [desc, setDesc] = useState("");
+  const [address, setAddress] = useState("");
+  const [mapsLink, setMapsLink] = useState("");
+  const [wage, setWage] = useState("");
+  const [notes, setNotes] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const totalHours = useMemo(() => {
+    const [h1, m1] = checkIn.split(":").map(Number);
+    const [h2, m2] = checkOut.split(":").map(Number);
+    const mins = h2 * 60 + m2 - (h1 * 60 + m1);
+    return Math.max(0, mins / 60);
+  }, [checkIn, checkOut]);
+
+  const wageNum = parseFloat(wage) || 0;
+  const totalPay = totalHours * wageNum;
+
+  const submit = async () => {
+    if (!desc.trim()) return toast.error(t("required", lang));
+    setLoading(true);
+    const { error } = await supabase.from("replacement_reports").insert({
+      worker_id: worker.id,
+      passport_number: worker.passport_number,
+      worker_name: worker.full_name,
+      work_date: date,
+      check_in: checkIn,
+      check_out: checkOut,
+      total_hours: totalHours,
+      hourly_wage: wageNum,
+      total_payment: totalPay,
+      workplace_description: desc.trim(),
+      workplace_address: address.trim() || null,
+      maps_link: mapsLink.trim() || null,
+      notes: notes.trim() || null,
+    });
+    setLoading(false);
+    if (error) return toast.error(error.message);
+    toast.success(t("submitted", lang));
+    onDone();
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <CardTitle>{t("newReport", lang)}</CardTitle>
+          <Button variant="ghost" size="sm" onClick={onBack}><ArrowLeft className="h-4 w-4" /></Button>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="space-y-2">
+          <Label>{t("workDate", lang)}</Label>
+          <Input type="date" className="h-12" value={date} onChange={(e) => setDate(e.target.value)} />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-2">
+            <Label>{t("checkIn", lang)}</Label>
+            <Input type="time" className="h-12" value={checkIn} onChange={(e) => setCheckIn(e.target.value)} />
+          </div>
+          <div className="space-y-2">
+            <Label>{t("checkOut", lang)}</Label>
+            <Input type="time" className="h-12" value={checkOut} onChange={(e) => setCheckOut(e.target.value)} />
+          </div>
+        </div>
+        <div className="text-sm text-muted-foreground">
+          {t("totalHours", lang)}: <span className="font-semibold">{totalHours.toFixed(2)}</span>
+        </div>
+        <div className="space-y-2">
+          <Label>{t("workplaceDesc", lang)} *</Label>
+          <Input
+            className="h-12 text-lg"
+            value={desc}
+            onChange={(e) => setDesc(e.target.value)}
+            placeholder={t("workplaceDescHelp", lang)}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>{t("address", lang)}</Label>
+          <Input className="h-12" value={address} onChange={(e) => setAddress(e.target.value)} />
+        </div>
+        <div className="space-y-2">
+          <Label className="flex items-center gap-1"><MapPin className="h-4 w-4" /> {t("mapsLink", lang)}</Label>
+          <Input className="h-12" value={mapsLink} onChange={(e) => setMapsLink(e.target.value)} placeholder="https://maps.google.com/..." />
+        </div>
+        <div className="space-y-2">
+          <Label>{t("hourlyWage", lang)}</Label>
+          <Input type="number" className="h-12" value={wage} onChange={(e) => setWage(e.target.value)} />
+        </div>
+        {wageNum > 0 && (
+          <div className="text-sm text-muted-foreground">
+            {t("totalPayment", lang)}: <span className="font-semibold">{totalPay.toFixed(2)}</span>
+          </div>
+        )}
+        <div className="space-y-2">
+          <Label>{t("notes", lang)}</Label>
+          <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
+        </div>
+        <Button className="w-full h-12 text-base" onClick={submit} disabled={loading}>
+          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : t("submit", lang)}
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ReportsList({ lang, worker, onBack }: { lang: Lang; worker: Worker; onBack: () => void }) {
+  const [reports, setReports] = useState<Report[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [changeFor, setChangeFor] = useState<Report | null>(null);
+  const [changeText, setChangeText] = useState("");
+
+  const load = async () => {
+    setLoading(true);
+    const { data } = await supabase
+      .from("replacement_reports")
+      .select("*")
+      .eq("worker_id", worker.id)
+      .order("work_date", { ascending: false });
+    setReports((data as Report[]) || []);
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const sendChange = async () => {
+    if (!changeFor || !changeText.trim()) return;
+    const { error } = await supabase.from("replacement_change_requests").insert({
+      report_id: changeFor.id,
+      worker_id: worker.id,
+      description: changeText.trim(),
+    });
+    if (error) return toast.error(error.message);
+    toast.success(t("changeRequested", lang));
+    setChangeFor(null);
+    setChangeText("");
+  };
+
+  const statusColor: Record<string, string> = {
+    pending: "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30",
+    approved: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30",
+    rejected: "bg-red-500/10 text-red-700 dark:text-red-400 border-red-500/30",
+    needs_clarification: "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/30",
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <CardTitle>{t("myReports", lang)}</CardTitle>
+          <Button variant="ghost" size="sm" onClick={onBack}><ArrowLeft className="h-4 w-4" /></Button>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {loading ? (
+          <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin" /></div>
+        ) : reports.length === 0 ? (
+          <p className="text-center text-muted-foreground py-6">{t("noReports", lang)}</p>
+        ) : (
+          reports.map((r) => (
+            <div key={r.id} className="border rounded-lg p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="font-medium">{r.work_date}</div>
+                <Badge variant="outline" className={statusColor[r.status]}>{t(r.status as any, lang)}</Badge>
+              </div>
+              <div className="text-sm text-muted-foreground">
+                {r.check_in} → {r.check_out} · {Number(r.total_hours).toFixed(2)}h
+              </div>
+              <div className="text-sm">{r.workplace_description}</div>
+              {r.workplace_address && <div className="text-xs text-muted-foreground">{r.workplace_address}</div>}
+              {Number(r.total_payment) > 0 && (
+                <div className="text-sm font-medium">{t("totalPayment", lang)}: {Number(r.total_payment).toFixed(2)}</div>
+              )}
+              <Button variant="outline" size="sm" onClick={() => setChangeFor(r)}>
+                {t("requestChange", lang)}
+              </Button>
+            </div>
+          ))
+        )}
+      </CardContent>
+
+      <Dialog open={!!changeFor} onOpenChange={(o) => !o && setChangeFor(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("requestChange", lang)}</DialogTitle>
+          </DialogHeader>
+          <Textarea
+            value={changeText}
+            onChange={(e) => setChangeText(e.target.value)}
+            placeholder={t("changeDescription", lang)}
+            rows={4}
+          />
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setChangeFor(null)}>{t("cancel", lang)}</Button>
+            <Button onClick={sendChange}>{t("send", lang)}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </Card>
+  );
+}

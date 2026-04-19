@@ -18,6 +18,10 @@ const Auth = () => {
   const [submitting, setSubmitting] = useState(false);
   const [forgotMode, setForgotMode] = useState(false);
 
+  // Don't redirect away if we're in a password recovery flow
+  const hash = typeof window !== "undefined" ? window.location.hash : "";
+  const isRecoveryFlow = hash.includes("type=recovery");
+
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
@@ -26,7 +30,7 @@ const Auth = () => {
     );
   }
 
-  if (session) return <Navigate to="/" replace />;
+  if (session && !isRecoveryFlow) return <Navigate to="/" replace />;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

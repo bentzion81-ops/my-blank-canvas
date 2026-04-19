@@ -420,13 +420,25 @@ function ReportForm({
             placeholder={t("workplaceDescHelp", lang)}
           />
         </div>
-        <div className="space-y-2">
-          <Label>{t("address", lang)}</Label>
-          <Input className="h-12" value={address} onChange={(e) => setAddress(e.target.value)} />
-        </div>
-        <div className="space-y-2">
-          <Label className="flex items-center gap-1"><MapPin className="h-4 w-4" /> {t("mapsLink", lang)}</Label>
-          <Input className="h-12" value={mapsLink} onChange={(e) => setMapsLink(e.target.value)} placeholder="https://maps.google.com/..." />
+        <div className="space-y-2 rounded-lg border border-dashed p-3">
+          <p className="text-sm font-medium">{t("locationSection", lang)} *</p>
+          <p className="text-xs text-muted-foreground">{t("locationHelp", lang)}</p>
+          <div className="space-y-2">
+            <Label>{t("address", lang)}</Label>
+            <Input className="h-12" value={address} onChange={(e) => setAddress(e.target.value)} placeholder={t("addressPlaceholder", lang)} />
+          </div>
+          <div className="space-y-2">
+            <Label className="flex items-center gap-1"><MapPin className="h-4 w-4" /> {t("mapsLink", lang)}</Label>
+            <Input className="h-12" value={mapsLink} onChange={(e) => setMapsLink(e.target.value)} placeholder="https://maps.google.com/..." inputMode="url" />
+            <a
+              href="https://www.google.com/maps"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-xs text-primary underline"
+            >
+              <MapPin className="h-3 w-3" /> {t("openMaps", lang)}
+            </a>
+          </div>
         </div>
         <div className="space-y-2">
           <Label>{t("hourlyWage", lang)} *</Label>

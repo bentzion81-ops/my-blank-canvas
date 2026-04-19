@@ -11,6 +11,7 @@ import {
   Settings,
   LogOut,
   ChevronLeft,
+  UserCog,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -39,6 +40,7 @@ const mainItems = [
   { title: "Payroll", url: "/payroll", icon: Wallet },
   { title: "Reports", url: "/reports", icon: BarChart3 },
   { title: "Documents", url: "/documents", icon: FileText },
+  { title: "Replacement Hours", url: "/replacement-hours", icon: UserCog },
 ];
 
 const adminItems = [

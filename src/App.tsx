@@ -21,6 +21,8 @@ import Documents from "./pages/Documents";
 import UserManagement from "./pages/UserManagement";
 import SettingsPage from "./pages/Settings";
 import ResetPassword from "./pages/ResetPassword";
+import ReplacementPortal from "./pages/replacement/ReplacementPortal";
+import ReplacementAdmin from "./pages/replacement/ReplacementAdmin";
 import NotFound from "./pages/NotFound";
 import { Loader2 } from "lucide-react";
 
@@ -49,6 +51,7 @@ const App = () => (
           <Routes>
             <Route path="/auth" element={<Auth />} />
             <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/report" element={<ReplacementPortal />} />
             <Route
               element={
                 <ProtectedRoute>
@@ -70,6 +73,7 @@ const App = () => (
               <Route path="/payroll" element={<Payroll />} />
               <Route path="/reports" element={<Reports />} />
               <Route path="/documents" element={<Documents />} />
+              <Route path="/replacement-hours" element={<ReplacementAdmin />} />
               <Route path="/users" element={<UserManagement />} />
               <Route path="/settings" element={<SettingsPage />} />
             </Route>

@@ -362,6 +362,7 @@ function ReportForm({
   const submit = async () => {
     if (!desc.trim()) return toast.error(t("required", lang));
     if (!wage.trim() || wageNum <= 0) return toast.error(t("required", lang));
+    if (!address.trim() && !mapsLink.trim()) return toast.error(t("locationRequired", lang));
     setLoading(true);
     const { error } = await supabase.from("replacement_reports").insert({
       worker_id: worker.id,

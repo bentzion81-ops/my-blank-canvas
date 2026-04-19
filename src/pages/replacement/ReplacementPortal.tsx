@@ -428,8 +428,8 @@ function ReportForm({
           <Input className="h-12" value={mapsLink} onChange={(e) => setMapsLink(e.target.value)} placeholder="https://maps.google.com/..." />
         </div>
         <div className="space-y-2">
-          <Label>{t("hourlyWage", lang)}</Label>
-          <Input type="number" className="h-12" value={wage} onChange={(e) => setWage(e.target.value)} />
+          <Label>{t("hourlyWage", lang)} *</Label>
+          <Input type="number" inputMode="decimal" min="0" step="0.01" className="h-12" value={wage} onChange={(e) => setWage(e.target.value)} required />
         </div>
         {wageNum > 0 && (
           <div className="text-sm text-muted-foreground">

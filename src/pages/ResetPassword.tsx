@@ -98,6 +98,7 @@ const ResetPassword = () => {
             <Button className="w-full" onClick={() => navigate("/auth")}>
               בקש קישור איפוס חדש
             </Button>
+          </CardContent>
         </Card>
       </div>
     );

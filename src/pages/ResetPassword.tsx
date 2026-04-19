@@ -80,14 +80,23 @@ const ResetPassword = () => {
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-xl bg-primary text-primary-foreground">
               <Building2 className="h-7 w-7" />
             </div>
-            <CardTitle className="text-2xl font-bold">Invalid Link</CardTitle>
-            <CardDescription>
-              This password reset link is invalid or has expired. Please request a new one.
+            <CardTitle className="text-2xl font-bold">קישור לא תקין או שפג תוקפו</CardTitle>
+            <CardDescription className="text-right space-y-2">
+              <p>הקישור אינו תקין או שפג תוקפו.</p>
+              <p className="font-semibold pt-2">טיפ חשוב:</p>
+              <p>אם לחצת על הקישור מהמייל ולא עבד, נסה זאת:</p>
+              <ol className="list-decimal list-inside text-sm space-y-1 text-right">
+                <li>פתח את המייל שוב</li>
+                <li>לחץ לחיצה ימנית על הקישור והעתק אותו</li>
+                <li>הדבק אותו ישירות בשורת הכתובת של הדפדפן</li>
+                <li>לחץ Enter</li>
+              </ol>
+              <p className="text-xs pt-2">סורקי מייל (כמו של Gmail) עלולים "ללחוץ" על הקישור באופן אוטומטי ולבטלו לפניך. הדבקה ישירה פותרת זאת.</p>
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-2">
             <Button className="w-full" onClick={() => navigate("/auth")}>
-              Back to Sign In
+              בקש קישור איפוס חדש
             </Button>
           </CardContent>
         </Card>

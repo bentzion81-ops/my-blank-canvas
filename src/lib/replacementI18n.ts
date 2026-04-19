@@ -30,7 +30,7 @@ const dict: Dict = {
   workplaceDescHelp: { he: "למשל: סופרמרקט / משרד / בניין", en: "e.g. supermarket / office / building", si: "උදා: සුපිරි වෙළඳසැල / කාර්යාලය" },
   address: { he: "כתובת", en: "Address", si: "ලිපිනය" },
   mapsLink: { he: "קישור Google Maps (אופציונלי)", en: "Google Maps link (optional)", si: "Google Maps සබැඳිය" },
-  hourlyWage: { he: "שכר לשעה (אופציונלי)", en: "Hourly wage (optional)", si: "පැයකට වේතනය" },
+  hourlyWage: { he: "שכר לשעה", en: "Hourly wage", si: "පැයකට වේතනය" },
   notes: { he: "הערות", en: "Notes", si: "සටහන්" },
   submit: { he: "שלח דיווח", en: "Submit report", si: "ඉදිරිපත් කරන්න" },
   submitted: { he: "הדיווח נשלח! ממתין לאישור הנהלה.", en: "Submitted! Waiting for manager approval.", si: "ඉදිරිපත් කරන ලදී!" },

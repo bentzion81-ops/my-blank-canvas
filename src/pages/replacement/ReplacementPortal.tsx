@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { toast } from "sonner";
 import { LANGS, Lang, dirFor, t } from "@/lib/replacementI18n";
 import { Loader2, MapPin, Plus, ArrowLeft, LogOut } from "lucide-react";
+import urbanLinkLogo from "@/assets/urbanlink-logo.jpeg";
 
 type Worker = {
   id: string;
@@ -151,7 +152,12 @@ function LangPicker({ onPick }: { onPick: (l: Lang) => void }) {
   return (
     <div className="min-h-screen flex items-center justify-center bg-muted/30 p-4">
       <Card className="w-full max-w-md">
-        <CardHeader>
+        <CardHeader className="flex flex-col items-center gap-4">
+          <img
+            src={urbanLinkLogo}
+            alt="Urban Link Manpower"
+            className="h-32 w-32 rounded-2xl object-cover shadow-md"
+          />
           <CardTitle className="text-center">Choose language / בחר שפה</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">

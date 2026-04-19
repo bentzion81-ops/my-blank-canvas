@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Loader2, MapPin, ChevronLeft, ChevronRight, ExternalLink, Copy } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { getShareableAppOrigin } from "@/lib/utils";
 
 type Report = {
   id: string;
@@ -60,7 +61,7 @@ const monthEnd = (d: Date) => new Date(d.getFullYear(), d.getMonth() + 1, 0);
 const fmtMonth = (d: Date) => d.toLocaleDateString("en-US", { month: "long", year: "numeric" });
 
 export default function ReplacementAdmin() {
-  const portalUrl = `${window.location.origin}/report`;
+  const portalUrl = `${getShareableAppOrigin()}/report`;
   return (
     <div className="p-6 space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">

@@ -17,17 +17,25 @@ const ResetPassword = () => {
   const [checking, setChecking] = useState(true);
 
   useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "PASSWORD_RECOVERY" || event === "SIGNED_IN") {
+        setIsRecovery(true);
+        setChecking(false);
+      }
+    });
+
     const hashParams = new URLSearchParams(window.location.hash.substring(1));
     const type = hashParams.get("type");
     if (type === "recovery") {
       setIsRecovery(true);
     }
-    setChecking(false);
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "PASSWORD_RECOVERY") {
+    // Fallback: check if there's an active session (user came via /verify redirect)
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
         setIsRecovery(true);
       }
+      setChecking(false);
     });
 
     return () => subscription.unsubscribe();

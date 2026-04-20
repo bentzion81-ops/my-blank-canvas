@@ -612,6 +612,7 @@ export type Database = {
           israeli_phone: string | null
           last_name: string
           loan_deduction: number | null
+          meckano_employee_id: string | null
           medical_insurance: number | null
           notes: string | null
           other_deductions: number | null
@@ -639,6 +640,7 @@ export type Database = {
           israeli_phone?: string | null
           last_name: string
           loan_deduction?: number | null
+          meckano_employee_id?: string | null
           medical_insurance?: number | null
           notes?: string | null
           other_deductions?: number | null
@@ -666,6 +668,7 @@ export type Database = {
           israeli_phone?: string | null
           last_name?: string
           loan_deduction?: number | null
+          meckano_employee_id?: string | null
           medical_insurance?: number | null
           notes?: string | null
           other_deductions?: number | null
@@ -802,6 +805,48 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      meckano_attendance_raw: {
+        Row: {
+          address: string | null
+          created_at: string
+          employee_id: string | null
+          event_timestamp: string
+          event_type: string | null
+          id: string
+          latitude: number | null
+          longitude: number | null
+          meckano_employee_id: string
+          meckano_report_id: string
+          raw_payload: Json
+        }
+        Insert: {
+          address?: string | null
+          created_at?: string
+          employee_id?: string | null
+          event_timestamp: string
+          event_type?: string | null
+          id?: string
+          latitude?: number | null
+          longitude?: number | null
+          meckano_employee_id: string
+          meckano_report_id: string
+          raw_payload?: Json
+        }
+        Update: {
+          address?: string | null
+          created_at?: string
+          employee_id?: string | null
+          event_timestamp?: string
+          event_type?: string | null
+          id?: string
+          latitude?: number | null
+          longitude?: number | null
+          meckano_employee_id?: string
+          meckano_report_id?: string
+          raw_payload?: Json
+        }
+        Relationships: []
       }
       notifications: {
         Row: {
@@ -1306,6 +1351,48 @@ export type Database = {
           key?: string
           updated_at?: string
           value?: Json
+        }
+        Relationships: []
+      }
+      sync_logs: {
+        Row: {
+          error_message: string | null
+          finished_at: string | null
+          id: string
+          metadata: Json
+          records_count: number
+          source: string
+          started_at: string
+          status: string
+          sync_type: string
+          trigger_kind: string
+          triggered_by: string | null
+        }
+        Insert: {
+          error_message?: string | null
+          finished_at?: string | null
+          id?: string
+          metadata?: Json
+          records_count?: number
+          source?: string
+          started_at?: string
+          status?: string
+          sync_type: string
+          trigger_kind?: string
+          triggered_by?: string | null
+        }
+        Update: {
+          error_message?: string | null
+          finished_at?: string | null
+          id?: string
+          metadata?: Json
+          records_count?: number
+          source?: string
+          started_at?: string
+          status?: string
+          sync_type?: string
+          trigger_kind?: string
+          triggered_by?: string | null
         }
         Relationships: []
       }

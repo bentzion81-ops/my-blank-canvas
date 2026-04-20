@@ -34,6 +34,7 @@ const defaultForm = {
   notes: "",
   passport_expiration: "",
   visa_expiration: "",
+  meckano_employee_id: "",
 };
 
 const EmployeeForm = () => {

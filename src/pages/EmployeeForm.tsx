@@ -101,6 +101,7 @@ const EmployeeForm = () => {
     other_deductions: Number(form.other_deductions) || 0,
     passport_expiration: form.passport_expiration || null,
     visa_expiration: form.visa_expiration || null,
+    meckano_employee_id: form.meckano_employee_id?.trim() || null,
   });
 
   const handleSave = async () => {

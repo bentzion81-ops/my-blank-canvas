@@ -42,7 +42,11 @@ const SettingsPage = () => {
             </Card>
           </TabsContent>
 
-          {["attendance", "calendar", "payroll", "billing", "notifications"].map((tab) => (
+          <TabsContent value="attendance">
+            <MeckanoSyncPanel />
+          </TabsContent>
+
+          {["calendar", "payroll", "billing", "notifications"].map((tab) => (
             <TabsContent key={tab} value={tab}>
               <Card className="border-0 shadow-sm">
                 <CardContent className="py-12 text-center text-muted-foreground">

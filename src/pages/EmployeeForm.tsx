@@ -79,6 +79,7 @@ const EmployeeForm = () => {
         notes: existing.notes || "",
         passport_expiration: existing.passport_expiration || "",
         visa_expiration: existing.visa_expiration || "",
+        meckano_employee_id: (existing as any).meckano_employee_id || "",
       });
     }
   }, [existing]);

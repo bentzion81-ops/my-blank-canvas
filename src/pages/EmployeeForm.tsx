@@ -34,6 +34,7 @@ const defaultForm = {
   notes: "",
   passport_expiration: "",
   visa_expiration: "",
+  meckano_employee_id: "",
 };
 
 const EmployeeForm = () => {
@@ -78,6 +79,7 @@ const EmployeeForm = () => {
         notes: existing.notes || "",
         passport_expiration: existing.passport_expiration || "",
         visa_expiration: existing.visa_expiration || "",
+        meckano_employee_id: (existing as any).meckano_employee_id || "",
       });
     }
   }, [existing]);
@@ -99,6 +101,7 @@ const EmployeeForm = () => {
     other_deductions: Number(form.other_deductions) || 0,
     passport_expiration: form.passport_expiration || null,
     visa_expiration: form.visa_expiration || null,
+    meckano_employee_id: form.meckano_employee_id?.trim() || null,
   });
 
   const handleSave = async () => {
@@ -211,6 +214,17 @@ const EmployeeForm = () => {
             <div className="space-y-1.5">
               <Label>Hourly Wage (₪)</Label>
               <Input type="number" value={form.hourly_wage} onChange={(e) => update("hourly_wage", e.target.value)} />
+            </div>
+            <div className="space-y-1.5 md:col-span-2">
+              <Label>Meckano Employee ID</Label>
+              <Input
+                value={form.meckano_employee_id}
+                onChange={(e) => update("meckano_employee_id", e.target.value)}
+                placeholder="e.g. 12345 (from Meckano)"
+              />
+              <p className="text-xs text-muted-foreground">
+                Used to link this employee to attendance reports synced from Meckano.
+              </p>
             </div>
           </CardContent>
         </Card>

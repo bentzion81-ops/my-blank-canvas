@@ -4,6 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { MeckanoSyncPanel } from "@/components/settings/MeckanoSyncPanel";
 
 const SettingsPage = () => {
   return (
@@ -41,7 +42,11 @@ const SettingsPage = () => {
             </Card>
           </TabsContent>
 
-          {["attendance", "calendar", "payroll", "billing", "notifications"].map((tab) => (
+          <TabsContent value="attendance">
+            <MeckanoSyncPanel />
+          </TabsContent>
+
+          {["calendar", "payroll", "billing", "notifications"].map((tab) => (
             <TabsContent key={tab} value={tab}>
               <Card className="border-0 shadow-sm">
                 <CardContent className="py-12 text-center text-muted-foreground">

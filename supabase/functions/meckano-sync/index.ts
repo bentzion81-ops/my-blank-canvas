@@ -68,9 +68,9 @@ Deno.serve(async (req) => {
       global: { headers: { Authorization: authHeader } },
     });
     const token = authHeader.replace("Bearer ", "");
-    const { data, error } = await userClient.auth.getClaims(token);
-    if (error || !data?.claims) return jres({ error: "Unauthorized" }, 401);
-    userId = data.claims.sub as string;
+    const { data, error } = await userClient.auth.getUser(token);
+    if (error || !data?.user) return jres({ error: "Unauthorized" }, 401);
+    userId = data.user.id;
   }
 
   const admin = createClient(SUPABASE_URL, SERVICE_ROLE);

@@ -215,6 +215,17 @@ const EmployeeForm = () => {
               <Label>Hourly Wage (₪)</Label>
               <Input type="number" value={form.hourly_wage} onChange={(e) => update("hourly_wage", e.target.value)} />
             </div>
+            <div className="space-y-1.5 md:col-span-2">
+              <Label>Meckano Employee ID</Label>
+              <Input
+                value={form.meckano_employee_id}
+                onChange={(e) => update("meckano_employee_id", e.target.value)}
+                placeholder="e.g. 12345 (from Meckano)"
+              />
+              <p className="text-xs text-muted-foreground">
+                Used to link this employee to attendance reports synced from Meckano.
+              </p>
+            </div>
           </CardContent>
         </Card>
 

@@ -358,20 +358,20 @@ export const AttendanceAlertsPanel = ({
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* LATE */}
+        {/* MISSING REPORTS (treated as late until they become absences) */}
         <div>
           <div className="flex items-center gap-2 mb-2">
-            <Clock className="h-4 w-4 text-warning" />
-            <h3 className="text-sm font-semibold">איחורים</h3>
+            <AlertCircle className="h-4 w-4 text-warning" />
+            <h3 className="text-sm font-semibold">איחורים (לא דווחו)</h3>
             <Badge variant="outline" className="bg-warning/10 text-warning border-warning/20">
-              {lateEntries.length}
+              {missingEntries.length}
             </Badge>
           </div>
-          {lateGroups.length === 0 ? (
+          {missingGroups.length === 0 ? (
             <p className="text-xs text-muted-foreground py-2">אין איחורים בטווח זה</p>
           ) : (
             <div className="space-y-2">
-              {lateGroups.map(([client, items]) => (
+              {missingGroups.map(([client, items]) => (
                 <div key={client} className="border rounded-md overflow-hidden">
                   <div className="bg-muted/40 px-3 py-1.5 text-xs font-semibold flex items-center justify-between">
                     <span>{client}</span>
@@ -383,8 +383,7 @@ export const AttendanceAlertsPanel = ({
                         <div className="flex-1 min-w-0">
                           <div className="font-medium truncate">{e.name}</div>
                           <div className="text-muted-foreground text-[11px]">
-                            {format(new Date(e.date), "dd/MM/yyyy")} ·{" "}
-                            {e.kind === "in" ? "כניסה" : "יציאה"}: {e.actual}{" "}
+                            {format(new Date(e.date), "dd/MM/yyyy")} · לא דווחה כניסה{" "}
                             <span className="opacity-70">(צפוי {e.expected})</span>
                           </div>
                         </div>
@@ -392,8 +391,7 @@ export const AttendanceAlertsPanel = ({
                           variant="outline"
                           className="bg-warning/10 text-warning border-warning/20 whitespace-nowrap"
                         >
-                          {e.diff > 0 ? "+" : ""}
-                          {Math.round(e.diff)} דק׳
+                          +{Math.round(e.minutesPast)} דק׳
                         </Badge>
                       </div>
                     ))}

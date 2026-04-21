@@ -205,6 +205,8 @@ const Attendance = () => {
         scheduled: "—",
         checkIn: null,
         checkOut: null,
+        checkInRaw: null,
+        checkOutRaw: null,
         hours: null,
         status: "absent",
         absence: a,

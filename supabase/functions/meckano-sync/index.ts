@@ -490,6 +490,22 @@ Deno.serve(async (req) => {
         results[`REST ${p}`] = { error: String(e) };
       }
     }
+    for (const p of restPutProbes) {
+      try {
+        const r = await meckanoFetch(p.path, { method: "PUT", body: JSON.stringify(p.body) });
+        results[`REST PUT ${p.path}`] = {
+          status: r.status,
+          ok: r.ok,
+          sample: typeof r.data === "string"
+            ? r.data.slice(0, 400)
+            : Array.isArray(r.data)
+              ? { type: "array", length: r.data.length, first: r.data[0] }
+              : { keys: Object.keys(r.data ?? {}), first: Array.isArray((r.data as any)?.data) ? (r.data as any).data[0] : (r.data as any)?.data },
+        };
+      } catch (e) {
+        results[`REST PUT ${p.path}`] = { error: String(e) };
+      }
+    }
     // Also probe documented API
     if (MECKANO_USERNAME && MECKANO_PASSWORD) {
       const apiProbes = [

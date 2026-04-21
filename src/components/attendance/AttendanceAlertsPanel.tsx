@@ -11,7 +11,7 @@ import {
   ChevronRight,
   CalendarIcon,
   AlertTriangle,
-  Clock,
+  AlertCircle,
   UserX,
 } from "lucide-react";
 import {

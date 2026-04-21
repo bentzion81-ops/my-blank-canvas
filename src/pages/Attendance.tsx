@@ -67,6 +67,18 @@ const Attendance = () => {
     },
   });
 
+  const { data: absences } = useQuery({
+    queryKey: ["attendance-absences", fromStr, toStr],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("attendance_absences" as any)
+        .select("*, employees(first_name, last_name)")
+        .gte("date", fromStr)
+        .lte("date", toStr);
+      return (data as any[]) || [];
+    },
+  });
+
   // Build merged rows: for single-day view, show scheduled vs actual. For range/month, show actual records only.
   const rows = useMemo(() => {
     if (isSingleDay) {

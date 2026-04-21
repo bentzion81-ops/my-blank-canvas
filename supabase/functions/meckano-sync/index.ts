@@ -294,87 +294,100 @@ async function syncEmployees(isCron: boolean, userId: string | null) {
   }
 }
 
-// ---------- ATTENDANCE (per-day loop using PUT /rest/time-reports) ----------
-// Meckano's /time-reports returns AGGREGATED hours per employee for the requested
-// period — there is NO public endpoint that returns daily check-in/out timestamps.
-// Workaround: call it once per day so we get one row per (employee, day) with
-// the regular + overtime hours worked that day.
+// ---------- ATTENDANCE (real punches via GET /rest/time-entry?start=&end=) ----------
+// Returns raw clock events (each entry: {id, userId, ts, isOut, dateStr, timeStr}).
+// We pair them into shifts (in→out) per employee per day to get real check-in/out times.
 async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userId: string | null) {
   const logId = await startLog("attendance", isCron, userId, { from: dFrom, to: dTo });
   try {
     if (!MECKANO_KEY) throw new Error("MECKANO_API_KEY is not configured");
 
-    // Inclusive day list
-    const days: string[] = [];
-    {
-      const start = new Date(`${dFrom}T00:00:00Z`);
-      const end = new Date(`${dTo}T00:00:00Z`);
-      for (const d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
-        days.push(d.toISOString().slice(0, 10));
-      }
-    }
+    const startTs = Math.floor(new Date(`${dFrom}T00:00:00`).getTime() / 1000);
+    const endTs = Math.floor(new Date(`${dTo}T23:59:59`).getTime() / 1000);
 
-    type DayRow = {
-      meckEmp: string; empName: string; date: string;
-      regular: number; overtime: number; total: number; raw: any;
-    };
-    const allRows: DayRow[] = [];
-    let httpCalls = 0;
-    const errors: any[] = [];
+    const r = await meckanoFetch(`/time-entry?start=${startTs}&end=${endTs}`);
+    if (!r.ok) throw new Error(`/time-entry returned ${r.status}: ${r.raw.slice(0, 300)}`);
+    const entries: any[] = Array.isArray(r.data)
+      ? r.data
+      : ((r.data as any)?.data ?? []);
 
-    for (const day of days) {
-      const fromTs = Math.floor(new Date(`${day}T00:00:00`).getTime() / 1000);
-      const toTs = Math.floor(new Date(`${day}T23:59:59`).getTime() / 1000);
-      const r = await meckanoFetch("/time-reports", {
-        method: "PUT",
-        body: JSON.stringify({ fromDate: fromTs, toDate: toTs, fetchInactive: true }),
-      });
-      httpCalls++;
-      if (!r.ok) { errors.push({ day, status: r.status }); continue; }
-      const list: any[] = Array.isArray(r.data) ? r.data : ((r.data as any)?.data ?? []);
-      for (const e of list) {
-        const meckEmp = String(e.userId ?? e.employeeId ?? e.id ?? "");
-        if (!meckEmp) continue;
-        const reg = Number(e.regular ?? 0);
-        const ot = Number(e.overtime ?? 0);
-        const tot = Number(e.total ?? reg + ot);
-        if (tot <= 0) continue; // skip days the employee didn't work
-        allRows.push({ meckEmp, empName: String(e.userName ?? ""), date: day, regular: reg, overtime: ot, total: tot, raw: e });
-      }
-    }
-
-    // Persist raw rows
-    const rawRows = allRows.map((s) => ({
-      meckano_report_id: `${s.meckEmp}-${s.date}`,
-      meckano_employee_id: s.meckEmp,
-      event_timestamp: new Date(`${s.date}T00:00:00Z`).toISOString(),
-      event_type: "day_summary",
-      latitude: null, longitude: null, address: null,
-      raw_payload: s.raw,
-    }));
+    // Persist raw punches
+    const rawRows = entries
+      .filter((e: any) => e.id && e.userId && e.ts)
+      .map((e: any) => ({
+        meckano_report_id: String(e.id),
+        meckano_employee_id: String(e.userId),
+        event_timestamp: new Date(Number(e.ts) * 1000).toISOString(),
+        event_type: e.isOut ? "out" : "in",
+        latitude: e.lat ?? null,
+        longitude: e.lng ?? null,
+        address: e.address ?? null,
+        raw_payload: e,
+      }));
     if (rawRows.length) {
       await admin.from("meckano_attendance_raw").upsert(rawRows, { onConflict: "meckano_report_id" });
     }
 
+    // Group punches by employee + date, sort by ts, pair in→out into shifts
+    type Punch = { ts: number; isOut: boolean };
+    const byEmpDay = new Map<string, Map<string, Punch[]>>();
+    for (const e of entries) {
+      const meckEmp = String(e.userId ?? "");
+      const ts = Number(e.ts ?? 0);
+      if (!meckEmp || !ts) continue;
+      const date = new Date(ts * 1000).toISOString().slice(0, 10);
+      if (!byEmpDay.has(meckEmp)) byEmpDay.set(meckEmp, new Map());
+      const dayMap = byEmpDay.get(meckEmp)!;
+      if (!dayMap.has(date)) dayMap.set(date, []);
+      dayMap.get(date)!.push({ ts, isOut: !!e.isOut });
+    }
+
+    type Shift = { meckEmp: string; date: string; checkIn: Date; checkOut: Date | null; hours: number };
+    const shifts: Shift[] = [];
+    for (const [meckEmp, dayMap] of byEmpDay) {
+      for (const [date, punches] of dayMap) {
+        punches.sort((a, b) => a.ts - b.ts);
+        let openIn: number | null = null;
+        for (const p of punches) {
+          if (!p.isOut) {
+            if (openIn !== null) {
+              // unmatched IN → record as zero-hour shift, then start new
+              shifts.push({ meckEmp, date, checkIn: new Date(openIn * 1000), checkOut: null, hours: 0 });
+            }
+            openIn = p.ts;
+          } else {
+            if (openIn !== null) {
+              const hours = (p.ts - openIn) / 3600;
+              shifts.push({ meckEmp, date, checkIn: new Date(openIn * 1000), checkOut: new Date(p.ts * 1000), hours });
+              openIn = null;
+            }
+            // OUT without IN → ignore
+          }
+        }
+        if (openIn !== null) {
+          shifts.push({ meckEmp, date, checkIn: new Date(openIn * 1000), checkOut: null, hours: 0 });
+        }
+      }
+    }
+
     // Map Meckano employees → internal UUIDs
-    const meckIds = Array.from(new Set(allRows.map((s) => s.meckEmp)));
-    const { data: emps } = await admin
-      .from("employees")
-      .select("id, meckano_employee_id")
-      .in("meckano_employee_id", meckIds);
+    const meckIds = Array.from(byEmpDay.keys());
+    const { data: emps } = meckIds.length
+      ? await admin.from("employees").select("id, meckano_employee_id").in("meckano_employee_id", meckIds)
+      : { data: [] };
     const empMap = new Map((emps ?? []).map((e: any) => [String(e.meckano_employee_id), e.id]));
 
     const batchIns = await admin.from("attendance_import_batches").insert({
       source: "meckano",
       status: "completed",
-      record_count: allRows.length,
-      notes: `Daily sync ${dFrom} → ${dTo} (${httpCalls} API calls)`,
+      record_count: shifts.length,
+      notes: `Punches sync ${dFrom} → ${dTo} (${entries.length} raw events, ${shifts.length} shifts)`,
     }).select("id").single();
     const batchId = batchIns.data?.id;
 
-    // Wipe existing meckano daily records in window for the matched employees
+    // Wipe existing meckano records in window for matched employees
     const matchedEmpIds = Array.from(new Set(
-      allRows.map((r) => empMap.get(r.meckEmp)).filter(Boolean) as string[],
+      shifts.map((s) => empMap.get(s.meckEmp)).filter(Boolean) as string[],
     ));
     if (matchedEmpIds.length) {
       await admin.from("attendance_records")
@@ -388,18 +401,18 @@ async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userI
     let stored = 0;
     let unmatched = 0;
     const toInsert: any[] = [];
-    for (const s of allRows) {
+    for (const s of shifts) {
       const empId = empMap.get(s.meckEmp);
       if (!empId) { unmatched++; continue; }
       toInsert.push({
         employee_id: empId,
         date: s.date,
-        check_in: null,
-        check_out: null,
-        hours_worked: s.regular + s.overtime,
+        check_in: s.checkIn.toISOString(),
+        check_out: s.checkOut ? s.checkOut.toISOString() : null,
+        hours_worked: Number(s.hours.toFixed(2)),
         source: "meckano",
         batch_id: batchId,
-        notes: s.overtime > 0 ? `Regular ${s.regular}h • OT ${s.overtime}h` : null,
+        notes: s.checkOut ? null : "Missing check-out",
       });
     }
     if (toInsert.length) {
@@ -416,13 +429,13 @@ async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userI
       records_count: stored,
       metadata: {
         from: dFrom, to: dTo,
-        days: days.length, http_calls: httpCalls,
-        rows_fetched: allRows.length, stored, unmatched,
+        raw_events: entries.length,
+        shifts: shifts.length,
+        stored, unmatched,
         batch_id: batchId,
-        errors: errors.slice(0, 10),
       },
     });
-    return { ok: true, days: days.length, fetched: allRows.length, stored, unmatched, errors_count: errors.length };
+    return { ok: true, raw_events: entries.length, shifts: shifts.length, stored, unmatched };
   } catch (e) {
     await endLog(logId, { status: "error", error_message: String(e) });
     return { ok: false, error: String(e) };

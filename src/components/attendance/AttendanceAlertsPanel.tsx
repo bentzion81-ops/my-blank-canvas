@@ -161,59 +161,65 @@ export const AttendanceAlertsPanel = ({
     return m;
   }, [assignments]);
 
-  // Build late entries
-  type LateEntry = {
+  // Build "missing report" entries: scheduled to work today, expected check-in time passed,
+  // but no attendance record AND no absence record yet. Once they report (even late) — alert clears.
+  type MissingEntry = {
     id: string;
     name: string;
     client: string;
     date: string;
-    kind: "in" | "out";
-    actual: string;
     expected: string;
-    diff: number;
+    minutesPast: number;
   };
 
-  const lateEntries = useMemo<LateEntry[]>(() => {
-    const out: LateEntry[] = [];
+  const missingEntries = useMemo<MissingEntry[]>(() => {
+    const out: MissingEntry[] = [];
+    const recordKey = new Set(records.map((r: any) => `${r.employee_id}-${r.date}`));
+    const absenceKey = new Set(absences.map((a: any) => `${a.employee_id}-${a.date}`));
+
+    const dates: string[] = [];
+    for (let d = new Date(fromDate); d <= toDate; d = addDays(d, 1)) {
+      dates.push(format(d, "yyyy-MM-dd"));
+    }
+
+    const nameById = new Map<string, string>();
     records.forEach((r: any) => {
-      const dt = dayTypeFor(new Date(r.date));
-      const exp = expectedMap.get(r.employee_id)?.[dt];
-      if (!exp || !exp.working) return;
-      const name = `${r.employees?.first_name || ""} ${r.employees?.last_name || ""}`.trim() || "—";
-      const client = r.clients?.name || clientByEmployee.get(r.employee_id) || "—";
-      if (r.check_in && exp.in) {
-        const d = diffMinutes(r.check_in, exp.in);
-        if (Math.abs(d) >= 20) {
-          out.push({
-            id: `${r.id}-in`,
-            name,
-            client,
-            date: r.date,
-            kind: "in",
-            actual: format(new Date(r.check_in), "HH:mm"),
-            expected: exp.in.slice(0, 5),
-            diff: d,
-          });
-        }
-      }
-      if (r.check_out && exp.out) {
-        const d = diffMinutes(r.check_out, exp.out);
-        if (Math.abs(d) >= 20) {
-          out.push({
-            id: `${r.id}-out`,
-            name,
-            client,
-            date: r.date,
-            kind: "out",
-            actual: format(new Date(r.check_out), "HH:mm"),
-            expected: exp.out.slice(0, 5),
-            diff: d,
-          });
-        }
-      }
+      const n = `${r.employees?.first_name || ""} ${r.employees?.last_name || ""}`.trim();
+      if (n) nameById.set(r.employee_id, n);
+    });
+    absences.forEach((a: any) => {
+      const n = `${a.employees?.first_name || ""} ${a.employees?.last_name || ""}`.trim();
+      if (n) nameById.set(a.employee_id, n);
+    });
+
+    expectedMap.forEach((byDay, employeeId) => {
+      dates.forEach((dateStr) => {
+        const dt = dayTypeFor(new Date(dateStr));
+        const exp = byDay[dt];
+        if (!exp || !exp.working || !exp.in) return;
+        const k = `${employeeId}-${dateStr}`;
+        if (recordKey.has(k) || absenceKey.has(k)) return;
+
+        // Only alert if today in Israel & expected time already passed.
+        // Past dates without report should already be auto-flipped to absences.
+        const nowMin = minutesNowInIsraelIfToday(dateStr);
+        if (nowMin === null) return;
+        const [eh, em] = exp.in.split(":").map(Number);
+        const expMin = eh * 60 + em;
+        if (nowMin < expMin) return;
+
+        out.push({
+          id: `miss-${employeeId}-${dateStr}`,
+          name: nameById.get(employeeId) || "—",
+          client: clientByEmployee.get(employeeId) || "—",
+          date: dateStr,
+          expected: exp.in.slice(0, 5),
+          minutesPast: nowMin - expMin,
+        });
+      });
     });
     return out;
-  }, [records, expectedMap, clientByEmployee]);
+  }, [records, absences, expectedMap, clientByEmployee, fromDate, toDate]);
 
   type AbsenceEntry = {
     id: string;

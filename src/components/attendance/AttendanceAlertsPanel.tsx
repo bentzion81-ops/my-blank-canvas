@@ -254,7 +254,7 @@ export const AttendanceAlertsPanel = ({
     return Array.from(m.entries()).sort((a, b) => a[0].localeCompare(b[0], "he"));
   };
 
-  const lateGroups = groupByClient(lateEntries);
+  const missingGroups = groupByClient(missingEntries);
   const absenceGroups = groupByClient(absenceEntries);
 
   const isToday = isSameDay(selectedDay, new Date());

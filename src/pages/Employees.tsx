@@ -19,18 +19,32 @@ const Employees = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("employees")
-        .select("*, employee_client_assignments(client_id, clients(name))")
+        .select("*, employee_client_assignments(is_primary, end_date, client_id, clients(name))")
         .order("first_name");
       if (error) throw error;
       return data;
     },
   });
 
-  const filtered = employees.filter((e: any) =>
-    `${e.first_name} ${e.last_name} ${e.passport_number || ""} ${e.israeli_phone || ""}`
-      .toLowerCase()
-      .includes(search.toLowerCase())
-  );
+  const getClientName = (e: any): string => {
+    const assignments = e.employee_client_assignments ?? [];
+    const active = assignments.filter((a: any) => a.clients && !a.end_date);
+    const primary = active.find((a: any) => a.is_primary) ?? active[0] ?? assignments.find((a: any) => a.clients);
+    return primary?.clients?.name ?? "";
+  };
+
+  const filtered = employees
+    .filter((e: any) =>
+      `${e.first_name} ${e.last_name} ${e.passport_number || ""} ${e.israeli_phone || ""} ${getClientName(e)}`
+        .toLowerCase()
+        .includes(search.toLowerCase()),
+    )
+    .sort((a: any, b: any) => {
+      const ca = getClientName(a) || "\uffff";
+      const cb = getClientName(b) || "\uffff";
+      if (ca !== cb) return ca.localeCompare(cb);
+      return `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`);
+    });
 
   return (
     <div className="flex flex-col">
@@ -56,10 +70,10 @@ const Employees = () => {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>Client</TableHead>
                   <TableHead>Name</TableHead>
                   <TableHead className="hidden md:table-cell">Phone</TableHead>
                   <TableHead className="hidden md:table-cell">Citizenship</TableHead>
-                  <TableHead className="hidden lg:table-cell">Client</TableHead>
                   <TableHead className="hidden lg:table-cell">Type</TableHead>
                   <TableHead>Status</TableHead>
                 </TableRow>
@@ -79,35 +93,44 @@ const Employees = () => {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filtered.map((emp: any) => {
-                    const primaryAssignment = emp.employee_client_assignments?.find((a: any) => a.clients);
-                    return (
-                      <TableRow
-                        key={emp.id}
-                        className="cursor-pointer"
-                        onClick={() => navigate(`/employees/${emp.id}`)}
-                      >
-                        <TableCell className="font-medium">
-                          {emp.first_name} {emp.last_name}
-                        </TableCell>
-                        <TableCell className="hidden md:table-cell">
-                          {emp.israeli_phone || emp.foreign_phone || "—"}
-                        </TableCell>
-                        <TableCell className="hidden md:table-cell">
-                          {emp.citizenship || "—"}
-                        </TableCell>
-                        <TableCell className="hidden lg:table-cell">
-                          {primaryAssignment?.clients?.name || "Unassigned"}
-                        </TableCell>
-                        <TableCell className="hidden lg:table-cell capitalize">
-                          {emp.employee_type}
-                        </TableCell>
-                        <TableCell>
-                          <StatusBadge status={emp.status} />
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
+                  (() => {
+                    const rows: JSX.Element[] = [];
+                    let lastClient: string | null = null;
+                    filtered.forEach((emp: any) => {
+                      const clientName = getClientName(emp) || "Unassigned";
+                      if (clientName !== lastClient) {
+                        rows.push(
+                          <TableRow key={`grp-${clientName}`} className="bg-muted/40 hover:bg-muted/40">
+                            <TableCell colSpan={6} className="py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                              {clientName}
+                            </TableCell>
+                          </TableRow>,
+                        );
+                        lastClient = clientName;
+                      }
+                      rows.push(
+                        <TableRow
+                          key={emp.id}
+                          className="cursor-pointer"
+                          onClick={() => navigate(`/employees/${emp.id}`)}
+                        >
+                          <TableCell className="text-muted-foreground text-sm">{clientName}</TableCell>
+                          <TableCell className="font-medium">
+                            {emp.first_name} {emp.last_name}
+                          </TableCell>
+                          <TableCell className="hidden md:table-cell">
+                            {emp.israeli_phone || emp.foreign_phone || "—"}
+                          </TableCell>
+                          <TableCell className="hidden md:table-cell">{emp.citizenship || "—"}</TableCell>
+                          <TableCell className="hidden lg:table-cell capitalize">{emp.employee_type}</TableCell>
+                          <TableCell>
+                            <StatusBadge status={emp.status} />
+                          </TableCell>
+                        </TableRow>,
+                      );
+                    });
+                    return rows;
+                  })()
                 )}
               </TableBody>
             </Table>

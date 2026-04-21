@@ -7,10 +7,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { AlertTriangle, Loader2, RefreshCw, CheckCheck, Bell } from "lucide-react";
+import { AlertTriangle, Loader2, RefreshCw, CheckCheck, Bell, UserX, CalendarX } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { format } from "date-fns";
+import { AbsenceDialog } from "@/components/attendance/AbsenceDialog";
 
 const Notifications = () => {
   const { user } = useAuth();

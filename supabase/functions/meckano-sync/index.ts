@@ -294,86 +294,62 @@ async function syncEmployees(isCron: boolean, userId: string | null) {
   }
 }
 
-// ---------- ATTENDANCE (Meckano REST: PUT /rest/time-reports with `key` header) ----------
+// ---------- ATTENDANCE (per-day loop using PUT /rest/time-reports) ----------
+// Meckano's /time-reports returns AGGREGATED hours per employee for the requested
+// period — there is NO public endpoint that returns daily check-in/out timestamps.
+// Workaround: call it once per day so we get one row per (employee, day) with
+// the regular + overtime hours worked that day.
 async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userId: string | null) {
   const logId = await startLog("attendance", isCron, userId, { from: dFrom, to: dTo });
   try {
-    if (!MECKANO_KEY) {
-      throw new Error("MECKANO_API_KEY is not configured");
+    if (!MECKANO_KEY) throw new Error("MECKANO_API_KEY is not configured");
+
+    // Inclusive day list
+    const days: string[] = [];
+    {
+      const start = new Date(`${dFrom}T00:00:00Z`);
+      const end = new Date(`${dTo}T00:00:00Z`);
+      for (const d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
+        days.push(d.toISOString().slice(0, 10));
+      }
     }
 
-    // Per Meckano docs: PUT https://app.meckano.co.il/rest/time-reports
-    // Body: { fromDate: <unix>, toDate: <unix>, fetchInactive: false }
-    const fromTs = Math.floor(new Date(`${dFrom}T00:00:00`).getTime() / 1000);
-    const toTs = Math.floor(new Date(`${dTo}T23:59:59`).getTime() / 1000);
-
-    const r = await meckanoFetch("/time-reports", {
-      method: "PUT",
-      body: JSON.stringify({ fromDate: fromTs, toDate: toTs, fetchInactive: true }),
-    });
-    if (!r.ok) {
-      await endLog(logId, {
-        status: "error",
-        error_message: `Meckano /time-reports returned ${r.status}`,
-        metadata: { status: r.status, body: r.raw.slice(0, 1000) },
-      });
-      return { ok: false, error: `Meckano /time-reports ${r.status}`, body: r.raw.slice(0, 1000) };
-    }
-    const payload: any = r.data;
-    const usedPath = "PUT /time-reports";
-
-
-
-    // Meckano /time-reports returns AGGREGATED per-employee summary for the period:
-    //   { status: true, data: [ { userId, userName, regular (hours), numDays, total, overtime,
-    //                              reportStart (unix), reportEnd (unix), departmentId, ... } ] }
-    // We store one summary row per employee per period start date.
-    const list: any[] = Array.isArray(payload) ? payload : (payload?.data ?? []);
-
-    type SummaryRow = {
-      meckEmp: string;
-      empName: string;
-      periodStart: string;  // YYYY-MM-DD
-      periodEnd: string;    // YYYY-MM-DD
-      regular: number;
-      overtime: number;
-      total: number;
-      numDays: number;
-      departmentId: string | null;
-      raw: any;
+    type DayRow = {
+      meckEmp: string; empName: string; date: string;
+      regular: number; overtime: number; total: number; raw: any;
     };
-    const summaries: SummaryRow[] = [];
-    const tsToDate = (ts: any) => {
-      if (!ts) return dFrom;
-      const d = new Date(Number(ts) * 1000);
-      return isNaN(d.getTime()) ? dFrom : d.toISOString().slice(0, 10);
-    };
-    for (const e of list) {
-      const meckEmp = String(e.userId ?? e.employeeId ?? e.id ?? "");
-      if (!meckEmp) continue;
-      summaries.push({
-        meckEmp,
-        empName: String(e.userName ?? ""),
-        periodStart: tsToDate(e.reportStart) || dFrom,
-        periodEnd: tsToDate(e.reportEnd) || dTo,
-        regular: Number(e.regular ?? 0),
-        overtime: Number(e.overtime ?? 0),
-        total: Number(e.total ?? 0),
-        numDays: Number(e.numDays ?? 0),
-        departmentId: e.departmentId != null ? String(e.departmentId) : null,
-        raw: e,
+    const allRows: DayRow[] = [];
+    let httpCalls = 0;
+    const errors: any[] = [];
+
+    for (const day of days) {
+      const fromTs = Math.floor(new Date(`${day}T00:00:00`).getTime() / 1000);
+      const toTs = Math.floor(new Date(`${day}T23:59:59`).getTime() / 1000);
+      const r = await meckanoFetch("/time-reports", {
+        method: "PUT",
+        body: JSON.stringify({ fromDate: fromTs, toDate: toTs, fetchInactive: true }),
       });
+      httpCalls++;
+      if (!r.ok) { errors.push({ day, status: r.status }); continue; }
+      const list: any[] = Array.isArray(r.data) ? r.data : ((r.data as any)?.data ?? []);
+      for (const e of list) {
+        const meckEmp = String(e.userId ?? e.employeeId ?? e.id ?? "");
+        if (!meckEmp) continue;
+        const reg = Number(e.regular ?? 0);
+        const ot = Number(e.overtime ?? 0);
+        const tot = Number(e.total ?? reg + ot);
+        if (tot <= 0) continue; // skip days the employee didn't work
+        allRows.push({ meckEmp, empName: String(e.userName ?? ""), date: day, regular: reg, overtime: ot, total: tot, raw: e });
+      }
     }
 
     // Persist raw rows
-    const rawRows = summaries.map((s) => ({
-      meckano_report_id: `${s.meckEmp}-${s.periodStart}-${s.periodEnd}`,
+    const rawRows = allRows.map((s) => ({
+      meckano_report_id: `${s.meckEmp}-${s.date}`,
       meckano_employee_id: s.meckEmp,
-      event_timestamp: new Date(s.periodStart).toISOString(),
-      event_type: "summary",
-      latitude: null,
-      longitude: null,
-      address: null,
+      event_timestamp: new Date(`${s.date}T00:00:00Z`).toISOString(),
+      event_type: "day_summary",
+      latitude: null, longitude: null, address: null,
       raw_payload: s.raw,
     }));
     if (rawRows.length) {
@@ -381,7 +357,7 @@ async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userI
     }
 
     // Map Meckano employees → internal UUIDs
-    const meckIds = Array.from(new Set(summaries.map((s) => s.meckEmp)));
+    const meckIds = Array.from(new Set(allRows.map((s) => s.meckEmp)));
     const { data: emps } = await admin
       .from("employees")
       .select("id, meckano_employee_id")
@@ -391,45 +367,62 @@ async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userI
     const batchIns = await admin.from("attendance_import_batches").insert({
       source: "meckano",
       status: "completed",
-      record_count: summaries.length,
-      notes: `Sync ${dFrom} → ${dTo} via ${usedPath}`,
+      record_count: allRows.length,
+      notes: `Daily sync ${dFrom} → ${dTo} (${httpCalls} API calls)`,
     }).select("id").single();
     const batchId = batchIns.data?.id;
 
-    let stored = 0;
-    let unmatched = 0;
-    for (const s of summaries) {
-      const empId = empMap.get(s.meckEmp);
-      if (!empId) { unmatched++; continue; }
-      // Replace any existing meckano summary for this employee in this period
+    // Wipe existing meckano daily records in window for the matched employees
+    const matchedEmpIds = Array.from(new Set(
+      allRows.map((r) => empMap.get(r.meckEmp)).filter(Boolean) as string[],
+    ));
+    if (matchedEmpIds.length) {
       await admin.from("attendance_records")
         .delete()
-        .eq("employee_id", empId)
-        .gte("date", s.periodStart)
-        .lte("date", s.periodEnd)
+        .in("employee_id", matchedEmpIds)
+        .gte("date", dFrom)
+        .lte("date", dTo)
         .eq("source", "meckano");
-      const { error } = await admin.from("attendance_records").insert({
+    }
+
+    let stored = 0;
+    let unmatched = 0;
+    const toInsert: any[] = [];
+    for (const s of allRows) {
+      const empId = empMap.get(s.meckEmp);
+      if (!empId) { unmatched++; continue; }
+      toInsert.push({
         employee_id: empId,
-        date: s.periodStart,
+        date: s.date,
         check_in: null,
         check_out: null,
-        hours_worked: s.regular,
+        hours_worked: s.regular + s.overtime,
         source: "meckano",
         batch_id: batchId,
-        notes: `Period ${s.periodStart} → ${s.periodEnd} • ${s.numDays} days • regular ${s.regular}h • OT ${s.overtime}h`,
+        notes: s.overtime > 0 ? `Regular ${s.regular}h • OT ${s.overtime}h` : null,
       });
-      if (!error) stored++;
+    }
+    if (toInsert.length) {
+      const chunkSize = 500;
+      for (let i = 0; i < toInsert.length; i += chunkSize) {
+        const chunk = toInsert.slice(i, i + chunkSize);
+        const { data, error } = await admin.from("attendance_records").insert(chunk).select("id");
+        if (!error) stored += data?.length ?? 0;
+      }
     }
 
     await endLog(logId, {
       status: "success",
       records_count: stored,
       metadata: {
-        from: dFrom, to: dTo, used_path: usedPath,
-        raw_count: summaries.length, stored, unmatched, batch_id: batchId,
+        from: dFrom, to: dTo,
+        days: days.length, http_calls: httpCalls,
+        rows_fetched: allRows.length, stored, unmatched,
+        batch_id: batchId,
+        errors: errors.slice(0, 10),
       },
     });
-    return { ok: true, used_path: usedPath, fetched: summaries.length, stored, unmatched };
+    return { ok: true, days: days.length, fetched: allRows.length, stored, unmatched, errors_count: errors.length };
   } catch (e) {
     await endLog(logId, { status: "error", error_message: String(e) });
     return { ok: false, error: String(e) };
@@ -458,8 +451,23 @@ Deno.serve(async (req) => {
   const today = new Date().toISOString().slice(0, 10);
 
   if (action === "discover") {
+    const fromTs = Math.floor(new Date(`${body.from ?? today}T00:00:00`).getTime() / 1000);
+    const toTs = Math.floor(new Date(`${body.to ?? today}T23:59:59`).getTime() / 1000);
     const restProbes = body.paths ?? [
-      "/users", "/employees", "/departments", "/department", "/groups", "/userGroups",
+      "/users", "/departments",
+    ];
+    const restPutProbes = [
+      { path: "/time-reports/detailed/full", body: { fromDate: fromTs, toDate: toTs, fetchInactive: true } },
+      { path: "/time-reports/full", body: { fromDate: fromTs, toDate: toTs, fetchInactive: true, includeDays: true, detailed: true } },
+      { path: "/time-reports/by-day", body: { fromDate: fromTs, toDate: toTs, fetchInactive: true } },
+      { path: "/time-reports/days", body: { fromDate: fromTs, toDate: toTs, fetchInactive: true } },
+      { path: "/time-reports/events", body: { fromDate: fromTs, toDate: toTs, fetchInactive: true } },
+      { path: "/employee-events", body: { fromDate: fromTs, toDate: toTs, fetchInactive: true } },
+      { path: "/events", body: { fromDate: fromTs, toDate: toTs, fetchInactive: true } },
+      { path: "/attendance/days", body: { fromDate: fromTs, toDate: toTs, fetchInactive: true } },
+      { path: "/employee-time-reports/detailed", body: { fromDate: fromTs, toDate: toTs, fetchInactive: true } },
+      { path: "/report/get", body: { fromDate: fromTs, toDate: toTs, fetchInactive: true } },
+      { path: "/time-reports/detailed", body: { fromDate: fromTs, toDate: toTs, fetchInactive: true, detailed: true, includeEvents: true, includeShifts: true, byDay: true } },
     ];
     const results: Record<string, any> = {};
     for (const p of restProbes) {
@@ -476,6 +484,22 @@ Deno.serve(async (req) => {
         };
       } catch (e) {
         results[`REST ${p}`] = { error: String(e) };
+      }
+    }
+    for (const p of restPutProbes) {
+      try {
+        const r = await meckanoFetch(p.path, { method: "PUT", body: JSON.stringify(p.body) });
+        results[`REST PUT ${p.path}`] = {
+          status: r.status,
+          ok: r.ok,
+          sample: typeof r.data === "string"
+            ? r.data.slice(0, 400)
+            : Array.isArray(r.data)
+              ? { type: "array", length: r.data.length, first: r.data[0] }
+              : { keys: Object.keys(r.data ?? {}), first: Array.isArray((r.data as any)?.data) ? (r.data as any).data[0] : (r.data as any)?.data },
+        };
+      } catch (e) {
+        results[`REST PUT ${p.path}`] = { error: String(e) };
       }
     }
     // Also probe documented API

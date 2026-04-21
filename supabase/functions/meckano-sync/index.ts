@@ -135,14 +135,24 @@ async function syncEmployees(isCron: boolean, userId: string | null) {
       const fullName = String(u.fullName ?? u.name ?? `${u.firstName ?? u.first_name ?? ""} ${u.lastName ?? u.last_name ?? ""}`).trim();
       const [first = "Unknown", ...rest] = fullName.split(/\s+/);
       const last = rest.join(" ") || "—";
+      const deptObj = u.department && typeof u.department === "object" ? u.department : null;
       const deptId = String(
-        u.departmentId ?? u.department_id ?? u.department ?? u.deptId ?? u.dept_id ??
-        (u.department && typeof u.department === "object" ? (u.department.id ?? u.department.code) : "") ?? "",
+        u.departmentId ?? u.department_id ?? u.deptId ?? u.dept_id ??
+        deptObj?.id ?? deptObj?.code ?? u.department ?? "",
       );
-      // Detect inactive across many possible Meckano field shapes
+      const deptName = String(
+        u.departmentName ?? u.department_name ?? u.deptName ?? u.dept_name ??
+        deptObj?.name ?? deptObj?.title ?? deptObj?.departmentName ?? "",
+      ).trim();
+      const deptNameNorm = deptName.toLowerCase();
+      const isInactiveDepartment =
+        /inactive|inactive employees|former/.test(deptNameNorm) ||
+        /לא\s*-?\s*פעיל/.test(deptNameNorm);
+
       const statusStr = String(u.status ?? u.employeeStatus ?? u.employee_status ?? "").toLowerCase();
       const hasEndDate = !!(u.terminationDate || u.termination_date || u.endDate || u.end_date || u.endWorkDate || u.end_work_date || u.leaveDate || u.leave_date);
       const isInactive =
+        isInactiveDepartment ||
         u.active === false ||
         u.isActive === false ||
         u.is_active === false ||

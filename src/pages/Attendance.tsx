@@ -31,6 +31,7 @@ const Attendance = () => {
     to: new Date(),
   });
   const [month, setMonth] = useState<Date>(startOfMonth(new Date()));
+  const [absenceDialog, setAbsenceDialog] = useState<{ employeeId: string; name: string; date: string } | null>(null);
 
   // Compute active date range based on view
   const { fromDate, toDate } = useMemo(() => {

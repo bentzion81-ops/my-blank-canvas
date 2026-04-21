@@ -81,6 +81,9 @@ const Attendance = () => {
 
   // Build merged rows: for single-day view, show scheduled vs actual. For range/month, show actual records only.
   const rows = useMemo(() => {
+    const absenceMap = new Map<string, any>();
+    (absences || []).forEach((a: any) => absenceMap.set(`${a.employee_id}-${a.date}`, a));
+
     if (isSingleDay) {
       const todayDay = dayNames[fromDate.getDay()];
       const scheduled = (schedules || []).filter(
@@ -91,6 +94,7 @@ const Attendance = () => {
 
       return scheduled.map((schedule: any) => {
         const record = records?.find((r: any) => r.employee_id === schedule.employee_id);
+        const absence = absenceMap.get(`${schedule.employee_id}-${fromStr}`);
         const scheduledTime = schedule.start_time;
         let status = "not yet time";
 
@@ -100,6 +104,8 @@ const Attendance = () => {
           const scheduledDate = new Date(fromDate);
           scheduledDate.setHours(h, m, 0, 0);
           status = checkInTime > new Date(scheduledDate.getTime() + 15 * 60000) ? "late" : "arrived";
+        } else if (absence) {
+          status = "absent";
         } else if (!isToday) {
           status = "not reported";
         } else {
@@ -112,6 +118,7 @@ const Attendance = () => {
         return {
           key: `${schedule.employee_id}-${fromStr}`,
           date: fromStr,
+          employeeId: schedule.employee_id,
           name: `${schedule.employees?.first_name || ""} ${schedule.employees?.last_name || ""}`.trim(),
           client: schedule.clients?.name || record?.clients?.name || "—",
           scheduled: scheduledTime?.slice(0, 5) || "—",
@@ -119,23 +126,46 @@ const Attendance = () => {
           checkOut: record?.check_out ? format(new Date(record.check_out), "HH:mm") : null,
           hours: record?.hours_worked ?? null,
           status,
+          absence,
         };
       });
     }
 
-    // Range / month: list all actual records
-    return (records || []).map((r: any) => ({
-      key: r.id,
-      date: r.date,
-      name: `${r.employees?.first_name || ""} ${r.employees?.last_name || ""}`.trim() || "—",
-      client: r.clients?.name || "—",
-      scheduled: "—",
-      checkIn: r.check_in ? format(new Date(r.check_in), "HH:mm") : null,
-      checkOut: r.check_out ? format(new Date(r.check_out), "HH:mm") : null,
-      hours: r.hours_worked ?? null,
-      status: r.check_in ? "arrived" : "not reported",
-    }));
-  }, [isSingleDay, fromDate, fromStr, records, schedules]);
+    // Range / month: actual records + absences (no record)
+    const recordRows = (records || []).map((r: any) => {
+      const absence = absenceMap.get(`${r.employee_id}-${r.date}`);
+      return {
+        key: r.id,
+        date: r.date,
+        employeeId: r.employee_id,
+        name: `${r.employees?.first_name || ""} ${r.employees?.last_name || ""}`.trim() || "—",
+        client: r.clients?.name || "—",
+        scheduled: "—",
+        checkIn: r.check_in ? format(new Date(r.check_in), "HH:mm") : null,
+        checkOut: r.check_out ? format(new Date(r.check_out), "HH:mm") : null,
+        hours: r.hours_worked ?? null,
+        status: r.check_in ? "arrived" : absence ? "absent" : "not reported",
+        absence,
+      };
+    });
+    const recordKeys = new Set(recordRows.map((r) => `${r.employeeId}-${r.date}`));
+    const absenceOnlyRows = (absences || [])
+      .filter((a: any) => !recordKeys.has(`${a.employee_id}-${a.date}`))
+      .map((a: any) => ({
+        key: `abs-${a.id}`,
+        date: a.date,
+        employeeId: a.employee_id,
+        name: `${a.employees?.first_name || ""} ${a.employees?.last_name || ""}`.trim() || "—",
+        client: "—",
+        scheduled: "—",
+        checkIn: null,
+        checkOut: null,
+        hours: null,
+        status: "absent",
+        absence: a,
+      }));
+    return [...recordRows, ...absenceOnlyRows].sort((a, b) => b.date.localeCompare(a.date));
+  }, [isSingleDay, fromDate, fromStr, records, schedules, absences]);
 
   const filtered = rows.filter(
     (a) =>

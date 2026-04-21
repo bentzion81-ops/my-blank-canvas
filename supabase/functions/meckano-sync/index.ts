@@ -149,16 +149,18 @@ async function syncEmployees(isCron: boolean, userId: string | null) {
         /inactive|inactive employees|former/.test(deptNameNorm) ||
         /לא\s*-?\s*פעיל/.test(deptNameNorm);
 
-      const statusStr = String(u.status ?? u.employeeStatus ?? u.employee_status ?? "").toLowerCase();
-      const hasEndDate = !!(u.terminationDate || u.termination_date || u.endDate || u.end_date || u.endWorkDate || u.end_work_date || u.leaveDate || u.leave_date);
+      const statusStr = String(u.statusName ?? u.employeeStatus ?? u.employee_status ?? "").toLowerCase();
+      const hasEndDate = !!(u.employedUntil_ts || u.employedUntil_dt || u.terminationDate || u.termination_date || u.endDate || u.end_date || u.endWorkDate || u.end_work_date || u.leaveDate || u.leave_date);
       const isInactive =
         isInactiveDepartment ||
+        u.activeState === 0 || u.activeState === "0" ||
         u.active === false ||
         u.isActive === false ||
         u.is_active === false ||
         u.enabled === false ||
         u.deleted === true ||
         u.isDeleted === true ||
+        u.isLocked === true ||
         /inactive|disabled|terminated|deleted|left|former|archived/.test(statusStr) ||
         hasEndDate;
       return {

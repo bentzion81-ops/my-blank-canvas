@@ -11,7 +11,7 @@ import {
   ChevronRight,
   CalendarIcon,
   AlertTriangle,
-  Clock,
+  AlertCircle,
   UserX,
 } from "lucide-react";
 import {
@@ -46,6 +46,28 @@ const diffMinutes = (actualIso: string, expectedHHmm: string) => {
   const am = Number(parts.find((p) => p.type === "minute")?.value || "0");
   const [eh, em] = expectedHHmm.split(":").map(Number);
   return ah * 60 + am - (eh * 60 + em);
+};
+
+// Current time in Israel TZ as minutes since midnight on a given date.
+// Returns null if the given date is not "today" in Israel.
+const minutesNowInIsraelIfToday = (dateStr: string): number | null => {
+  const fmt = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Jerusalem",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(new Date());
+  const y = fmt.find((p) => p.type === "year")?.value;
+  const mo = fmt.find((p) => p.type === "month")?.value;
+  const d = fmt.find((p) => p.type === "day")?.value;
+  const h = Number(fmt.find((p) => p.type === "hour")?.value || "0");
+  const mi = Number(fmt.find((p) => p.type === "minute")?.value || "0");
+  const todayStr = `${y}-${mo}-${d}`;
+  if (todayStr !== dateStr) return null;
+  return h * 60 + mi;
 };
 
 interface Props {
@@ -139,59 +161,65 @@ export const AttendanceAlertsPanel = ({
     return m;
   }, [assignments]);
 
-  // Build late entries
-  type LateEntry = {
+  // Build "missing report" entries: scheduled to work today, expected check-in time passed,
+  // but no attendance record AND no absence record yet. Once they report (even late) — alert clears.
+  type MissingEntry = {
     id: string;
     name: string;
     client: string;
     date: string;
-    kind: "in" | "out";
-    actual: string;
     expected: string;
-    diff: number;
+    minutesPast: number;
   };
 
-  const lateEntries = useMemo<LateEntry[]>(() => {
-    const out: LateEntry[] = [];
+  const missingEntries = useMemo<MissingEntry[]>(() => {
+    const out: MissingEntry[] = [];
+    const recordKey = new Set(records.map((r: any) => `${r.employee_id}-${r.date}`));
+    const absenceKey = new Set(absences.map((a: any) => `${a.employee_id}-${a.date}`));
+
+    const dates: string[] = [];
+    for (let d = new Date(fromDate); d <= toDate; d = addDays(d, 1)) {
+      dates.push(format(d, "yyyy-MM-dd"));
+    }
+
+    const nameById = new Map<string, string>();
     records.forEach((r: any) => {
-      const dt = dayTypeFor(new Date(r.date));
-      const exp = expectedMap.get(r.employee_id)?.[dt];
-      if (!exp || !exp.working) return;
-      const name = `${r.employees?.first_name || ""} ${r.employees?.last_name || ""}`.trim() || "—";
-      const client = r.clients?.name || clientByEmployee.get(r.employee_id) || "—";
-      if (r.check_in && exp.in) {
-        const d = diffMinutes(r.check_in, exp.in);
-        if (Math.abs(d) >= 20) {
-          out.push({
-            id: `${r.id}-in`,
-            name,
-            client,
-            date: r.date,
-            kind: "in",
-            actual: format(new Date(r.check_in), "HH:mm"),
-            expected: exp.in.slice(0, 5),
-            diff: d,
-          });
-        }
-      }
-      if (r.check_out && exp.out) {
-        const d = diffMinutes(r.check_out, exp.out);
-        if (Math.abs(d) >= 20) {
-          out.push({
-            id: `${r.id}-out`,
-            name,
-            client,
-            date: r.date,
-            kind: "out",
-            actual: format(new Date(r.check_out), "HH:mm"),
-            expected: exp.out.slice(0, 5),
-            diff: d,
-          });
-        }
-      }
+      const n = `${r.employees?.first_name || ""} ${r.employees?.last_name || ""}`.trim();
+      if (n) nameById.set(r.employee_id, n);
+    });
+    absences.forEach((a: any) => {
+      const n = `${a.employees?.first_name || ""} ${a.employees?.last_name || ""}`.trim();
+      if (n) nameById.set(a.employee_id, n);
+    });
+
+    expectedMap.forEach((byDay, employeeId) => {
+      dates.forEach((dateStr) => {
+        const dt = dayTypeFor(new Date(dateStr));
+        const exp = byDay[dt];
+        if (!exp || !exp.working || !exp.in) return;
+        const k = `${employeeId}-${dateStr}`;
+        if (recordKey.has(k) || absenceKey.has(k)) return;
+
+        // Only alert if today in Israel & expected time already passed.
+        // Past dates without report should already be auto-flipped to absences.
+        const nowMin = minutesNowInIsraelIfToday(dateStr);
+        if (nowMin === null) return;
+        const [eh, em] = exp.in.split(":").map(Number);
+        const expMin = eh * 60 + em;
+        if (nowMin < expMin) return;
+
+        out.push({
+          id: `miss-${employeeId}-${dateStr}`,
+          name: nameById.get(employeeId) || "—",
+          client: clientByEmployee.get(employeeId) || "—",
+          date: dateStr,
+          expected: exp.in.slice(0, 5),
+          minutesPast: nowMin - expMin,
+        });
+      });
     });
     return out;
-  }, [records, expectedMap, clientByEmployee]);
+  }, [records, absences, expectedMap, clientByEmployee, fromDate, toDate]);
 
   type AbsenceEntry = {
     id: string;
@@ -226,7 +254,7 @@ export const AttendanceAlertsPanel = ({
     return Array.from(m.entries()).sort((a, b) => a[0].localeCompare(b[0], "he"));
   };
 
-  const lateGroups = groupByClient(lateEntries);
+  const missingGroups = groupByClient(missingEntries);
   const absenceGroups = groupByClient(absenceEntries);
 
   const isToday = isSameDay(selectedDay, new Date());
@@ -330,20 +358,20 @@ export const AttendanceAlertsPanel = ({
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* LATE */}
+        {/* MISSING REPORTS (treated as late until they become absences) */}
         <div>
           <div className="flex items-center gap-2 mb-2">
-            <Clock className="h-4 w-4 text-warning" />
-            <h3 className="text-sm font-semibold">איחורים</h3>
+            <AlertCircle className="h-4 w-4 text-warning" />
+            <h3 className="text-sm font-semibold">איחורים (לא דווחו)</h3>
             <Badge variant="outline" className="bg-warning/10 text-warning border-warning/20">
-              {lateEntries.length}
+              {missingEntries.length}
             </Badge>
           </div>
-          {lateGroups.length === 0 ? (
+          {missingGroups.length === 0 ? (
             <p className="text-xs text-muted-foreground py-2">אין איחורים בטווח זה</p>
           ) : (
             <div className="space-y-2">
-              {lateGroups.map(([client, items]) => (
+              {missingGroups.map(([client, items]) => (
                 <div key={client} className="border rounded-md overflow-hidden">
                   <div className="bg-muted/40 px-3 py-1.5 text-xs font-semibold flex items-center justify-between">
                     <span>{client}</span>
@@ -355,8 +383,7 @@ export const AttendanceAlertsPanel = ({
                         <div className="flex-1 min-w-0">
                           <div className="font-medium truncate">{e.name}</div>
                           <div className="text-muted-foreground text-[11px]">
-                            {format(new Date(e.date), "dd/MM/yyyy")} ·{" "}
-                            {e.kind === "in" ? "כניסה" : "יציאה"}: {e.actual}{" "}
+                            {format(new Date(e.date), "dd/MM/yyyy")} · לא דווחה כניסה{" "}
                             <span className="opacity-70">(צפוי {e.expected})</span>
                           </div>
                         </div>
@@ -364,8 +391,7 @@ export const AttendanceAlertsPanel = ({
                           variant="outline"
                           className="bg-warning/10 text-warning border-warning/20 whitespace-nowrap"
                         >
-                          {e.diff > 0 ? "+" : ""}
-                          {Math.round(e.diff)} דק׳
+                          +{Math.round(e.minutesPast)} דק׳
                         </Badge>
                       </div>
                     ))}

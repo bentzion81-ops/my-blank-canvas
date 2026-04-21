@@ -135,6 +135,10 @@ async function syncEmployees(isCron: boolean, userId: string | null) {
       const fullName = String(u.fullName ?? u.name ?? `${u.firstName ?? u.first_name ?? ""} ${u.lastName ?? u.last_name ?? ""}`).trim();
       const [first = "Unknown", ...rest] = fullName.split(/\s+/);
       const last = rest.join(" ") || "—";
+      const deptId = String(
+        u.departmentId ?? u.department_id ?? u.department ?? u.deptId ?? u.dept_id ??
+        (u.department && typeof u.department === "object" ? (u.department.id ?? u.department.code) : "") ?? "",
+      );
       return {
         meckano_employee_id: meckanoId,
         first_name: u.firstName ?? u.first_name ?? first,
@@ -142,37 +146,89 @@ async function syncEmployees(isCron: boolean, userId: string | null) {
         israeli_phone: u.phone ?? u.mobile ?? null,
         status: (u.active === false || u.status === "inactive") ? "inactive" : "active",
         employee_type: "permanent" as const,
+        _meckano_dept_id: deptId,
       };
     }).filter((r) => r.meckano_employee_id);
 
     let created = 0;
     let updated = 0;
+    const empByMeckId = new Map<string, string>(); // meckano_id → employee uuid
     for (const row of rows) {
+      const { _meckano_dept_id, ...payload } = row;
       const { data: ex } = await admin
         .from("employees")
         .select("id")
         .eq("meckano_employee_id", row.meckano_employee_id)
         .maybeSingle();
+      let empId = ex?.id;
       if (ex) {
         await admin.from("employees").update({
-          first_name: row.first_name,
-          last_name: row.last_name,
-          israeli_phone: row.israeli_phone,
-          status: row.status,
+          first_name: payload.first_name,
+          last_name: payload.last_name,
+          israeli_phone: payload.israeli_phone,
+          status: payload.status,
         }).eq("id", ex.id);
         updated++;
       } else {
-        const { error } = await admin.from("employees").insert({ ...row, hourly_wage: 0 });
-        if (!error) created++;
+        const { data: ins, error } = await admin
+          .from("employees")
+          .insert({ ...payload, hourly_wage: 0 })
+          .select("id")
+          .single();
+        if (!error && ins) { empId = ins.id; created++; }
+      }
+      if (empId) empByMeckId.set(row.meckano_employee_id, empId);
+    }
+
+    // ----- Auto-link employees to clients via Meckano department -----
+    // Build map: meckano dept id → client uuid
+    const deptIds = Array.from(new Set(rows.map((r) => r._meckano_dept_id).filter(Boolean)));
+    let linksCreated = 0;
+    let linksSkipped = 0;
+    if (deptIds.length) {
+      const { data: clientsByDept } = await admin
+        .from("clients")
+        .select("id, company_id")
+        .in("company_id", deptIds);
+      const deptToClient = new Map((clientsByDept ?? []).map((c: any) => [String(c.company_id), c.id]));
+
+      for (const row of rows) {
+        const empId = empByMeckId.get(row.meckano_employee_id);
+        const clientId = deptToClient.get(row._meckano_dept_id);
+        if (!empId || !clientId) continue;
+
+        // Skip if assignment to this client already exists (active)
+        const { data: existAssign } = await admin
+          .from("employee_client_assignments")
+          .select("id")
+          .eq("employee_id", empId)
+          .eq("client_id", clientId)
+          .is("end_date", null)
+          .maybeSingle();
+        if (existAssign) { linksSkipped++; continue; }
+
+        // Demote any other primary assignments for this employee
+        await admin
+          .from("employee_client_assignments")
+          .update({ is_primary: false })
+          .eq("employee_id", empId)
+          .is("end_date", null);
+
+        const { error: linkErr } = await admin.from("employee_client_assignments").insert({
+          employee_id: empId,
+          client_id: clientId,
+          is_primary: true,
+        });
+        if (!linkErr) linksCreated++;
       }
     }
 
     await endLog(logId, {
       status: "success",
       records_count: created + updated,
-      metadata: { fetched: list.length, created, updated },
+      metadata: { fetched: list.length, created, updated, links_created: linksCreated, links_skipped: linksSkipped },
     });
-    return { ok: true, fetched: list.length, created, updated };
+    return { ok: true, fetched: list.length, created, updated, links_created: linksCreated, links_skipped: linksSkipped };
   } catch (e) {
     await endLog(logId, { status: "error", error_message: String(e) });
     return { ok: false, error: String(e) };

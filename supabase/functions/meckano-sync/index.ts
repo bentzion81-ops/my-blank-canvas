@@ -311,13 +311,18 @@ async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userI
       ? r.data
       : ((r.data as any)?.data ?? []);
 
+    // Helper: Meckano `ts` is a Unix timestamp expressed in Israel local time
+    // (not true UTC). Their displayed time = ts treated as if it were UTC.
+    // To store the correct UTC instant, subtract Israel's offset (-2h).
+    const tsToUtcMs = (ts: number) => (ts - 2 * 3600) * 1000;
+
     // Persist raw punches
     const rawRows = entries
       .filter((e: any) => e.id && e.userId && e.ts)
       .map((e: any) => ({
         meckano_report_id: String(e.id),
         meckano_employee_id: String(e.userId),
-        event_timestamp: new Date(Number(e.ts) * 1000).toISOString(),
+        event_timestamp: new Date(tsToUtcMs(Number(e.ts))).toISOString(),
         event_type: e.isOut ? "out" : "in",
         latitude: e.lat ?? null,
         longitude: e.lng ?? null,
@@ -328,22 +333,28 @@ async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userI
       await admin.from("meckano_attendance_raw").upsert(rawRows, { onConflict: "meckano_report_id" });
     }
 
-    // Group punches by employee + date, sort by ts, pair in→out into shifts
+    // Group punches by employee + date (use Meckano's dateStr for Israel-local date)
     type Punch = { ts: number; isOut: boolean };
     const byEmpDay = new Map<string, Map<string, Punch[]>>();
     for (const e of entries) {
       const meckEmp = String(e.userId ?? "");
       const ts = Number(e.ts ?? 0);
       if (!meckEmp || !ts) continue;
-      const date = new Date(ts * 1000).toISOString().slice(0, 10);
+      let date: string;
+      if (typeof e.dateStr === "string" && e.dateStr.includes(".")) {
+        const [d, m, y] = e.dateStr.split(".").map((x: string) => x.padStart(2, "0"));
+        date = `${y}-${m}-${d}`;
+      } else {
+        // Fallback: derive Israel-local date from ts (which is already local-as-UTC)
+        date = new Date(ts * 1000).toISOString().slice(0, 10);
+      }
       if (!byEmpDay.has(meckEmp)) byEmpDay.set(meckEmp, new Map());
       const dayMap = byEmpDay.get(meckEmp)!;
       if (!dayMap.has(date)) dayMap.set(date, []);
       dayMap.get(date)!.push({ ts, isOut: !!e.isOut });
     }
 
-    type Shift = { meckEmp: string; date: string; checkIn: Date; checkOut: Date | null; hours: number };
-    const shifts: Shift[] = [];
+    const shifts: Array<{ meckEmp: string; date: string; checkIn: Date; checkOut: Date | null; hours: number }> = [];
     for (const [meckEmp, dayMap] of byEmpDay) {
       for (const [date, punches] of dayMap) {
         punches.sort((a, b) => a.ts - b.ts);
@@ -352,20 +363,20 @@ async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userI
           if (!p.isOut) {
             if (openIn !== null) {
               // unmatched IN → record as zero-hour shift, then start new
-              shifts.push({ meckEmp, date, checkIn: new Date(openIn * 1000), checkOut: null, hours: 0 });
+              shifts.push({ meckEmp, date, checkIn: new Date(tsToUtcMs(openIn)), checkOut: null, hours: 0 });
             }
             openIn = p.ts;
           } else {
             if (openIn !== null) {
               const hours = (p.ts - openIn) / 3600;
-              shifts.push({ meckEmp, date, checkIn: new Date(openIn * 1000), checkOut: new Date(p.ts * 1000), hours });
+              shifts.push({ meckEmp, date, checkIn: new Date(tsToUtcMs(openIn)), checkOut: new Date(tsToUtcMs(p.ts)), hours });
               openIn = null;
             }
             // OUT without IN → ignore
           }
         }
         if (openIn !== null) {
-          shifts.push({ meckEmp, date, checkIn: new Date(openIn * 1000), checkOut: null, hours: 0 });
+          shifts.push({ meckEmp, date, checkIn: new Date(tsToUtcMs(openIn)), checkOut: null, hours: 0 });
         }
       }
     }

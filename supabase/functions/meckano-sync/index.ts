@@ -294,55 +294,127 @@ async function syncEmployees(isCron: boolean, userId: string | null) {
   }
 }
 
-// ---------- ATTENDANCE (one row per event) ----------
+// ---------- ATTENDANCE (documented API: POST /api.php/attendance with Basic Auth) ----------
 async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userId: string | null) {
   const logId = await startLog("attendance", isCron, userId, { from: dFrom, to: dTo });
   try {
+    if (!MECKANO_USERNAME || !MECKANO_PASSWORD) {
+      throw new Error("MECKANO_USERNAME / MECKANO_PASSWORD are not configured");
+    }
+
+    // Try documented endpoints. Per docs: POST /api.php/attendance { from, to }
     const attempts = [
-      `/time-entry?from=${dFrom}&to=${dTo}`,
-      `/time-entry?dateFrom=${dFrom}&dateTo=${dTo}`,
+      { path: "/attendance", method: "POST", body: { from: dFrom, to: dTo } },
+      { path: "/attendance", method: "POST", body: { dateFrom: dFrom, dateTo: dTo } },
+      { path: `/attendance?from=${dFrom}&to=${dTo}`, method: "GET", body: null as any },
     ];
     let payload: any = null;
     let usedPath: string | null = null;
     const errors: any[] = [];
-    for (const p of attempts) {
-      const r = await meckanoFetch(p);
-      if (r.ok) { payload = r.data; usedPath = p; break; }
-      errors.push({ path: p, status: r.status, body: r.raw.slice(0, 200) });
+    for (const a of attempts) {
+      const r = await meckanoApiFetch(a.path, {
+        method: a.method,
+        body: a.body ? JSON.stringify(a.body) : undefined,
+      });
+      if (r.ok) { payload = r.data; usedPath = `${a.method} ${a.path}`; break; }
+      errors.push({ path: `${a.method} ${a.path}`, status: r.status, body: r.raw.slice(0, 200) });
     }
     if (!payload) {
       await endLog(logId, { status: "error", error_message: "No attendance endpoint matched", metadata: { attempts: errors } });
       return { ok: false, error: "No attendance endpoint matched", attempts: errors };
     }
 
-    const records: any[] = Array.isArray(payload)
-      ? payload
-      : payload?.data ?? payload?.reports ?? payload?.records ?? [];
+    // Meckano attendance report can return either:
+    //  - a flat array of daily records per employee
+    //  - an object { employees: [ { id, days: [...] } ] }
+    //  - a nested map { "<empId>": { "<date>": {...} } }
+    // Normalize to per-day rows.
+    type DayRow = {
+      meckEmp: string;
+      date: string;       // YYYY-MM-DD
+      checkIn: string | null;   // ISO timestamp or null
+      checkOut: string | null;
+      raw: any;
+    };
+    const dayRows: DayRow[] = [];
 
-    const rawRows = records.map((rec: any) => {
-      const reportId = String(
-        rec.id ?? rec.reportId ?? rec.report_id ??
-        `${rec.employeeId ?? rec.userId ?? "x"}-${rec.timestamp ?? rec.date ?? rec.time ?? Math.random()}`,
-      );
-      const meckEmp = String(rec.employeeId ?? rec.userId ?? rec.employee_id ?? rec.user_id ?? "");
-      const ts = rec.timestamp ?? rec.time ?? rec.datetime ?? rec.date ?? new Date().toISOString();
-      return {
-        meckano_report_id: reportId,
-        meckano_employee_id: meckEmp,
-        event_timestamp: new Date(ts).toISOString(),
-        event_type: rec.type ?? rec.entry_type ?? rec.action ?? null,
-        latitude: rec.latitude ?? rec.lat ?? null,
-        longitude: rec.longitude ?? rec.lng ?? null,
-        address: rec.address ?? null,
-        raw_payload: rec,
+    const pushDay = (meckEmp: string, date: string, rec: any) => {
+      if (!meckEmp || !date) return;
+      const ci = rec.checkIn ?? rec.check_in ?? rec.entry ?? rec.entryTime ?? rec.startTime ?? rec.start ?? null;
+      const co = rec.checkOut ?? rec.check_out ?? rec.exit ?? rec.exitTime ?? rec.endTime ?? rec.end ?? null;
+      const toIso = (v: any) => {
+        if (!v) return null;
+        // value can be "08:30" → combine with date
+        if (typeof v === "string" && /^\d{2}:\d{2}(:\d{2})?$/.test(v)) {
+          return new Date(`${date}T${v.length === 5 ? v + ":00" : v}+02:00`).toISOString();
+        }
+        const d = new Date(v);
+        return isNaN(d.getTime()) ? null : d.toISOString();
       };
-    }).filter((r) => r.meckano_employee_id);
+      dayRows.push({
+        meckEmp: String(meckEmp),
+        date,
+        checkIn: toIso(ci),
+        checkOut: toIso(co),
+        raw: rec,
+      });
+    };
 
+    const flat: any[] = Array.isArray(payload)
+      ? payload
+      : payload?.data ?? payload?.attendance ?? payload?.reports ?? payload?.records ?? [];
+
+    if (Array.isArray(flat) && flat.length) {
+      for (const rec of flat) {
+        const meckEmp = String(rec.employeeId ?? rec.userId ?? rec.employee_id ?? rec.user_id ?? rec.empId ?? "");
+        const date = String(rec.date ?? rec.workDate ?? rec.day ?? "").slice(0, 10);
+        pushDay(meckEmp, date, rec);
+      }
+    } else if (payload && typeof payload === "object") {
+      // Try { employees: [...] } shape
+      const emps = (payload as any).employees ?? (payload as any).users ?? null;
+      if (Array.isArray(emps)) {
+        for (const e of emps) {
+          const meckEmp = String(e.id ?? e.employeeId ?? e.userId ?? "");
+          const days = e.days ?? e.attendance ?? e.records ?? [];
+          if (Array.isArray(days)) {
+            for (const d of days) {
+              const date = String(d.date ?? d.workDate ?? d.day ?? "").slice(0, 10);
+              pushDay(meckEmp, date, d);
+            }
+          }
+        }
+      } else {
+        // Try nested map { empId: { date: {...} } }
+        for (const [empKey, byDate] of Object.entries(payload)) {
+          if (byDate && typeof byDate === "object") {
+            for (const [dateKey, rec] of Object.entries(byDate as any)) {
+              if (rec && typeof rec === "object") {
+                pushDay(empKey, String(dateKey).slice(0, 10), rec);
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Persist raw rows (one per day, using employee+date as report id)
+    const rawRows = dayRows.map((r) => ({
+      meckano_report_id: `${r.meckEmp}-${r.date}`,
+      meckano_employee_id: r.meckEmp,
+      event_timestamp: r.checkIn ?? r.checkOut ?? new Date(r.date).toISOString(),
+      event_type: "daily",
+      latitude: null,
+      longitude: null,
+      address: null,
+      raw_payload: r.raw,
+    }));
     if (rawRows.length) {
       await admin.from("meckano_attendance_raw").upsert(rawRows, { onConflict: "meckano_report_id" });
     }
 
-    const meckIds = Array.from(new Set(rawRows.map((r) => r.meckano_employee_id)));
+    // Map Meckano employees → internal UUIDs
+    const meckIds = Array.from(new Set(dayRows.map((r) => r.meckEmp)));
     const { data: emps } = await admin
       .from("employees")
       .select("id, meckano_employee_id")
@@ -352,37 +424,43 @@ async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userI
     const batchIns = await admin.from("attendance_import_batches").insert({
       source: "meckano",
       status: "completed",
-      record_count: rawRows.length,
+      record_count: dayRows.length,
       notes: `Sync ${dFrom} → ${dTo}${usedPath ? ` via ${usedPath}` : ""}`,
     }).select("id").single();
     const batchId = batchIns.data?.id;
 
     let stored = 0;
     let unmatched = 0;
-    for (const r of rawRows) {
-      const empId = empMap.get(r.meckano_employee_id);
+    for (const r of dayRows) {
+      const empId = empMap.get(r.meckEmp);
       if (!empId) { unmatched++; continue; }
-      const dateStr = r.event_timestamp.slice(0, 10);
-      const isOut = (r.event_type ?? "").toLowerCase().match(/out|exit|leave/);
-      const row: any = {
+      const hours = (r.checkIn && r.checkOut)
+        ? Math.max(0, (new Date(r.checkOut).getTime() - new Date(r.checkIn).getTime()) / 3_600_000)
+        : 0;
+      // Upsert by (employee_id, date) — delete existing meckano-source row for same day first
+      await admin.from("attendance_records")
+        .delete()
+        .eq("employee_id", empId)
+        .eq("date", r.date)
+        .eq("source", "meckano");
+      const { error } = await admin.from("attendance_records").insert({
         employee_id: empId,
-        date: dateStr,
+        date: r.date,
+        check_in: r.checkIn,
+        check_out: r.checkOut,
+        hours_worked: Number(hours.toFixed(2)),
         source: "meckano",
         batch_id: batchId,
-        notes: r.event_type ? `Event: ${r.event_type}` : null,
-      };
-      if (isOut) row.check_out = r.event_timestamp;
-      else row.check_in = r.event_timestamp;
-      const { error } = await admin.from("attendance_records").insert(row);
+      });
       if (!error) stored++;
     }
 
     await endLog(logId, {
       status: "success",
       records_count: stored,
-      metadata: { from: dFrom, to: dTo, used_path: usedPath, raw_count: records.length, stored, unmatched, batch_id: batchId },
+      metadata: { from: dFrom, to: dTo, used_path: usedPath, raw_count: dayRows.length, stored, unmatched, batch_id: batchId },
     });
-    return { ok: true, used_path: usedPath, fetched: records.length, stored, unmatched };
+    return { ok: true, used_path: usedPath, fetched: dayRows.length, stored, unmatched };
   } catch (e) {
     await endLog(logId, { status: "error", error_message: String(e) });
     return { ok: false, error: String(e) };
@@ -391,7 +469,6 @@ async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userI
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
-  if (!MECKANO_KEY) return jres({ error: "MECKANO_API_KEY is not configured" }, 500);
 
   const cronSecret = req.headers.get("x-cron-secret");
   const isCron = !!cronSecret && cronSecret === SERVICE_ROLE;
@@ -412,15 +489,14 @@ Deno.serve(async (req) => {
   const today = new Date().toISOString().slice(0, 10);
 
   if (action === "discover") {
-    const probes = body.paths ?? [
+    const restProbes = body.paths ?? [
       "/users", "/employees", "/departments", "/department", "/groups", "/userGroups",
-      "/time-entry", "/attendance",
     ];
     const results: Record<string, any> = {};
-    for (const p of probes) {
+    for (const p of restProbes) {
       try {
         const r = await meckanoFetch(p);
-        results[p] = {
+        results[`REST ${p}`] = {
           status: r.status,
           ok: r.ok,
           sample: typeof r.data === "string"
@@ -430,10 +506,34 @@ Deno.serve(async (req) => {
               : r.data,
         };
       } catch (e) {
-        results[p] = { error: String(e) };
+        results[`REST ${p}`] = { error: String(e) };
       }
     }
-    return jres({ ok: true, base: MECKANO_BASE, probes: results });
+    // Also probe documented API
+    if (MECKANO_USERNAME && MECKANO_PASSWORD) {
+      const apiProbes = [
+        { path: "/attendance", method: "POST", body: { from: today, to: today } },
+        { path: "/employees", method: "GET", body: null as any },
+      ];
+      for (const a of apiProbes) {
+        try {
+          const r = await meckanoApiFetch(a.path, {
+            method: a.method,
+            body: a.body ? JSON.stringify(a.body) : undefined,
+          });
+          results[`API ${a.method} ${a.path}`] = {
+            status: r.status,
+            ok: r.ok,
+            sample: typeof r.data === "string" ? r.data.slice(0, 300) : r.data,
+          };
+        } catch (e) {
+          results[`API ${a.method} ${a.path}`] = { error: String(e) };
+        }
+      }
+    } else {
+      results["API auth"] = { error: "MECKANO_USERNAME / MECKANO_PASSWORD not configured" };
+    }
+    return jres({ ok: true, rest_base: MECKANO_REST_BASE, api_base: MECKANO_API_BASE, probes: results });
   }
 
   if (action === "probe_path") {

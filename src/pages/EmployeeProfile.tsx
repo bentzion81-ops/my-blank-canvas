@@ -10,6 +10,7 @@ import { ArrowLeft, Edit, Loader2 } from "lucide-react";
 import { EmployeeAssignments } from "@/components/employees/EmployeeAssignments";
 import { EmployeeMonthlyHours } from "@/components/employees/EmployeeMonthlyHours";
 import { EmployeeAttendanceReport } from "@/components/employees/EmployeeAttendanceReport";
+import { EmployeeExpectedHours } from "@/components/employees/EmployeeExpectedHours";
 
 const EmployeeProfile = () => {
   const { id } = useParams();
@@ -134,6 +135,7 @@ const EmployeeProfile = () => {
 
           <TabsContent value="attendance" className="space-y-4">
             <EmployeeAssignments employeeId={id!} />
+            <EmployeeExpectedHours employeeId={id!} />
             <EmployeeMonthlyHours employeeId={id!} />
           </TabsContent>
 

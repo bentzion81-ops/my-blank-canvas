@@ -529,6 +529,39 @@ export type Database = {
           },
         ]
       }
+      employee_expected_hours: {
+        Row: {
+          created_at: string
+          day_type: Database["public"]["Enums"]["expected_day_type"]
+          employee_id: string
+          expected_check_in: string | null
+          expected_check_out: string | null
+          id: string
+          is_working_day: boolean
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          day_type: Database["public"]["Enums"]["expected_day_type"]
+          employee_id: string
+          expected_check_in?: string | null
+          expected_check_out?: string | null
+          id?: string
+          is_working_day?: boolean
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          day_type?: Database["public"]["Enums"]["expected_day_type"]
+          employee_id?: string
+          expected_check_in?: string | null
+          expected_check_out?: string | null
+          id?: string
+          is_working_day?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
       employee_monthly_metrics: {
         Row: {
           actual_hours: number | null
@@ -1515,6 +1548,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      check_attendance_lateness: {
+        Args: { _record_id: string }
+        Returns: undefined
+      }
       has_permission: {
         Args: { _permission: string; _user_id: string }
         Returns: boolean
@@ -1527,6 +1564,10 @@ export type Database = {
         Returns: boolean
       }
       is_admin_or_owner: { Args: { _user_id: string }; Returns: boolean }
+      recheck_all_lateness: {
+        Args: { _from_date: string; _to_date: string }
+        Returns: number
+      }
     }
     Enums: {
       app_role:
@@ -1560,6 +1601,7 @@ export type Database = {
         | "other"
       employee_status: "active" | "inactive"
       employee_type: "permanent" | "temporary"
+      expected_day_type: "weekday" | "friday" | "saturday"
       invoice_status: "draft" | "sent" | "partial" | "paid" | "overdue"
       notification_type:
         | "missing_attendance"
@@ -1745,6 +1787,7 @@ export const Constants = {
       ],
       employee_status: ["active", "inactive"],
       employee_type: ["permanent", "temporary"],
+      expected_day_type: ["weekday", "friday", "saturday"],
       invoice_status: ["draft", "sent", "partial", "paid", "overdue"],
       notification_type: [
         "missing_attendance",

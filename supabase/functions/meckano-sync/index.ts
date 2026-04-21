@@ -294,30 +294,46 @@ async function syncEmployees(isCron: boolean, userId: string | null) {
   }
 }
 
-// ---------- ATTENDANCE (documented API: POST /api.php/attendance with Basic Auth) ----------
+// ---------- ATTENDANCE (REST API: /rest/attendanceReport with `key` header — per Meckano docs) ----------
 async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userId: string | null) {
   const logId = await startLog("attendance", isCron, userId, { from: dFrom, to: dTo });
   try {
-    if (!MECKANO_USERNAME || !MECKANO_PASSWORD) {
-      throw new Error("MECKANO_USERNAME / MECKANO_PASSWORD are not configured");
+    if (!MECKANO_KEY) {
+      throw new Error("MECKANO_API_KEY is not configured");
     }
 
-    // Try documented endpoints. Per docs: POST /api.php/attendance { from, to }
-    const attempts = [
-      { path: "/attendance", method: "POST", body: { from: dFrom, to: dTo } },
-      { path: "/attendance", method: "POST", body: { dateFrom: dFrom, dateTo: dTo } },
-      { path: `/attendance?from=${dFrom}&to=${dTo}`, method: "GET", body: null as any },
+    // Per Meckano docs (https://app.meckano.co.il/doc/) all REST endpoints live on /rest/*
+    // and use the `key` header. Dates are unix timestamps (seconds).
+    const fromTs = Math.floor(new Date(`${dFrom}T00:00:00`).getTime() / 1000);
+    const toTs = Math.floor(new Date(`${dTo}T23:59:59`).getTime() / 1000);
+
+    const attempts: { path: string; method: string; body: any }[] = [
+      { path: `/attendanceReport?from=${fromTs}&to=${toTs}`, method: "GET", body: null },
+      { path: `/attendanceReport?dateFrom=${dFrom}&dateTo=${dTo}`, method: "GET", body: null },
+      { path: "/attendanceReport", method: "POST", body: { from: fromTs, to: toTs } },
+      { path: "/attendanceReport", method: "POST", body: { dateFrom: dFrom, dateTo: dTo } },
+      { path: `/attendance?from=${fromTs}&to=${toTs}`, method: "GET", body: null },
+      { path: "/attendance", method: "POST", body: { from: fromTs, to: toTs } },
+      { path: `/report?from=${fromTs}&to=${toTs}`, method: "GET", body: null },
+      { path: "/report", method: "POST", body: { from: fromTs, to: toTs } },
+      { path: `/reports?from=${fromTs}&to=${toTs}`, method: "GET", body: null },
+      { path: `/attendanceReporting?from=${fromTs}&to=${toTs}`, method: "GET", body: null },
+      { path: "/attendanceReporting", method: "POST", body: { from: fromTs, to: toTs } },
     ];
     let payload: any = null;
     let usedPath: string | null = null;
     const errors: any[] = [];
     for (const a of attempts) {
-      const r = await meckanoApiFetch(a.path, {
+      const r = await meckanoFetch(a.path, {
         method: a.method,
         body: a.body ? JSON.stringify(a.body) : undefined,
       });
-      if (r.ok) { payload = r.data; usedPath = `${a.method} ${a.path}`; break; }
-      errors.push({ path: `${a.method} ${a.path}`, status: r.status, body: r.raw.slice(0, 200) });
+      if (r.ok && r.raw.trim().length > 0) {
+        payload = r.data;
+        usedPath = `${a.method} ${a.path}`;
+        break;
+      }
+      errors.push({ path: `${a.method} ${a.path}`, status: r.status, body: r.raw.slice(0, 150) });
     }
     if (!payload) {
       await endLog(logId, { status: "error", error_message: "No attendance endpoint matched", metadata: { attempts: errors } });

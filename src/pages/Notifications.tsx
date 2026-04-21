@@ -22,6 +22,8 @@ const Notifications = () => {
   const [to, setTo] = useState(format(today, "yyyy-MM-dd"));
   const [running, setRunning] = useState(false);
 
+  const [absenceDialog, setAbsenceDialog] = useState<{ employeeId: string; name: string; date: string } | null>(null);
+
   const { data: notifs, isLoading } = useQuery({
     queryKey: ["notifications", user?.id],
     queryFn: async () => {
@@ -38,16 +40,18 @@ const Notifications = () => {
   });
 
   const lateCount = (notifs || []).filter((n) => n.type === "late_attendance" && !n.is_read).length;
+  const missingCount = (notifs || []).filter((n) => n.type === "missing_attendance" && !n.is_read).length;
 
   const recheck = async () => {
     setRunning(true);
     try {
-      const { data, error } = await supabase.rpc("recheck_all_lateness" as any, {
-        _from_date: from,
-        _to_date: to,
-      });
-      if (error) throw error;
-      toast.success(`נבדקו ${data} רשומות נוכחות`);
+      const [r1, r2] = await Promise.all([
+        supabase.rpc("recheck_all_lateness" as any, { _from_date: from, _to_date: to }),
+        supabase.rpc("recheck_all_absences" as any, { _from_date: from, _to_date: to }),
+      ]);
+      if (r1.error) throw r1.error;
+      if (r2.error) throw r2.error;
+      toast.success(`נבדקו איחורים וחיסורים`);
       qc.invalidateQueries({ queryKey: ["notifications"] });
     } catch (e: any) {
       toast.error(e.message);

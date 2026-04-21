@@ -1,13 +1,13 @@
-// Meckano sync edge function — Phase 1+2
-// Modes:
-//   POST { action: "discover" }            → tests connectivity, lists candidate endpoints
-//   POST { action: "sync_employees" }      → pulls /rest/users, returns sample
-//   POST { action: "sync_attendance",
-//          from?: "YYYY-MM-DD", to?: "YYYY-MM-DD" }
-//                                          → tries attendance endpoints, stores raw rows
+// Meckano sync edge function — Phase 3
+// Actions:
+//   discover                              → probe candidate endpoints
+//   probe_path { path, method, payload? } → call arbitrary path
+//   sync_departments                      → /departments → public.clients (create-only)
+//   sync_employees                        → /users → public.employees (upsert by meckano_employee_id)
+//   sync_attendance { from, to }          → /time-entry → public.attendance_records (one row per event)
+//   sync_all { from, to }                 → departments + employees + attendance
 //
-// Auth: requires a logged-in app user (JWT) for manual calls.
-// For cron, set header `x-cron-secret: <SUPABASE_SERVICE_ROLE_KEY>` instead.
+// Auth: logged-in user (JWT) OR cron header `x-cron-secret: <SUPABASE_SERVICE_ROLE_KEY>`.
 
 import { createClient } from "npm:@supabase/supabase-js@2.45.0";
 
@@ -47,39 +47,255 @@ async function meckanoFetch(path: string, init: RequestInit = {}) {
   return { status: res.status, ok: res.ok, data, raw: text };
 }
 
+const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
+
+async function startLog(syncType: string, isCron: boolean, userId: string | null, metadata: any = {}) {
+  const { data } = await admin.from("sync_logs").insert({
+    sync_type: syncType,
+    status: "running",
+    triggered_by: userId,
+    trigger_kind: isCron ? "cron" : "manual",
+    metadata,
+  }).select("id").single();
+  return data?.id as string | undefined;
+}
+async function endLog(id: string | undefined, patch: any) {
+  if (!id) return;
+  await admin.from("sync_logs").update({ ...patch, finished_at: new Date().toISOString() }).eq("id", id);
+}
+
+// ---------- DEPARTMENTS → CLIENTS ----------
+async function syncDepartments(isCron: boolean, userId: string | null) {
+  const logId = await startLog("departments", isCron, userId);
+  try {
+    const attempts = ["/departments", "/department", "/groups", "/userGroups"];
+    let list: any[] | null = null;
+    let usedPath: string | null = null;
+    const errors: any[] = [];
+    for (const p of attempts) {
+      const r = await meckanoFetch(p);
+      if (r.ok) {
+        const arr = Array.isArray(r.data) ? r.data : (r.data as any)?.data ?? (r.data as any)?.departments ?? [];
+        if (Array.isArray(arr)) { list = arr; usedPath = p; break; }
+      }
+      errors.push({ path: p, status: r.status, body: r.raw.slice(0, 200) });
+    }
+    if (!list) {
+      await endLog(logId, { status: "error", error_message: "No departments endpoint matched", metadata: { attempts: errors } });
+      return { ok: false, error: "No departments endpoint matched", attempts: errors };
+    }
+
+    const { data: existing } = await admin.from("clients").select("id, name, company_id");
+    const byName = new Map((existing ?? []).map((c: any) => [String(c.name).trim().toLowerCase(), c]));
+    const byCompanyId = new Map((existing ?? []).filter((c: any) => c.company_id).map((c: any) => [String(c.company_id), c]));
+
+    const toInsert: any[] = [];
+    let skipped = 0;
+    for (const d of list) {
+      const deptId = String(d.id ?? d.departmentId ?? d.department_id ?? d.code ?? "");
+      const name = String(d.name ?? d.title ?? d.departmentName ?? d.department_name ?? "").trim();
+      if (!name) { skipped++; continue; }
+      if (deptId && byCompanyId.has(deptId)) { skipped++; continue; }
+      if (byName.has(name.toLowerCase())) { skipped++; continue; }
+      toInsert.push({
+        name,
+        company_id: deptId || null,
+        client_type: "business",
+        billing_type: "fixed",
+        status: "active",
+      });
+    }
+
+    let created = 0;
+    if (toInsert.length) {
+      const { data, error } = await admin.from("clients").insert(toInsert).select("id");
+      if (error) throw error;
+      created = data?.length ?? 0;
+    }
+
+    await endLog(logId, {
+      status: "success",
+      records_count: created,
+      metadata: { used_path: usedPath, total: list.length, created, skipped },
+    });
+    return { ok: true, used_path: usedPath, total: list.length, created, skipped };
+  } catch (e) {
+    await endLog(logId, { status: "error", error_message: String(e) });
+    return { ok: false, error: String(e) };
+  }
+}
+
+// ---------- EMPLOYEES ----------
+async function syncEmployees(isCron: boolean, userId: string | null) {
+  const logId = await startLog("employees", isCron, userId);
+  try {
+    const r = await meckanoFetch("/users");
+    if (!r.ok) throw new Error(`Meckano /users returned ${r.status}: ${r.raw.slice(0, 300)}`);
+    const list: any[] = Array.isArray(r.data)
+      ? r.data
+      : (r.data as any)?.users ?? (r.data as any)?.data ?? [];
+
+    const rows = list.map((u: any) => {
+      const meckanoId = String(u.employeeId ?? u.id ?? u.userId ?? u.employee_id ?? "");
+      const fullName = String(u.fullName ?? u.name ?? `${u.firstName ?? u.first_name ?? ""} ${u.lastName ?? u.last_name ?? ""}`).trim();
+      const [first = "Unknown", ...rest] = fullName.split(/\s+/);
+      const last = rest.join(" ") || "—";
+      return {
+        meckano_employee_id: meckanoId || null,
+        first_name: u.firstName ?? u.first_name ?? first,
+        last_name: u.lastName ?? u.last_name ?? last,
+        israeli_phone: u.phone ?? u.mobile ?? null,
+        status: (u.active === false || u.status === "inactive") ? "inactive" : "active",
+        employee_type: "permanent",
+        hourly_wage: 0,
+      };
+    }).filter((r) => r.meckano_employee_id);
+
+    let created = 0;
+    let updated = 0;
+    for (const row of rows) {
+      const { data: ex } = await admin.from("employees").select("id").eq("meckano_employee_id", row.meckano_employee_id).maybeSingle();
+      if (ex) {
+        await admin.from("employees").update({
+          first_name: row.first_name,
+          last_name: row.last_name,
+          israeli_phone: row.israeli_phone,
+          status: row.status,
+        }).eq("id", ex.id);
+        updated++;
+      } else {
+        const { error } = await admin.from("employees").insert(row);
+        if (!error) created++;
+      }
+    }
+
+    await endLog(logId, {
+      status: "success",
+      records_count: created + updated,
+      metadata: { fetched: list.length, created, updated },
+    });
+    return { ok: true, fetched: list.length, created, updated };
+  } catch (e) {
+    await endLog(logId, { status: "error", error_message: String(e) });
+    return { ok: false, error: String(e) };
+  }
+}
+
+// ---------- ATTENDANCE ----------
+async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userId: string | null) {
+  const logId = await startLog("attendance", isCron, userId, { from: dFrom, to: dTo });
+  try {
+    const attempts = [
+      `/time-entry?from=${dFrom}&to=${dTo}`,
+      `/time-entry?dateFrom=${dFrom}&dateTo=${dTo}`,
+    ];
+    let payload: any = null;
+    let usedPath: string | null = null;
+    const errors: any[] = [];
+    for (const p of attempts) {
+      const r = await meckanoFetch(p);
+      if (r.ok) { payload = r.data; usedPath = p; break; }
+      errors.push({ path: p, status: r.status, body: r.raw.slice(0, 200) });
+    }
+    if (!payload) {
+      await endLog(logId, { status: "error", error_message: "No attendance endpoint matched", metadata: { attempts: errors } });
+      return { ok: false, error: "No attendance endpoint matched", attempts: errors };
+    }
+
+    const records: any[] = Array.isArray(payload)
+      ? payload
+      : payload?.data ?? payload?.reports ?? payload?.records ?? [];
+
+    const rawRows = records.map((rec: any) => {
+      const reportId = String(
+        rec.id ?? rec.reportId ?? rec.report_id ??
+        `${rec.employeeId ?? rec.userId ?? "x"}-${rec.timestamp ?? rec.date ?? rec.time ?? Math.random()}`
+      );
+      const meckEmp = String(rec.employeeId ?? rec.userId ?? rec.employee_id ?? rec.user_id ?? "");
+      const ts = rec.timestamp ?? rec.time ?? rec.datetime ?? rec.date ?? new Date().toISOString();
+      return {
+        meckano_report_id: reportId,
+        meckano_employee_id: meckEmp,
+        event_timestamp: new Date(ts).toISOString(),
+        event_type: rec.type ?? rec.entry_type ?? rec.action ?? null,
+        latitude: rec.latitude ?? rec.lat ?? null,
+        longitude: rec.longitude ?? rec.lng ?? null,
+        address: rec.address ?? null,
+        raw_payload: rec,
+      };
+    }).filter((r) => r.meckano_employee_id);
+
+    if (rawRows.length) {
+      await admin.from("meckano_attendance_raw").upsert(rawRows, { onConflict: "meckano_report_id" });
+    }
+
+    const meckIds = Array.from(new Set(rawRows.map((r) => r.meckano_employee_id)));
+    const { data: emps } = await admin.from("employees").select("id, meckano_employee_id").in("meckano_employee_id", meckIds);
+    const empMap = new Map((emps ?? []).map((e: any) => [String(e.meckano_employee_id), e.id]));
+
+    const batchInsert = await admin.from("attendance_import_batches").insert({
+      source: "meckano",
+      status: "completed",
+      record_count: rawRows.length,
+      notes: `Sync ${dFrom} → ${dTo}${usedPath ? ` via ${usedPath}` : ""}`,
+    }).select("id").single();
+    const batchId = batchInsert.data?.id;
+
+    let stored = 0;
+    let unmatched = 0;
+    for (const r of rawRows) {
+      const empId = empMap.get(r.meckano_employee_id);
+      if (!empId) { unmatched++; continue; }
+      const ts = new Date(r.event_timestamp);
+      const dateStr = ts.toISOString().slice(0, 10);
+      const isCheckOut = (r.event_type ?? "").toLowerCase().includes("out") || (r.event_type ?? "").toLowerCase().includes("exit");
+      const row: any = {
+        employee_id: empId,
+        date: dateStr,
+        source: "meckano",
+        batch_id: batchId,
+        notes: r.event_type ? `Event: ${r.event_type}` : null,
+      };
+      if (isCheckOut) row.check_out = r.event_timestamp;
+      else row.check_in = r.event_timestamp;
+      const { error } = await admin.from("attendance_records").insert(row);
+      if (!error) stored++;
+    }
+
+    await endLog(logId, {
+      status: "success",
+      records_count: stored,
+      metadata: { from: dFrom, to: dTo, used_path: usedPath, raw_count: records.length, stored, unmatched, batch_id: batchId },
+    });
+    return { ok: true, used_path: usedPath, fetched: records.length, stored, unmatched };
+  } catch (e) {
+    await endLog(logId, { status: "error", error_message: String(e) });
+    return { ok: false, error: String(e) };
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  if (!MECKANO_KEY) return jres({ error: "MECKANO_API_KEY is not configured" }, 500);
 
-  if (!MECKANO_KEY) {
-    return jres({ error: "MECKANO_API_KEY is not configured" }, 500);
-  }
-
-  // Auth: either a logged-in user OR a cron secret
   const cronSecret = req.headers.get("x-cron-secret");
-  const isCron = cronSecret && cronSecret === SERVICE_ROLE;
+  const isCron = !!cronSecret && cronSecret === SERVICE_ROLE;
 
   let userId: string | null = null;
   if (!isCron) {
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
-      return jres({ error: "Unauthorized" }, 401);
-    }
-    const userClient = createClient(SUPABASE_URL, ANON_KEY, {
-      global: { headers: { Authorization: authHeader } },
-    });
+    if (!authHeader?.startsWith("Bearer ")) return jres({ error: "Unauthorized" }, 401);
+    const userClient = createClient(SUPABASE_URL, ANON_KEY, { global: { headers: { Authorization: authHeader } } });
     const token = authHeader.replace("Bearer ", "");
     const { data, error } = await userClient.auth.getUser(token);
     if (error || !data?.user) return jres({ error: "Unauthorized" }, 401);
     userId = data.user.id;
   }
 
-  const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
-
   let body: any = {};
   try { body = await req.json(); } catch { /* empty body ok */ }
   const action = body.action ?? "discover";
 
-  // ---------- PROBE ARBITRARY PATH ----------
   if (action === "probe_path") {
     const path = body.path ?? "/users";
     const method = body.method ?? "GET";
@@ -87,16 +303,10 @@ Deno.serve(async (req) => {
     return jres({ ok: r.ok, status: r.status, sample: typeof r.data === "string" ? r.data.slice(0, 500) : r.data });
   }
 
-  // ---------- DISCOVER ----------
   if (action === "discover") {
     const probes = body.paths ?? [
-      "/users", "/employees",
-      "/attendance", "/attendanceReport", "/attendance-report", "/attendanceReporting",
-      "/reports/attendance", "/employeeReporting", "/attendanceReporting/getReport",
-      "/attendanceReporting/get", "/report", "/reports", "/punches", "/timeEvents",
-      "/dailyAttendance", "/userAttendance", "/employeeAttendance",
-      "/attendance/get", "/attendance/list", "/attendance/all",
-      "/attendanceData", "/timesheet", "/getAttendance", "/getReport",
+      "/users", "/employees", "/departments", "/department", "/groups", "/userGroups",
+      "/time-entry", "/attendance", "/attendanceReport", "/attendanceReporting",
     ];
     const results: Record<string, any> = {};
     for (const p of probes) {
@@ -108,164 +318,24 @@ Deno.serve(async (req) => {
           sample: typeof r.data === "string"
             ? r.data.slice(0, 300)
             : Array.isArray(r.data)
-              ? { type: "array", length: (r.data as any[]).length, first: (r.data as any[])[0] }
-              : r.data,
+              ? { type: "array", length: r.data.length, first: r.data[0] }
+              : r.data
         };
-      } catch (e) {
-        results[p] = { error: String(e) };
-      }
+      } catch (e) { results[p] = { error: String(e) }; }
     }
-    return jres({ ok: true, base: MECKANO_BASE, probes: results });
+    return jres(results);
   }
 
-  // ---------- SYNC EMPLOYEES ----------
-  if (action === "sync_employees") {
-    const log = await admin.from("sync_logs").insert({
-      sync_type: "employees",
-      status: "running",
-      triggered_by: userId,
-      trigger_kind: isCron ? "cron" : "manual",
-    }).select("id").single();
-    const logId = log.data?.id;
-
-    try {
-      const r = await meckanoFetch("/users");
-      if (!r.ok) throw new Error(`Meckano /users returned ${r.status}: ${r.raw.slice(0, 300)}`);
-      const list = Array.isArray(r.data)
-        ? r.data
-        : (r.data as any)?.users ?? (r.data as any)?.data ?? [];
-
-      await admin.from("sync_logs").update({
-        status: "success",
-        records_count: list.length,
-        finished_at: new Date().toISOString(),
-        metadata: { sample: list.slice(0, 3) },
-      }).eq("id", logId);
-
-      return jres({ ok: true, count: list.length, sample: list.slice(0, 5) });
-    } catch (e) {
-      await admin.from("sync_logs").update({
-        status: "error",
-        error_message: String(e),
-        finished_at: new Date().toISOString(),
-      }).eq("id", logId);
-      return jres({ ok: false, error: String(e) }, 502);
-    }
+  if (action === "sync_departments") return jres(await syncDepartments(isCron, userId));
+  if (action === "sync_employees") return jres(await syncEmployees(isCron, userId));
+  if (action === "sync_attendance") return jres(await syncAttendance(body.from, body.to, isCron, userId));
+  
+  if (action === "sync_all") {
+    const d1 = await syncDepartments(isCron, userId);
+    const d2 = await syncEmployees(isCron, userId);
+    const d3 = await syncAttendance(body.from, body.to, isCron, userId);
+    return jres({ departments: d1, employees: d2, attendance: d3 });
   }
 
-  // ---------- SYNC ATTENDANCE ----------
-  if (action === "sync_attendance") {
-    const today = new Date().toISOString().slice(0, 10);
-    const dFrom = body.from ?? today;
-    const dTo = body.to ?? today;
-
-    const log = await admin.from("sync_logs").insert({
-      sync_type: "attendance",
-      status: "running",
-      triggered_by: userId,
-      trigger_kind: isCron ? "cron" : "manual",
-      metadata: { from: dFrom, to: dTo },
-    }).select("id").single();
-    const logId = log.data?.id;
-
-    try {
-      // Try several known attendance endpoint shapes
-      const attempts = [
-        { path: `/time-entry?from=${dFrom}&to=${dTo}`, method: "GET" },
-        { path: `/time-entry?dateFrom=${dFrom}&dateTo=${dTo}`, method: "GET" },
-        { path: `/attendanceReport?from=${dFrom}&to=${dTo}`, method: "GET" },
-        { path: `/attendance?from=${dFrom}&to=${dTo}`, method: "GET" },
-        { path: `/attendanceReporting?from=${dFrom}&to=${dTo}`, method: "GET" },
-      ];
-
-      let payload: any = null;
-      let usedPath: string | null = null;
-      const errors: any[] = [];
-      for (const a of attempts) {
-        const r = await meckanoFetch(a.path, { method: a.method });
-        if (r.ok) { payload = r.data; usedPath = a.path; break; }
-        errors.push({ path: a.path, status: r.status, body: r.raw.slice(0, 200) });
-      }
-      if (!payload) {
-        const friendly =
-          "Meckano API key has no access to attendance endpoints. " +
-          "All public REST controllers (/attendance*, /oneTimeReport, /attendanceReporting…) returned 404 'unknown controller'. " +
-          "Action: in Meckano → Settings → API, generate a key with 'Reports' / 'Attendance' permission, then update the MECKANO_API_KEY secret.";
-        await admin.from("sync_logs").update({
-          status: "error",
-          error_message: friendly,
-          finished_at: new Date().toISOString(),
-          metadata: { from: dFrom, to: dTo, attempts: errors },
-        }).eq("id", logId);
-        return jres({ ok: false, error: friendly, attempts: errors });
-      }
-
-      const records: any[] = Array.isArray(payload)
-        ? payload
-        : payload?.data ?? payload?.reports ?? payload?.records ?? [];
-
-      // Best-effort field mapping. We store the raw payload regardless.
-      const rows = records.map((rec: any) => {
-        const reportId = String(
-          rec.id ?? rec.reportId ?? rec.report_id ??
-          `${rec.employeeId ?? rec.userId ?? "x"}-${rec.timestamp ?? rec.date ?? rec.time ?? Math.random()}`
-        );
-        const meckEmp = String(rec.employeeId ?? rec.userId ?? rec.employee_id ?? rec.user_id ?? "");
-        const ts = rec.timestamp ?? rec.time ?? rec.datetime ?? rec.date ?? new Date().toISOString();
-        return {
-          meckano_report_id: reportId,
-          meckano_employee_id: meckEmp,
-          event_timestamp: new Date(ts).toISOString(),
-          event_type: rec.type ?? rec.entry_type ?? rec.action ?? null,
-          latitude: rec.latitude ?? rec.lat ?? null,
-          longitude: rec.longitude ?? rec.lng ?? null,
-          address: rec.address ?? null,
-          raw_payload: rec,
-        };
-      }).filter((r) => r.meckano_employee_id);
-
-      let inserted = 0;
-      if (rows.length) {
-        // Upsert on meckano_report_id (dedupe)
-        const { error, count } = await admin
-          .from("meckano_attendance_raw")
-          .upsert(rows, { onConflict: "meckano_report_id", count: "exact" });
-        if (error) throw error;
-        inserted = count ?? rows.length;
-
-        // Best-effort link to employees by meckano_employee_id
-        const ids = Array.from(new Set(rows.map((r) => r.meckano_employee_id)));
-        const { data: emps } = await admin
-          .from("employees")
-          .select("id, meckano_employee_id")
-          .in("meckano_employee_id", ids);
-        const map = new Map((emps ?? []).map((e: any) => [e.meckano_employee_id, e.id]));
-        for (const [mId, empId] of map.entries()) {
-          await admin
-            .from("meckano_attendance_raw")
-            .update({ employee_id: empId })
-            .eq("meckano_employee_id", mId)
-            .is("employee_id", null);
-        }
-      }
-
-      await admin.from("sync_logs").update({
-        status: "success",
-        records_count: inserted,
-        finished_at: new Date().toISOString(),
-        metadata: { from: dFrom, to: dTo, used_path: usedPath, raw_count: records.length },
-      }).eq("id", logId);
-
-      return jres({ ok: true, used_path: usedPath, fetched: records.length, stored: inserted });
-    } catch (e) {
-      await admin.from("sync_logs").update({
-        status: "error",
-        error_message: String(e),
-        finished_at: new Date().toISOString(),
-      }).eq("id", logId);
-      return jres({ ok: false, error: String(e) }, 502);
-    }
-  }
-
-  return jres({ error: `Unknown action: ${action}` }, 400);
+  return jres({ error: "Unknown action" }, 400);
 });

@@ -79,6 +79,46 @@ const Attendance = () => {
     },
   });
 
+  const { data: expectedHours } = useQuery({
+    queryKey: ["employee-expected-hours-all"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("employee_expected_hours" as any)
+        .select("employee_id, day_type, is_working_day, expected_check_in, expected_check_out");
+      return (data as any[]) || [];
+    },
+  });
+
+  // Build lookup: employee_id -> day_type -> {in, out}
+  const expectedMap = useMemo(() => {
+    const m = new Map<string, Record<string, { in: string | null; out: string | null; working: boolean }>>();
+    (expectedHours || []).forEach((e: any) => {
+      if (!m.has(e.employee_id)) m.set(e.employee_id, {});
+      m.get(e.employee_id)![e.day_type] = {
+        in: e.expected_check_in,
+        out: e.expected_check_out,
+        working: e.is_working_day,
+      };
+    });
+    return m;
+  }, [expectedHours]);
+
+  // Returns true if `actual` (HH:mm timestamp) deviates from `expected` (HH:mm string) by 20+ min
+  const isLateTime = (actualIso: string | null, expectedHHmm: string | null | undefined, dateStr: string) => {
+    if (!actualIso || !expectedHHmm) return false;
+    const actual = new Date(actualIso).getTime();
+    const [h, m] = expectedHHmm.split(":").map(Number);
+    const exp = new Date(`${dateStr}T${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00`).getTime();
+    return Math.abs(actual - exp) >= 20 * 60 * 1000;
+  };
+
+  const dayTypeFor = (dateStr: string): "weekday" | "friday" | "saturday" => {
+    const dow = new Date(dateStr).getDay();
+    if (dow === 5) return "friday";
+    if (dow === 6) return "saturday";
+    return "weekday";
+  };
+
   // Build merged rows: for single-day view, show scheduled vs actual. For range/month, show actual records only.
   const rows = useMemo(() => {
     const absenceMap = new Map<string, any>();
@@ -124,6 +164,8 @@ const Attendance = () => {
           scheduled: scheduledTime?.slice(0, 5) || "—",
           checkIn: record?.check_in ? format(new Date(record.check_in), "HH:mm") : null,
           checkOut: record?.check_out ? format(new Date(record.check_out), "HH:mm") : null,
+          checkInRaw: record?.check_in || null,
+          checkOutRaw: record?.check_out || null,
           hours: record?.hours_worked ?? null,
           status,
           absence,
@@ -143,11 +185,14 @@ const Attendance = () => {
         scheduled: "—",
         checkIn: r.check_in ? format(new Date(r.check_in), "HH:mm") : null,
         checkOut: r.check_out ? format(new Date(r.check_out), "HH:mm") : null,
+        checkInRaw: r.check_in || null,
+        checkOutRaw: r.check_out || null,
         hours: r.hours_worked ?? null,
         status: r.check_in ? "arrived" : absence ? "absent" : "not reported",
         absence,
       };
     });
+
     const recordKeys = new Set(recordRows.map((r) => `${r.employeeId}-${r.date}`));
     const absenceOnlyRows = (absences || [])
       .filter((a: any) => !recordKeys.has(`${a.employee_id}-${a.date}`))
@@ -160,6 +205,8 @@ const Attendance = () => {
         scheduled: "—",
         checkIn: null,
         checkOut: null,
+        checkInRaw: null,
+        checkOutRaw: null,
         hours: null,
         status: "absent",
         absence: a,
@@ -350,7 +397,11 @@ const Attendance = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filtered.map((a) => (
+                  {filtered.map((a) => {
+                    const exp = expectedMap.get(a.employeeId || "")?.[dayTypeFor(a.date)];
+                    const lateIn = isLateTime(a.checkInRaw, exp?.in, a.date);
+                    const lateOut = isLateTime(a.checkOutRaw, exp?.out, a.date);
+                    return (
                     <TableRow key={a.key}>
                       {!isSingleDay && (
                         <TableCell className="text-xs">{format(new Date(a.date), "dd/MM/yyyy")}</TableCell>
@@ -367,8 +418,12 @@ const Attendance = () => {
                       </TableCell>
                       <TableCell>{a.client}</TableCell>
                       {isSingleDay && <TableCell className="hidden md:table-cell">{a.scheduled}</TableCell>}
-                      <TableCell className="hidden md:table-cell">{a.checkIn || "—"}</TableCell>
-                      <TableCell className="hidden md:table-cell">{a.checkOut || "—"}</TableCell>
+                      <TableCell className={cn("hidden md:table-cell", lateIn && "bg-warning/15 text-warning font-medium")}>
+                        {a.checkIn || "—"}
+                      </TableCell>
+                      <TableCell className={cn("hidden md:table-cell", lateOut && "bg-warning/15 text-warning font-medium")}>
+                        {a.checkOut || "—"}
+                      </TableCell>
                       {!isSingleDay && (
                         <TableCell className="hidden md:table-cell">
                           {a.hours != null ? Number(a.hours).toFixed(2) : "—"}
@@ -404,7 +459,8 @@ const Attendance = () => {
                         </div>
                       </TableCell>
                     </TableRow>
-                  ))}
+                    );
+                  })}
                 </TableBody>
               </Table>
             )}

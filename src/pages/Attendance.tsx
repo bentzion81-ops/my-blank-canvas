@@ -395,7 +395,11 @@ const Attendance = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filtered.map((a) => (
+                  {filtered.map((a) => {
+                    const exp = expectedMap.get(a.employeeId || "")?.[dayTypeFor(a.date)];
+                    const lateIn = isLateTime(a.checkInRaw, exp?.in, a.date);
+                    const lateOut = isLateTime(a.checkOutRaw, exp?.out, a.date);
+                    return (
                     <TableRow key={a.key}>
                       {!isSingleDay && (
                         <TableCell className="text-xs">{format(new Date(a.date), "dd/MM/yyyy")}</TableCell>
@@ -412,8 +416,12 @@ const Attendance = () => {
                       </TableCell>
                       <TableCell>{a.client}</TableCell>
                       {isSingleDay && <TableCell className="hidden md:table-cell">{a.scheduled}</TableCell>}
-                      <TableCell className="hidden md:table-cell">{a.checkIn || "—"}</TableCell>
-                      <TableCell className="hidden md:table-cell">{a.checkOut || "—"}</TableCell>
+                      <TableCell className={cn("hidden md:table-cell", lateIn && "bg-orange-100 text-orange-700 font-medium")}>
+                        {a.checkIn || "—"}
+                      </TableCell>
+                      <TableCell className={cn("hidden md:table-cell", lateOut && "bg-orange-100 text-orange-700 font-medium")}>
+                        {a.checkOut || "—"}
+                      </TableCell>
                       {!isSingleDay && (
                         <TableCell className="hidden md:table-cell">
                           {a.hours != null ? Number(a.hours).toFixed(2) : "—"}

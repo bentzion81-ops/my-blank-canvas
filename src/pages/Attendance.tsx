@@ -103,13 +103,21 @@ const Attendance = () => {
     return m;
   }, [expectedHours]);
 
-  // Returns true if `actual` (HH:mm timestamp) deviates from `expected` (HH:mm string) by 20+ min
-  const isLateTime = (actualIso: string | null, expectedHHmm: string | null | undefined, dateStr: string) => {
+  // Returns true if `actual` deviates from `expected` (HH:mm in Israel time) by 20+ min.
+  // Uses Asia/Jerusalem timezone consistently regardless of browser locale.
+  const isLateTime = (actualIso: string | null, expectedHHmm: string | null | undefined, _dateStr: string) => {
     if (!actualIso || !expectedHHmm) return false;
-    const actual = new Date(actualIso).getTime();
-    const [h, m] = expectedHHmm.split(":").map(Number);
-    const exp = new Date(`${dateStr}T${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00`).getTime();
-    return Math.abs(actual - exp) >= 20 * 60 * 1000;
+    const parts = new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Asia/Jerusalem",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).formatToParts(new Date(actualIso));
+    const ah = Number(parts.find((p) => p.type === "hour")?.value || "0");
+    const am = Number(parts.find((p) => p.type === "minute")?.value || "0");
+    const [eh, em] = expectedHHmm.split(":").map(Number);
+    const diff = Math.abs((ah * 60 + am) - (eh * 60 + em));
+    return diff >= 20;
   };
 
   const dayTypeFor = (dateStr: string): "weekday" | "friday" | "saturday" => {

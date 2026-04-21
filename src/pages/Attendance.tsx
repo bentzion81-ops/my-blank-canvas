@@ -17,6 +17,7 @@ import { useState, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import type { DateRange } from "react-day-picker";
 import { AbsenceDialog, ABSENCE_LABELS, type AbsenceStatus } from "@/components/attendance/AbsenceDialog";
+import { AttendanceAlertsPanel } from "@/components/attendance/AttendanceAlertsPanel";
 
 type ViewMode = "day" | "range" | "month";
 

@@ -20,6 +20,7 @@ import Reports from "./pages/Reports";
 import Documents from "./pages/Documents";
 import UserManagement from "./pages/UserManagement";
 import SettingsPage from "./pages/Settings";
+import Notifications from "./pages/Notifications";
 import ResetPassword from "./pages/ResetPassword";
 import ReplacementPortal from "./pages/replacement/ReplacementPortal";
 import ReplacementAdmin from "./pages/replacement/ReplacementAdmin";
@@ -76,6 +77,7 @@ const App = () => (
               <Route path="/replacement-hours" element={<ReplacementAdmin />} />
               <Route path="/users" element={<UserManagement />} />
               <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/notifications" element={<Notifications />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>

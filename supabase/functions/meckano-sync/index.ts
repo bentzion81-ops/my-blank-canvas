@@ -458,8 +458,20 @@ Deno.serve(async (req) => {
   const today = new Date().toISOString().slice(0, 10);
 
   if (action === "discover") {
+    const fromTs = Math.floor(new Date(`${body.from ?? today}T00:00:00`).getTime() / 1000);
+    const toTs = Math.floor(new Date(`${body.to ?? today}T23:59:59`).getTime() / 1000);
     const restProbes = body.paths ?? [
-      "/users", "/employees", "/departments", "/department", "/groups", "/userGroups",
+      "/users", "/departments",
+    ];
+    const restPutProbes = [
+      { path: "/time-reports-detailed", body: { fromDate: fromTs, toDate: toTs, fetchInactive: true } },
+      { path: "/employee-attendance-report", body: { fromDate: fromTs, toDate: toTs, fetchInactive: true } },
+      { path: "/attendance-report", body: { fromDate: fromTs, toDate: toTs, fetchInactive: true } },
+      { path: "/daily-attendance", body: { fromDate: fromTs, toDate: toTs, fetchInactive: true } },
+      { path: "/daily-report", body: { fromDate: fromTs, toDate: toTs, fetchInactive: true } },
+      { path: "/time-reports/detailed", body: { fromDate: fromTs, toDate: toTs, fetchInactive: true } },
+      { path: "/punches", body: { fromDate: fromTs, toDate: toTs, fetchInactive: true } },
+      { path: "/attendance-punches", body: { fromDate: fromTs, toDate: toTs, fetchInactive: true } },
     ];
     const results: Record<string, any> = {};
     for (const p of restProbes) {

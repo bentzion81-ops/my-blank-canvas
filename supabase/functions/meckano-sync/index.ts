@@ -171,6 +171,8 @@ Deno.serve(async (req) => {
     try {
       // Try several known attendance endpoint shapes
       const attempts = [
+        { path: `/time-entry?from=${dFrom}&to=${dTo}`, method: "GET" },
+        { path: `/time-entry?dateFrom=${dFrom}&dateTo=${dTo}`, method: "GET" },
         { path: `/attendanceReport?from=${dFrom}&to=${dTo}`, method: "GET" },
         { path: `/attendance?from=${dFrom}&to=${dTo}`, method: "GET" },
         { path: `/attendanceReporting?from=${dFrom}&to=${dTo}`, method: "GET" },

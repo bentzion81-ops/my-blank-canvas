@@ -93,12 +93,25 @@ export const AttendanceAlertsPanel = ({
   const fromStr = format(fromDate, "yyyy-MM-dd");
   const toStr = format(toDate, "yyyy-MM-dd");
 
+  const { data: activeEmployeeIds = [] } = useQuery({
+    queryKey: ["alerts-active-employees"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("employees")
+        .select("id")
+        .eq("status", "active");
+      return (data || []).map((e: any) => e.id as string);
+    },
+  });
+  const activeSet = useMemo(() => new Set(activeEmployeeIds), [activeEmployeeIds]);
+
   const { data: records = [] } = useQuery({
     queryKey: ["alerts-records", fromStr, toStr],
     queryFn: async () => {
       const { data } = await supabase
         .from("attendance_records")
-        .select("id, date, check_in, check_out, employee_id, client_id, employees(first_name, last_name), clients(name)")
+        .select("id, date, check_in, check_out, employee_id, client_id, employees!inner(first_name, last_name, status), clients(name)")
+        .eq("employees.status", "active")
         .gte("date", fromStr)
         .lte("date", toStr);
       return data || [];
@@ -110,7 +123,8 @@ export const AttendanceAlertsPanel = ({
     queryFn: async () => {
       const { data } = await supabase
         .from("attendance_absences")
-        .select("id, date, status, employee_id, replacement_name, notes, employees(first_name, last_name)")
+        .select("id, date, status, employee_id, replacement_name, notes, employees!inner(first_name, last_name, status)")
+        .eq("employees.status", "active")
         .gte("date", fromStr)
         .lte("date", toStr);
       return data || [];
@@ -122,7 +136,8 @@ export const AttendanceAlertsPanel = ({
     queryFn: async () => {
       const { data } = await supabase
         .from("employee_expected_hours")
-        .select("employee_id, day_type, is_working_day, expected_check_in, expected_check_out");
+        .select("employee_id, day_type, is_working_day, expected_check_in, expected_check_out, employees!inner(status)")
+        .eq("employees.status", "active");
       return data || [];
     },
   });

@@ -18,8 +18,10 @@ import { cn } from "@/lib/utils";
 import type { DateRange } from "react-day-picker";
 import { AbsenceDialog, ABSENCE_LABELS, type AbsenceStatus } from "@/components/attendance/AbsenceDialog";
 import { AttendanceAlertsPanel } from "@/components/attendance/AttendanceAlertsPanel";
+import { NoWorkPeriodsPanel } from "@/components/attendance/NoWorkPeriodsPanel";
 
 type ViewMode = "day" | "range" | "month";
+type TopTab = "attendance" | "no_work";
 
 const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"] as const;
 

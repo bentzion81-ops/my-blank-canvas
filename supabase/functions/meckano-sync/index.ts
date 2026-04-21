@@ -1,13 +1,6 @@
-// Meckano sync edge function — Phase 3
-// Actions:
-//   discover                              → probe candidate endpoints
-//   probe_path { path, method, payload? } → call arbitrary path
-//   sync_departments                      → /departments → public.clients (create-only)
-//   sync_employees                        → /users → public.employees (upsert by meckano_employee_id)
-//   sync_attendance { from, to }          → /time-entry → public.attendance_records (one row per event)
-//   sync_all { from, to }                 → departments + employees + attendance
-//
-// Auth: logged-in user (JWT) OR cron header `x-cron-secret: <SUPABASE_SERVICE_ROLE_KEY>`.
+// Meckano sync edge function
+// Actions: discover | probe_path | sync_departments | sync_employees | sync_attendance | sync_all
+// Auth: logged-in user (JWT) OR cron header `x-cron-secret: <SERVICE_ROLE_KEY>`
 
 import { createClient } from "npm:@supabase/supabase-js@2.45.0";
 
@@ -23,6 +16,8 @@ const MECKANO_KEY = Deno.env.get("MECKANO_API_KEY") ?? "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
+
+const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
 
 function jres(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -47,8 +42,6 @@ async function meckanoFetch(path: string, init: RequestInit = {}) {
   return { status: res.status, ok: res.ok, data, raw: text };
 }
 
-const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
-
 async function startLog(syncType: string, isCron: boolean, userId: string | null, metadata: any = {}) {
   const { data } = await admin.from("sync_logs").insert({
     sync_type: syncType,
@@ -64,7 +57,7 @@ async function endLog(id: string | undefined, patch: any) {
   await admin.from("sync_logs").update({ ...patch, finished_at: new Date().toISOString() }).eq("id", id);
 }
 
-// ---------- DEPARTMENTS → CLIENTS ----------
+// ---------- DEPARTMENTS → CLIENTS (create-only) ----------
 async function syncDepartments(isCron: boolean, userId: string | null) {
   const logId = await startLog("departments", isCron, userId);
   try {
@@ -75,7 +68,9 @@ async function syncDepartments(isCron: boolean, userId: string | null) {
     for (const p of attempts) {
       const r = await meckanoFetch(p);
       if (r.ok) {
-        const arr = Array.isArray(r.data) ? r.data : (r.data as any)?.data ?? (r.data as any)?.departments ?? [];
+        const arr = Array.isArray(r.data)
+          ? r.data
+          : (r.data as any)?.data ?? (r.data as any)?.departments ?? [];
         if (Array.isArray(arr)) { list = arr; usedPath = p; break; }
       }
       errors.push({ path: p, status: r.status, body: r.raw.slice(0, 200) });
@@ -125,7 +120,7 @@ async function syncDepartments(isCron: boolean, userId: string | null) {
   }
 }
 
-// ---------- EMPLOYEES ----------
+// ---------- EMPLOYEES (upsert by meckano_employee_id) ----------
 async function syncEmployees(isCron: boolean, userId: string | null) {
   const logId = await startLog("employees", isCron, userId);
   try {
@@ -141,20 +136,23 @@ async function syncEmployees(isCron: boolean, userId: string | null) {
       const [first = "Unknown", ...rest] = fullName.split(/\s+/);
       const last = rest.join(" ") || "—";
       return {
-        meckano_employee_id: meckanoId || null,
+        meckano_employee_id: meckanoId,
         first_name: u.firstName ?? u.first_name ?? first,
         last_name: u.lastName ?? u.last_name ?? last,
         israeli_phone: u.phone ?? u.mobile ?? null,
         status: (u.active === false || u.status === "inactive") ? "inactive" : "active",
-        employee_type: "permanent",
-        hourly_wage: 0,
+        employee_type: "permanent" as const,
       };
     }).filter((r) => r.meckano_employee_id);
 
     let created = 0;
     let updated = 0;
     for (const row of rows) {
-      const { data: ex } = await admin.from("employees").select("id").eq("meckano_employee_id", row.meckano_employee_id).maybeSingle();
+      const { data: ex } = await admin
+        .from("employees")
+        .select("id")
+        .eq("meckano_employee_id", row.meckano_employee_id)
+        .maybeSingle();
       if (ex) {
         await admin.from("employees").update({
           first_name: row.first_name,
@@ -164,7 +162,7 @@ async function syncEmployees(isCron: boolean, userId: string | null) {
         }).eq("id", ex.id);
         updated++;
       } else {
-        const { error } = await admin.from("employees").insert(row);
+        const { error } = await admin.from("employees").insert({ ...row, hourly_wage: 0 });
         if (!error) created++;
       }
     }
@@ -181,7 +179,7 @@ async function syncEmployees(isCron: boolean, userId: string | null) {
   }
 }
 
-// ---------- ATTENDANCE ----------
+// ---------- ATTENDANCE (one row per event) ----------
 async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userId: string | null) {
   const logId = await startLog("attendance", isCron, userId, { from: dFrom, to: dTo });
   try {
@@ -209,7 +207,7 @@ async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userI
     const rawRows = records.map((rec: any) => {
       const reportId = String(
         rec.id ?? rec.reportId ?? rec.report_id ??
-        `${rec.employeeId ?? rec.userId ?? "x"}-${rec.timestamp ?? rec.date ?? rec.time ?? Math.random()}`
+        `${rec.employeeId ?? rec.userId ?? "x"}-${rec.timestamp ?? rec.date ?? rec.time ?? Math.random()}`,
       );
       const meckEmp = String(rec.employeeId ?? rec.userId ?? rec.employee_id ?? rec.user_id ?? "");
       const ts = rec.timestamp ?? rec.time ?? rec.datetime ?? rec.date ?? new Date().toISOString();
@@ -230,25 +228,27 @@ async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userI
     }
 
     const meckIds = Array.from(new Set(rawRows.map((r) => r.meckano_employee_id)));
-    const { data: emps } = await admin.from("employees").select("id, meckano_employee_id").in("meckano_employee_id", meckIds);
+    const { data: emps } = await admin
+      .from("employees")
+      .select("id, meckano_employee_id")
+      .in("meckano_employee_id", meckIds);
     const empMap = new Map((emps ?? []).map((e: any) => [String(e.meckano_employee_id), e.id]));
 
-    const batchInsert = await admin.from("attendance_import_batches").insert({
+    const batchIns = await admin.from("attendance_import_batches").insert({
       source: "meckano",
       status: "completed",
       record_count: rawRows.length,
       notes: `Sync ${dFrom} → ${dTo}${usedPath ? ` via ${usedPath}` : ""}`,
     }).select("id").single();
-    const batchId = batchInsert.data?.id;
+    const batchId = batchIns.data?.id;
 
     let stored = 0;
     let unmatched = 0;
     for (const r of rawRows) {
       const empId = empMap.get(r.meckano_employee_id);
       if (!empId) { unmatched++; continue; }
-      const ts = new Date(r.event_timestamp);
-      const dateStr = ts.toISOString().slice(0, 10);
-      const isCheckOut = (r.event_type ?? "").toLowerCase().includes("out") || (r.event_type ?? "").toLowerCase().includes("exit");
+      const dateStr = r.event_timestamp.slice(0, 10);
+      const isOut = (r.event_type ?? "").toLowerCase().match(/out|exit|leave/);
       const row: any = {
         employee_id: empId,
         date: dateStr,
@@ -256,7 +256,7 @@ async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userI
         batch_id: batchId,
         notes: r.event_type ? `Event: ${r.event_type}` : null,
       };
-      if (isCheckOut) row.check_out = r.event_timestamp;
+      if (isOut) row.check_out = r.event_timestamp;
       else row.check_in = r.event_timestamp;
       const { error } = await admin.from("attendance_records").insert(row);
       if (!error) stored++;
@@ -286,27 +286,20 @@ Deno.serve(async (req) => {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) return jres({ error: "Unauthorized" }, 401);
     const userClient = createClient(SUPABASE_URL, ANON_KEY, { global: { headers: { Authorization: authHeader } } });
-    const token = authHeader.replace("Bearer ", "");
-    const { data, error } = await userClient.auth.getUser(token);
+    const { data, error } = await userClient.auth.getUser(authHeader.replace("Bearer ", ""));
     if (error || !data?.user) return jres({ error: "Unauthorized" }, 401);
     userId = data.user.id;
   }
 
   let body: any = {};
-  try { body = await req.json(); } catch { /* empty body ok */ }
+  try { body = await req.json(); } catch { /* empty ok */ }
   const action = body.action ?? "discover";
-
-  if (action === "probe_path") {
-    const path = body.path ?? "/users";
-    const method = body.method ?? "GET";
-    const r = await meckanoFetch(path, { method, body: body.payload ? JSON.stringify(body.payload) : undefined });
-    return jres({ ok: r.ok, status: r.status, sample: typeof r.data === "string" ? r.data.slice(0, 500) : r.data });
-  }
+  const today = new Date().toISOString().slice(0, 10);
 
   if (action === "discover") {
     const probes = body.paths ?? [
       "/users", "/employees", "/departments", "/department", "/groups", "/userGroups",
-      "/time-entry", "/attendance", "/attendanceReport", "/attendanceReporting",
+      "/time-entry", "/attendance",
     ];
     const results: Record<string, any> = {};
     for (const p of probes) {
@@ -318,24 +311,34 @@ Deno.serve(async (req) => {
           sample: typeof r.data === "string"
             ? r.data.slice(0, 300)
             : Array.isArray(r.data)
-              ? { type: "array", length: r.data.length, first: r.data[0] }
-              : r.data
+              ? { type: "array", length: (r.data as any[]).length, first: (r.data as any[])[0] }
+              : r.data,
         };
-      } catch (e) { results[p] = { error: String(e) }; }
+      } catch (e) {
+        results[p] = { error: String(e) };
+      }
     }
-    return jres(results);
+    return jres({ ok: true, base: MECKANO_BASE, probes: results });
+  }
+
+  if (action === "probe_path") {
+    const r = await meckanoFetch(body.path ?? "/users", {
+      method: body.method ?? "GET",
+      body: body.payload ? JSON.stringify(body.payload) : undefined,
+    });
+    return jres({ ok: r.ok, status: r.status, sample: typeof r.data === "string" ? r.data.slice(0, 500) : r.data });
   }
 
   if (action === "sync_departments") return jres(await syncDepartments(isCron, userId));
-  if (action === "sync_employees") return jres(await syncEmployees(isCron, userId));
-  if (action === "sync_attendance") return jres(await syncAttendance(body.from, body.to, isCron, userId));
-  
+  if (action === "sync_employees")   return jres(await syncEmployees(isCron, userId));
+  if (action === "sync_attendance")  return jres(await syncAttendance(body.from ?? today, body.to ?? today, isCron, userId));
+
   if (action === "sync_all") {
-    const d1 = await syncDepartments(isCron, userId);
-    const d2 = await syncEmployees(isCron, userId);
-    const d3 = await syncAttendance(body.from, body.to, isCron, userId);
-    return jres({ departments: d1, employees: d2, attendance: d3 });
+    const dep = await syncDepartments(isCron, userId);
+    const emp = await syncEmployees(isCron, userId);
+    const att = await syncAttendance(body.from ?? today, body.to ?? today, isCron, userId);
+    return jres({ ok: dep.ok && emp.ok && att.ok, departments: dep, employees: emp, attendance: att });
   }
 
-  return jres({ error: "Unknown action" }, 400);
+  return jres({ error: `Unknown action: ${action}` }, 400);
 });

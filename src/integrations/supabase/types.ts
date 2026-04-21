@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      attendance_absences: {
+        Row: {
+          created_at: string
+          date: string
+          employee_id: string
+          id: string
+          marked_by: string | null
+          notes: string | null
+          replacement_name: string | null
+          status: Database["public"]["Enums"]["absence_status"]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          date: string
+          employee_id: string
+          id?: string
+          marked_by?: string | null
+          notes?: string | null
+          replacement_name?: string | null
+          status?: Database["public"]["Enums"]["absence_status"]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          employee_id?: string
+          id?: string
+          marked_by?: string | null
+          notes?: string | null
+          replacement_name?: string | null
+          status?: Database["public"]["Enums"]["absence_status"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
       attendance_import_batches: {
         Row: {
           created_at: string
@@ -1552,6 +1588,10 @@ export type Database = {
         Args: { _record_id: string }
         Returns: undefined
       }
+      check_employee_absence: {
+        Args: { _date: string; _employee_id: string }
+        Returns: undefined
+      }
       has_permission: {
         Args: { _permission: string; _user_id: string }
         Returns: boolean
@@ -1564,12 +1604,22 @@ export type Database = {
         Returns: boolean
       }
       is_admin_or_owner: { Args: { _user_id: string }; Returns: boolean }
+      recheck_all_absences: {
+        Args: { _from_date: string; _to_date: string }
+        Returns: number
+      }
       recheck_all_lateness: {
         Args: { _from_date: string; _to_date: string }
         Returns: number
       }
     }
     Enums: {
+      absence_status:
+        | "no_show"
+        | "replacement"
+        | "no_work"
+        | "vacation"
+        | "sick"
       app_role:
         | "owner"
         | "admin"
@@ -1753,6 +1803,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      absence_status: ["no_show", "replacement", "no_work", "vacation", "sick"],
       app_role: [
         "owner",
         "admin",

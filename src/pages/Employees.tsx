@@ -40,6 +40,10 @@ const Employees = () => {
         .includes(search.toLowerCase()),
     )
     .sort((a: any, b: any) => {
+      // Inactive employees always at the bottom
+      const aInactive = a.status === "inactive" ? 1 : 0;
+      const bInactive = b.status === "inactive" ? 1 : 0;
+      if (aInactive !== bInactive) return aInactive - bInactive;
       const ca = getClientName(a) || "\uffff";
       const cb = getClientName(b) || "\uffff";
       if (ca !== cb) return ca.localeCompare(cb);

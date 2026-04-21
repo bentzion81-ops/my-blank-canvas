@@ -313,8 +313,23 @@ async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userI
 
     // Helper: Meckano `ts` is a Unix timestamp expressed in Israel local time
     // (not true UTC). Their displayed time = ts treated as if it were UTC.
-    // To store the correct UTC instant, subtract Israel's offset (-2h).
-    const tsToUtcMs = (ts: number) => (ts - 2 * 3600) * 1000;
+    // To store the correct UTC instant, subtract Israel's offset for that date
+    // (+2h in winter, +3h in DST/summer).
+    const israelOffsetSeconds = (ts: number) => {
+      const date = new Date(ts * 1000);
+      const parts = new Intl.DateTimeFormat("en-US", {
+        timeZone: "Asia/Jerusalem",
+        timeZoneName: "shortOffset",
+      }).formatToParts(date);
+      const tz = parts.find((p) => p.type === "timeZoneName")?.value || "GMT+2";
+      const m = tz.match(/GMT([+-])(\d{1,2})(?::(\d{2}))?/);
+      if (!m) return 2 * 3600;
+      const sign = m[1] === "-" ? -1 : 1;
+      const h = Number(m[2]);
+      const mm = Number(m[3] ?? 0);
+      return sign * (h * 3600 + mm * 60);
+    };
+    const tsToUtcMs = (ts: number) => (ts - israelOffsetSeconds(ts)) * 1000;
 
     // Persist raw punches
     const rawRows = entries

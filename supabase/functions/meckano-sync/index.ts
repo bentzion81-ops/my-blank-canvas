@@ -294,14 +294,140 @@ async function syncEmployees(isCron: boolean, userId: string | null) {
   }
 }
 
-// ---------- ATTENDANCE (Meckano REST: PUT /rest/time-reports with `key` header) ----------
+// ---------- ATTENDANCE (per-day loop using PUT /rest/time-reports) ----------
+// Meckano's /time-reports returns AGGREGATED hours per employee for the requested
+// period — there is NO public endpoint that returns daily check-in/out timestamps.
+// Workaround: call it once per day so we get one row per (employee, day) with
+// the regular + overtime hours worked that day.
 async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userId: string | null) {
   const logId = await startLog("attendance", isCron, userId, { from: dFrom, to: dTo });
   try {
-    if (!MECKANO_KEY) {
-      throw new Error("MECKANO_API_KEY is not configured");
+    if (!MECKANO_KEY) throw new Error("MECKANO_API_KEY is not configured");
+
+    // Inclusive day list
+    const days: string[] = [];
+    {
+      const start = new Date(`${dFrom}T00:00:00Z`);
+      const end = new Date(`${dTo}T00:00:00Z`);
+      for (const d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
+        days.push(d.toISOString().slice(0, 10));
+      }
     }
 
+    type DayRow = {
+      meckEmp: string; empName: string; date: string;
+      regular: number; overtime: number; total: number; raw: any;
+    };
+    const allRows: DayRow[] = [];
+    let httpCalls = 0;
+    const errors: any[] = [];
+
+    for (const day of days) {
+      const fromTs = Math.floor(new Date(`${day}T00:00:00`).getTime() / 1000);
+      const toTs = Math.floor(new Date(`${day}T23:59:59`).getTime() / 1000);
+      const r = await meckanoFetch("/time-reports", {
+        method: "PUT",
+        body: JSON.stringify({ fromDate: fromTs, toDate: toTs, fetchInactive: true }),
+      });
+      httpCalls++;
+      if (!r.ok) { errors.push({ day, status: r.status }); continue; }
+      const list: any[] = Array.isArray(r.data) ? r.data : ((r.data as any)?.data ?? []);
+      for (const e of list) {
+        const meckEmp = String(e.userId ?? e.employeeId ?? e.id ?? "");
+        if (!meckEmp) continue;
+        const reg = Number(e.regular ?? 0);
+        const ot = Number(e.overtime ?? 0);
+        const tot = Number(e.total ?? reg + ot);
+        if (tot <= 0) continue; // skip days the employee didn't work
+        allRows.push({ meckEmp, empName: String(e.userName ?? ""), date: day, regular: reg, overtime: ot, total: tot, raw: e });
+      }
+    }
+
+    // Persist raw rows
+    const rawRows = allRows.map((s) => ({
+      meckano_report_id: `${s.meckEmp}-${s.date}`,
+      meckano_employee_id: s.meckEmp,
+      event_timestamp: new Date(`${s.date}T00:00:00Z`).toISOString(),
+      event_type: "day_summary",
+      latitude: null, longitude: null, address: null,
+      raw_payload: s.raw,
+    }));
+    if (rawRows.length) {
+      await admin.from("meckano_attendance_raw").upsert(rawRows, { onConflict: "meckano_report_id" });
+    }
+
+    // Map Meckano employees → internal UUIDs
+    const meckIds = Array.from(new Set(allRows.map((s) => s.meckEmp)));
+    const { data: emps } = await admin
+      .from("employees")
+      .select("id, meckano_employee_id")
+      .in("meckano_employee_id", meckIds);
+    const empMap = new Map((emps ?? []).map((e: any) => [String(e.meckano_employee_id), e.id]));
+
+    const batchIns = await admin.from("attendance_import_batches").insert({
+      source: "meckano",
+      status: "completed",
+      record_count: allRows.length,
+      notes: `Daily sync ${dFrom} → ${dTo} (${httpCalls} API calls)`,
+    }).select("id").single();
+    const batchId = batchIns.data?.id;
+
+    // Wipe existing meckano daily records in window for the matched employees
+    const matchedEmpIds = Array.from(new Set(
+      allRows.map((r) => empMap.get(r.meckEmp)).filter(Boolean) as string[],
+    ));
+    if (matchedEmpIds.length) {
+      await admin.from("attendance_records")
+        .delete()
+        .in("employee_id", matchedEmpIds)
+        .gte("date", dFrom)
+        .lte("date", dTo)
+        .eq("source", "meckano");
+    }
+
+    let stored = 0;
+    let unmatched = 0;
+    const toInsert: any[] = [];
+    for (const s of allRows) {
+      const empId = empMap.get(s.meckEmp);
+      if (!empId) { unmatched++; continue; }
+      toInsert.push({
+        employee_id: empId,
+        date: s.date,
+        check_in: null,
+        check_out: null,
+        hours_worked: s.regular + s.overtime,
+        source: "meckano",
+        batch_id: batchId,
+        notes: s.overtime > 0 ? `Regular ${s.regular}h • OT ${s.overtime}h` : null,
+      });
+    }
+    if (toInsert.length) {
+      const chunkSize = 500;
+      for (let i = 0; i < toInsert.length; i += chunkSize) {
+        const chunk = toInsert.slice(i, i + chunkSize);
+        const { data, error } = await admin.from("attendance_records").insert(chunk).select("id");
+        if (!error) stored += data?.length ?? 0;
+      }
+    }
+
+    await endLog(logId, {
+      status: "success",
+      records_count: stored,
+      metadata: {
+        from: dFrom, to: dTo,
+        days: days.length, http_calls: httpCalls,
+        rows_fetched: allRows.length, stored, unmatched,
+        batch_id: batchId,
+        errors: errors.slice(0, 10),
+      },
+    });
+    return { ok: true, days: days.length, fetched: allRows.length, stored, unmatched, errors_count: errors.length };
+  } catch (e) {
+    await endLog(logId, { status: "error", error_message: String(e) });
+    return { ok: false, error: String(e) };
+  }
+}
     // Per Meckano docs: PUT https://app.meckano.co.il/rest/time-reports
     // Body: { fromDate: <unix>, toDate: <unix>, fetchInactive: false }
     const fromTs = Math.floor(new Date(`${dFrom}T00:00:00`).getTime() / 1000);

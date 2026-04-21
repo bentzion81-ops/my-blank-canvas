@@ -11,13 +11,23 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const MECKANO_BASE = "https://app.meckano.co.il/rest";
+// Meckano supports two API surfaces:
+//   - Legacy REST (key header): https://app.meckano.co.il/rest    — used for /users, /departments
+//   - Documented API (Basic Auth):  https://app.meckano.co.il/api.php  — used for /attendance
+const MECKANO_REST_BASE = "https://app.meckano.co.il/rest";
+const MECKANO_API_BASE = "https://app.meckano.co.il/api.php";
 const MECKANO_KEY = Deno.env.get("MECKANO_API_KEY") ?? "";
+const MECKANO_USERNAME = Deno.env.get("MECKANO_USERNAME") ?? "";
+const MECKANO_PASSWORD = Deno.env.get("MECKANO_PASSWORD") ?? "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 
 const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
+
+function basicAuthHeader() {
+  return "Basic " + btoa(`${MECKANO_USERNAME}:${MECKANO_PASSWORD}`);
+}
 
 function jres(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -26,11 +36,29 @@ function jres(body: unknown, status = 200) {
   });
 }
 
+// Legacy REST fetch (uses MECKANO_API_KEY in `key` header)
 async function meckanoFetch(path: string, init: RequestInit = {}) {
-  const res = await fetch(`${MECKANO_BASE}${path}`, {
+  const res = await fetch(`${MECKANO_REST_BASE}${path}`, {
     ...init,
     headers: {
       "key": MECKANO_KEY,
+      "Content-Type": "application/json",
+      "Accept": "application/json",
+      ...(init.headers ?? {}),
+    },
+  });
+  const text = await res.text();
+  let data: unknown = text;
+  try { data = JSON.parse(text); } catch { /* keep text */ }
+  return { status: res.status, ok: res.ok, data, raw: text };
+}
+
+// Documented API fetch (uses Basic Auth — username/password)
+async function meckanoApiFetch(path: string, init: RequestInit = {}) {
+  const res = await fetch(`${MECKANO_API_BASE}${path}`, {
+    ...init,
+    headers: {
+      "Authorization": basicAuthHeader(),
       "Content-Type": "application/json",
       "Accept": "application/json",
       ...(init.headers ?? {}),

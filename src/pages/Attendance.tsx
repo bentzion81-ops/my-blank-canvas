@@ -4,17 +4,19 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Clock, Users, AlertTriangle, CheckCircle, Search, RefreshCw, MessageCircle, CalendarIcon } from "lucide-react";
+import { Clock, Users, AlertTriangle, CheckCircle, Search, RefreshCw, MessageCircle, CalendarIcon, UserX } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay } from "date-fns";
 import { useState, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import type { DateRange } from "react-day-picker";
+import { AbsenceDialog, ABSENCE_LABELS, type AbsenceStatus } from "@/components/attendance/AbsenceDialog";
 
 type ViewMode = "day" | "range" | "month";
 
@@ -29,6 +31,7 @@ const Attendance = () => {
     to: new Date(),
   });
   const [month, setMonth] = useState<Date>(startOfMonth(new Date()));
+  const [absenceDialog, setAbsenceDialog] = useState<{ employeeId: string; name: string; date: string } | null>(null);
 
   // Compute active date range based on view
   const { fromDate, toDate } = useMemo(() => {
@@ -64,8 +67,23 @@ const Attendance = () => {
     },
   });
 
+  const { data: absences } = useQuery({
+    queryKey: ["attendance-absences", fromStr, toStr],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("attendance_absences" as any)
+        .select("*, employees(first_name, last_name)")
+        .gte("date", fromStr)
+        .lte("date", toStr);
+      return (data as any[]) || [];
+    },
+  });
+
   // Build merged rows: for single-day view, show scheduled vs actual. For range/month, show actual records only.
   const rows = useMemo(() => {
+    const absenceMap = new Map<string, any>();
+    (absences || []).forEach((a: any) => absenceMap.set(`${a.employee_id}-${a.date}`, a));
+
     if (isSingleDay) {
       const todayDay = dayNames[fromDate.getDay()];
       const scheduled = (schedules || []).filter(
@@ -76,6 +94,7 @@ const Attendance = () => {
 
       return scheduled.map((schedule: any) => {
         const record = records?.find((r: any) => r.employee_id === schedule.employee_id);
+        const absence = absenceMap.get(`${schedule.employee_id}-${fromStr}`);
         const scheduledTime = schedule.start_time;
         let status = "not yet time";
 
@@ -85,6 +104,8 @@ const Attendance = () => {
           const scheduledDate = new Date(fromDate);
           scheduledDate.setHours(h, m, 0, 0);
           status = checkInTime > new Date(scheduledDate.getTime() + 15 * 60000) ? "late" : "arrived";
+        } else if (absence) {
+          status = "absent";
         } else if (!isToday) {
           status = "not reported";
         } else {
@@ -97,6 +118,7 @@ const Attendance = () => {
         return {
           key: `${schedule.employee_id}-${fromStr}`,
           date: fromStr,
+          employeeId: schedule.employee_id,
           name: `${schedule.employees?.first_name || ""} ${schedule.employees?.last_name || ""}`.trim(),
           client: schedule.clients?.name || record?.clients?.name || "—",
           scheduled: scheduledTime?.slice(0, 5) || "—",
@@ -104,23 +126,46 @@ const Attendance = () => {
           checkOut: record?.check_out ? format(new Date(record.check_out), "HH:mm") : null,
           hours: record?.hours_worked ?? null,
           status,
+          absence,
         };
       });
     }
 
-    // Range / month: list all actual records
-    return (records || []).map((r: any) => ({
-      key: r.id,
-      date: r.date,
-      name: `${r.employees?.first_name || ""} ${r.employees?.last_name || ""}`.trim() || "—",
-      client: r.clients?.name || "—",
-      scheduled: "—",
-      checkIn: r.check_in ? format(new Date(r.check_in), "HH:mm") : null,
-      checkOut: r.check_out ? format(new Date(r.check_out), "HH:mm") : null,
-      hours: r.hours_worked ?? null,
-      status: r.check_in ? "arrived" : "not reported",
-    }));
-  }, [isSingleDay, fromDate, fromStr, records, schedules]);
+    // Range / month: actual records + absences (no record)
+    const recordRows = (records || []).map((r: any) => {
+      const absence = absenceMap.get(`${r.employee_id}-${r.date}`);
+      return {
+        key: r.id,
+        date: r.date,
+        employeeId: r.employee_id,
+        name: `${r.employees?.first_name || ""} ${r.employees?.last_name || ""}`.trim() || "—",
+        client: r.clients?.name || "—",
+        scheduled: "—",
+        checkIn: r.check_in ? format(new Date(r.check_in), "HH:mm") : null,
+        checkOut: r.check_out ? format(new Date(r.check_out), "HH:mm") : null,
+        hours: r.hours_worked ?? null,
+        status: r.check_in ? "arrived" : absence ? "absent" : "not reported",
+        absence,
+      };
+    });
+    const recordKeys = new Set(recordRows.map((r) => `${r.employeeId}-${r.date}`));
+    const absenceOnlyRows = (absences || [])
+      .filter((a: any) => !recordKeys.has(`${a.employee_id}-${a.date}`))
+      .map((a: any) => ({
+        key: `abs-${a.id}`,
+        date: a.date,
+        employeeId: a.employee_id,
+        name: `${a.employees?.first_name || ""} ${a.employees?.last_name || ""}`.trim() || "—",
+        client: "—",
+        scheduled: "—",
+        checkIn: null,
+        checkOut: null,
+        hours: null,
+        status: "absent",
+        absence: a,
+      }));
+    return [...recordRows, ...absenceOnlyRows].sort((a, b) => b.date.localeCompare(a.date));
+  }, [isSingleDay, fromDate, fromStr, records, schedules, absences]);
 
   const filtered = rows.filter(
     (a) =>
@@ -301,7 +346,7 @@ const Attendance = () => {
                     <TableHead className="hidden md:table-cell">Check Out</TableHead>
                     {!isSingleDay && <TableHead className="hidden md:table-cell">Hours</TableHead>}
                     <TableHead>Status</TableHead>
-                    {isSingleDay && <TableHead>Actions</TableHead>}
+                    <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -310,7 +355,16 @@ const Attendance = () => {
                       {!isSingleDay && (
                         <TableCell className="text-xs">{format(new Date(a.date), "dd/MM/yyyy")}</TableCell>
                       )}
-                      <TableCell className="font-medium">{a.name}</TableCell>
+                      <TableCell className="font-medium">
+                        {a.name}
+                        {a.absence && (
+                          <div className="text-[10px] text-muted-foreground mt-0.5">
+                            {ABSENCE_LABELS[a.absence.status as AbsenceStatus]}
+                            {a.absence.replacement_name && ` — ${a.absence.replacement_name}`}
+                            {a.absence.notes && ` · ${a.absence.notes}`}
+                          </div>
+                        )}
+                      </TableCell>
                       <TableCell>{a.client}</TableCell>
                       {isSingleDay && <TableCell className="hidden md:table-cell">{a.scheduled}</TableCell>}
                       <TableCell className="hidden md:table-cell">{a.checkIn || "—"}</TableCell>
@@ -320,16 +374,35 @@ const Attendance = () => {
                           {a.hours != null ? Number(a.hours).toFixed(2) : "—"}
                         </TableCell>
                       )}
-                      <TableCell><StatusBadge status={a.status} /></TableCell>
-                      {isSingleDay && (
-                        <TableCell>
-                          {(a.status === "not reported" || a.status === "late") && (
+                      <TableCell>
+                        {a.status === "absent" && a.absence ? (
+                          <Badge variant="outline" className="gap-1">
+                            <UserX className="h-3 w-3" />
+                            {ABSENCE_LABELS[a.absence.status as AbsenceStatus]}
+                          </Badge>
+                        ) : (
+                          <StatusBadge status={a.status} />
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex gap-1">
+                          {(a.status === "not reported" || a.status === "absent") && a.employeeId && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 text-xs"
+                              onClick={() => setAbsenceDialog({ employeeId: a.employeeId!, name: a.name, date: a.date })}
+                            >
+                              <UserX className="h-3 w-3 mr-1" /> {a.absence ? "ערוך" : "סמן חיסור"}
+                            </Button>
+                          )}
+                          {isSingleDay && (a.status === "not reported" || a.status === "late") && (
                             <Button variant="ghost" size="sm" className="h-7 text-xs">
                               <MessageCircle className="h-3 w-3 mr-1" /> Send
                             </Button>
                           )}
-                        </TableCell>
-                      )}
+                        </div>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -338,6 +411,15 @@ const Attendance = () => {
           </CardContent>
         </Card>
       </div>
+      {absenceDialog && (
+        <AbsenceDialog
+          open={!!absenceDialog}
+          onOpenChange={(o) => !o && setAbsenceDialog(null)}
+          employeeId={absenceDialog.employeeId}
+          employeeName={absenceDialog.name}
+          date={absenceDialog.date}
+        />
+      )}
     </div>
   );
 };

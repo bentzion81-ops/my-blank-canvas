@@ -500,6 +500,8 @@ const Attendance = () => {
             )}
           </CardContent>
         </Card>
+        </>
+        )}
       </div>
       {absenceDialog && (
         <AbsenceDialog

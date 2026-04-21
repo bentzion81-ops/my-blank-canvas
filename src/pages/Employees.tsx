@@ -70,10 +70,10 @@ const Employees = () => {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>Client</TableHead>
                   <TableHead>Name</TableHead>
                   <TableHead className="hidden md:table-cell">Phone</TableHead>
                   <TableHead className="hidden md:table-cell">Citizenship</TableHead>
-                  <TableHead className="hidden lg:table-cell">Client</TableHead>
                   <TableHead className="hidden lg:table-cell">Type</TableHead>
                   <TableHead>Status</TableHead>
                 </TableRow>
@@ -93,35 +93,44 @@ const Employees = () => {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filtered.map((emp: any) => {
-                    const primaryAssignment = emp.employee_client_assignments?.find((a: any) => a.clients);
-                    return (
-                      <TableRow
-                        key={emp.id}
-                        className="cursor-pointer"
-                        onClick={() => navigate(`/employees/${emp.id}`)}
-                      >
-                        <TableCell className="font-medium">
-                          {emp.first_name} {emp.last_name}
-                        </TableCell>
-                        <TableCell className="hidden md:table-cell">
-                          {emp.israeli_phone || emp.foreign_phone || "—"}
-                        </TableCell>
-                        <TableCell className="hidden md:table-cell">
-                          {emp.citizenship || "—"}
-                        </TableCell>
-                        <TableCell className="hidden lg:table-cell">
-                          {primaryAssignment?.clients?.name || "Unassigned"}
-                        </TableCell>
-                        <TableCell className="hidden lg:table-cell capitalize">
-                          {emp.employee_type}
-                        </TableCell>
-                        <TableCell>
-                          <StatusBadge status={emp.status} />
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
+                  (() => {
+                    const rows: JSX.Element[] = [];
+                    let lastClient: string | null = null;
+                    filtered.forEach((emp: any) => {
+                      const clientName = getClientName(emp) || "Unassigned";
+                      if (clientName !== lastClient) {
+                        rows.push(
+                          <TableRow key={`grp-${clientName}`} className="bg-muted/40 hover:bg-muted/40">
+                            <TableCell colSpan={6} className="py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                              {clientName}
+                            </TableCell>
+                          </TableRow>,
+                        );
+                        lastClient = clientName;
+                      }
+                      rows.push(
+                        <TableRow
+                          key={emp.id}
+                          className="cursor-pointer"
+                          onClick={() => navigate(`/employees/${emp.id}`)}
+                        >
+                          <TableCell className="text-muted-foreground text-sm">{clientName}</TableCell>
+                          <TableCell className="font-medium">
+                            {emp.first_name} {emp.last_name}
+                          </TableCell>
+                          <TableCell className="hidden md:table-cell">
+                            {emp.israeli_phone || emp.foreign_phone || "—"}
+                          </TableCell>
+                          <TableCell className="hidden md:table-cell">{emp.citizenship || "—"}</TableCell>
+                          <TableCell className="hidden lg:table-cell capitalize">{emp.employee_type}</TableCell>
+                          <TableCell>
+                            <StatusBadge status={emp.status} />
+                          </TableCell>
+                        </TableRow>,
+                      );
+                    });
+                    return rows;
+                  })()
                 )}
               </TableBody>
             </Table>

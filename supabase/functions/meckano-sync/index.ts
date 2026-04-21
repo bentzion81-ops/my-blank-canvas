@@ -79,17 +79,24 @@ Deno.serve(async (req) => {
   try { body = await req.json(); } catch { /* empty body ok */ }
   const action = body.action ?? "discover";
 
+  // ---------- PROBE ARBITRARY PATH ----------
+  if (action === "probe_path") {
+    const path = body.path ?? "/users";
+    const method = body.method ?? "GET";
+    const r = await meckanoFetch(path, { method, body: body.payload ? JSON.stringify(body.payload) : undefined });
+    return jres({ ok: r.ok, status: r.status, sample: typeof r.data === "string" ? r.data.slice(0, 500) : r.data });
+  }
+
   // ---------- DISCOVER ----------
   if (action === "discover") {
-    // Probe a few likely endpoints
-    const probes = [
-      "/users",
-      "/employees",
-      "/attendance",
-      "/attendanceReport",
-      "/attendance-report",
-      "/attendanceReporting",
-      "/reports/attendance",
+    const probes = body.paths ?? [
+      "/users", "/employees",
+      "/attendance", "/attendanceReport", "/attendance-report", "/attendanceReporting",
+      "/reports/attendance", "/employeeReporting", "/attendanceReporting/getReport",
+      "/attendanceReporting/get", "/report", "/reports", "/punches", "/timeEvents",
+      "/dailyAttendance", "/userAttendance", "/employeeAttendance",
+      "/attendance/get", "/attendance/list", "/attendance/all",
+      "/attendanceData", "/timesheet", "/getAttendance", "/getReport",
     ];
     const results: Record<string, any> = {};
     for (const p of probes) {
@@ -178,13 +185,17 @@ Deno.serve(async (req) => {
         errors.push({ path: a.path, status: r.status, body: r.raw.slice(0, 200) });
       }
       if (!payload) {
+        const friendly =
+          "Meckano API key has no access to attendance endpoints. " +
+          "All public REST controllers (/attendance*, /oneTimeReport, /attendanceReporting…) returned 404 'unknown controller'. " +
+          "Action: in Meckano → Settings → API, generate a key with 'Reports' / 'Attendance' permission, then update the MECKANO_API_KEY secret.";
         await admin.from("sync_logs").update({
           status: "error",
-          error_message: "No attendance endpoint matched",
+          error_message: friendly,
           finished_at: new Date().toISOString(),
           metadata: { from: dFrom, to: dTo, attempts: errors },
         }).eq("id", logId);
-        return jres({ ok: false, error: "No attendance endpoint matched", attempts: errors }, 502);
+        return jres({ ok: false, error: friendly, attempts: errors });
       }
 
       const records: any[] = Array.isArray(payload)

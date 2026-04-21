@@ -311,25 +311,61 @@ async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userI
       ? r.data
       : ((r.data as any)?.data ?? []);
 
-    // Helper: Meckano `ts` is a Unix timestamp expressed in Israel local time
-    // (not true UTC). Their displayed time = ts treated as if it were UTC.
-    // To store the correct UTC instant, subtract Israel's offset for that date
-    // (+2h in winter, +3h in DST/summer).
-    const israelOffsetSeconds = (ts: number) => {
-      const date = new Date(ts * 1000);
+    // SAFE STRATEGY: Meckano provides `dateStr` (DD.MM.YYYY) and `timeStr` (HH:mm)
+    // representing exactly what Meckano displays in Israel local time.
+    // To make our stored timestamps EXACTLY match Meckano regardless of DST or
+    // server location, we build the UTC instant from those strings + the actual
+    // Israel offset at that wall-clock moment (DST-aware).
+    const israelOffsetSecondsAt = (year: number, month: number, day: number, hour: number, minute: number) => {
+      // Build a "naive" UTC date with the wall-clock components, then ask what
+      // that instant looks like in Asia/Jerusalem. The diff = the offset.
+      const asUtc = Date.UTC(year, month - 1, day, hour, minute, 0);
       const parts = new Intl.DateTimeFormat("en-US", {
         timeZone: "Asia/Jerusalem",
         timeZoneName: "shortOffset",
-      }).formatToParts(date);
+        year: "numeric",
+      }).formatToParts(new Date(asUtc));
       const tz = parts.find((p) => p.type === "timeZoneName")?.value || "GMT+2";
       const m = tz.match(/GMT([+-])(\d{1,2})(?::(\d{2}))?/);
       if (!m) return 2 * 3600;
       const sign = m[1] === "-" ? -1 : 1;
-      const h = Number(m[2]);
-      const mm = Number(m[3] ?? 0);
-      return sign * (h * 3600 + mm * 60);
+      return sign * (Number(m[2]) * 3600 + Number(m[3] ?? 0) * 60);
     };
-    const tsToUtcMs = (ts: number) => (ts - israelOffsetSeconds(ts)) * 1000;
+
+    // Build UTC ms from Meckano's dateStr "DD.MM.YYYY" + timeStr "HH:mm".
+    // Falls back to ts-based math only if those strings are missing.
+    const meckanoToUtcMs = (e: any): number => {
+      const dateStr: string = e.dateStr ?? "";
+      const timeStr: string = e.timeStr ?? "";
+      const dm = dateStr.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+      const tm = timeStr.match(/^(\d{1,2}):(\d{2})/);
+      if (dm && tm) {
+        const day = Number(dm[1]);
+        const month = Number(dm[2]);
+        const year = Number(dm[3]);
+        const hour = Number(tm[1]);
+        const minute = Number(tm[2]);
+        const offsetSec = israelOffsetSecondsAt(year, month, day, hour, minute);
+        const utcMs = Date.UTC(year, month - 1, day, hour, minute, 0) - offsetSec * 1000;
+        return utcMs;
+      }
+      // Fallback: treat ts as Israel-local-as-UTC and subtract offset
+      const ts = Number(e.ts ?? 0);
+      const d = new Date(ts * 1000);
+      const off = israelOffsetSecondsAt(
+        d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate(),
+        d.getUTCHours(), d.getUTCMinutes(),
+      );
+      return (ts - off) * 1000;
+    };
+    const tsToUtcMs = (ts: number) => {
+      const d = new Date(ts * 1000);
+      const off = israelOffsetSecondsAt(
+        d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate(),
+        d.getUTCHours(), d.getUTCMinutes(),
+      );
+      return (ts - off) * 1000;
+    };
 
     // Persist raw punches
     const rawRows = entries

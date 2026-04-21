@@ -79,17 +79,24 @@ Deno.serve(async (req) => {
   try { body = await req.json(); } catch { /* empty body ok */ }
   const action = body.action ?? "discover";
 
+  // ---------- PROBE ARBITRARY PATH ----------
+  if (action === "probe_path") {
+    const path = body.path ?? "/users";
+    const method = body.method ?? "GET";
+    const r = await meckanoFetch(path, { method, body: body.payload ? JSON.stringify(body.payload) : undefined });
+    return jres({ ok: r.ok, status: r.status, sample: typeof r.data === "string" ? r.data.slice(0, 500) : r.data });
+  }
+
   // ---------- DISCOVER ----------
   if (action === "discover") {
-    // Probe a few likely endpoints
-    const probes = [
-      "/users",
-      "/employees",
-      "/attendance",
-      "/attendanceReport",
-      "/attendance-report",
-      "/attendanceReporting",
-      "/reports/attendance",
+    const probes = body.paths ?? [
+      "/users", "/employees",
+      "/attendance", "/attendanceReport", "/attendance-report", "/attendanceReporting",
+      "/reports/attendance", "/employeeReporting", "/attendanceReporting/getReport",
+      "/attendanceReporting/get", "/report", "/reports", "/punches", "/timeEvents",
+      "/dailyAttendance", "/userAttendance", "/employeeAttendance",
+      "/attendance/get", "/attendance/list", "/attendance/all",
+      "/attendanceData", "/timesheet", "/getAttendance", "/getReport",
     ];
     const results: Record<string, any> = {};
     for (const p of probes) {

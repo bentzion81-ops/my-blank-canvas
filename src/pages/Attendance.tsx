@@ -26,6 +26,7 @@ type TopTab = "attendance" | "no_work";
 const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"] as const;
 
 const Attendance = () => {
+  const [topTab, setTopTab] = useState<TopTab>("attendance");
   const [searchTerm, setSearchTerm] = useState("");
   const [view, setView] = useState<ViewMode>("day");
   const [selectedDay, setSelectedDay] = useState<Date>(new Date());

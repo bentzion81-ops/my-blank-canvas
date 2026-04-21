@@ -416,10 +416,10 @@ const Attendance = () => {
                       </TableCell>
                       <TableCell>{a.client}</TableCell>
                       {isSingleDay && <TableCell className="hidden md:table-cell">{a.scheduled}</TableCell>}
-                      <TableCell className={cn("hidden md:table-cell", lateIn && "bg-orange-100 text-orange-700 font-medium")}>
+                      <TableCell className={cn("hidden md:table-cell", lateIn && "bg-warning/15 text-warning font-medium")}>
                         {a.checkIn || "—"}
                       </TableCell>
-                      <TableCell className={cn("hidden md:table-cell", lateOut && "bg-orange-100 text-orange-700 font-medium")}>
+                      <TableCell className={cn("hidden md:table-cell", lateOut && "bg-warning/15 text-warning font-medium")}>
                         {a.checkOut || "—"}
                       </TableCell>
                       {!isSingleDay && (

@@ -79,6 +79,46 @@ const Attendance = () => {
     },
   });
 
+  const { data: expectedHours } = useQuery({
+    queryKey: ["employee-expected-hours-all"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("employee_expected_hours" as any)
+        .select("employee_id, day_type, is_working_day, expected_check_in, expected_check_out");
+      return (data as any[]) || [];
+    },
+  });
+
+  // Build lookup: employee_id -> day_type -> {in, out}
+  const expectedMap = useMemo(() => {
+    const m = new Map<string, Record<string, { in: string | null; out: string | null; working: boolean }>>();
+    (expectedHours || []).forEach((e: any) => {
+      if (!m.has(e.employee_id)) m.set(e.employee_id, {});
+      m.get(e.employee_id)![e.day_type] = {
+        in: e.expected_check_in,
+        out: e.expected_check_out,
+        working: e.is_working_day,
+      };
+    });
+    return m;
+  }, [expectedHours]);
+
+  // Returns true if `actual` (HH:mm timestamp) deviates from `expected` (HH:mm string) by 20+ min
+  const isLateTime = (actualIso: string | null, expectedHHmm: string | null | undefined, dateStr: string) => {
+    if (!actualIso || !expectedHHmm) return false;
+    const actual = new Date(actualIso).getTime();
+    const [h, m] = expectedHHmm.split(":").map(Number);
+    const exp = new Date(`${dateStr}T${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00`).getTime();
+    return Math.abs(actual - exp) >= 20 * 60 * 1000;
+  };
+
+  const dayTypeFor = (dateStr: string): "weekday" | "friday" | "saturday" => {
+    const dow = new Date(dateStr).getDay();
+    if (dow === 5) return "friday";
+    if (dow === 6) return "saturday";
+    return "weekday";
+  };
+
   // Build merged rows: for single-day view, show scheduled vs actual. For range/month, show actual records only.
   const rows = useMemo(() => {
     const absenceMap = new Map<string, any>();

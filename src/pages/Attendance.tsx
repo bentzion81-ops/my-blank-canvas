@@ -18,12 +18,15 @@ import { cn } from "@/lib/utils";
 import type { DateRange } from "react-day-picker";
 import { AbsenceDialog, ABSENCE_LABELS, type AbsenceStatus } from "@/components/attendance/AbsenceDialog";
 import { AttendanceAlertsPanel } from "@/components/attendance/AttendanceAlertsPanel";
+import { NoWorkPeriodsPanel } from "@/components/attendance/NoWorkPeriodsPanel";
 
 type ViewMode = "day" | "range" | "month";
+type TopTab = "attendance" | "no_work";
 
 const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"] as const;
 
 const Attendance = () => {
+  const [topTab, setTopTab] = useState<TopTab>("attendance");
   const [searchTerm, setSearchTerm] = useState("");
   const [view, setView] = useState<ViewMode>("day");
   const [selectedDay, setSelectedDay] = useState<Date>(new Date());
@@ -242,6 +245,17 @@ const Attendance = () => {
     <div className="flex flex-col">
       <AppHeader title="Attendance" subtitle={subtitle} />
       <div className="flex-1 space-y-4 p-4 lg:p-6">
+        <Tabs value={topTab} onValueChange={(v) => setTopTab(v as TopTab)}>
+          <TabsList>
+            <TabsTrigger value="attendance">נוכחות</TabsTrigger>
+            <TabsTrigger value="no_work">תקופות אי-עבודה</TabsTrigger>
+          </TabsList>
+        </Tabs>
+
+        {topTab === "no_work" ? (
+          <NoWorkPeriodsPanel />
+        ) : (
+        <>
         {/* Alerts panel */}
         <AttendanceAlertsPanel
           selectedDay={selectedDay}
@@ -486,6 +500,8 @@ const Attendance = () => {
             )}
           </CardContent>
         </Card>
+        </>
+        )}
       </div>
       {absenceDialog && (
         <AbsenceDialog

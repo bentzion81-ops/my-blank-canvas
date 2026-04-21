@@ -933,6 +933,63 @@ export type Database = {
         }
         Relationships: []
       }
+      no_work_periods: {
+        Row: {
+          client_id: string | null
+          created_at: string
+          created_by: string | null
+          employee_id: string | null
+          from_date: string
+          id: string
+          notes: string | null
+          reason: string
+          scope: string
+          to_date: string
+          updated_at: string
+        }
+        Insert: {
+          client_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          employee_id?: string | null
+          from_date: string
+          id?: string
+          notes?: string | null
+          reason?: string
+          scope: string
+          to_date: string
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          employee_id?: string | null
+          from_date?: string
+          id?: string
+          notes?: string | null
+          reason?: string
+          scope?: string
+          to_date?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "no_work_periods_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "no_work_periods_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notifications: {
         Row: {
           created_at: string
@@ -1600,6 +1657,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      apply_no_work_period: { Args: { _period_id: string }; Returns: number }
       check_attendance_lateness: {
         Args: { _record_id: string }
         Returns: undefined

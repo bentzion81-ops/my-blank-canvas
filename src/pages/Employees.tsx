@@ -40,6 +40,10 @@ const Employees = () => {
         .includes(search.toLowerCase()),
     )
     .sort((a: any, b: any) => {
+      // Inactive employees always at the bottom
+      const aInactive = a.status === "inactive" ? 1 : 0;
+      const bInactive = b.status === "inactive" ? 1 : 0;
+      if (aInactive !== bInactive) return aInactive - bInactive;
       const ca = getClientName(a) || "\uffff";
       const cb = getClientName(b) || "\uffff";
       if (ca !== cb) return ca.localeCompare(cb);
@@ -97,21 +101,23 @@ const Employees = () => {
                     const rows: JSX.Element[] = [];
                     let lastClient: string | null = null;
                     filtered.forEach((emp: any) => {
+                      const isInactive = emp.status === "inactive";
                       const clientName = getClientName(emp) || "Unassigned";
-                      if (clientName !== lastClient) {
+                      const groupLabel = isInactive ? "Inactive" : clientName;
+                      if (groupLabel !== lastClient) {
                         rows.push(
-                          <TableRow key={`grp-${clientName}`} className="bg-muted/40 hover:bg-muted/40">
+                          <TableRow key={`grp-${groupLabel}`} className="bg-muted/40 hover:bg-muted/40">
                             <TableCell colSpan={6} className="py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                              {clientName}
+                              {groupLabel}
                             </TableCell>
                           </TableRow>,
                         );
-                        lastClient = clientName;
+                        lastClient = groupLabel;
                       }
                       rows.push(
                         <TableRow
                           key={emp.id}
-                          className="cursor-pointer"
+                          className={`cursor-pointer ${isInactive ? "opacity-60" : ""}`}
                           onClick={() => navigate(`/employees/${emp.id}`)}
                         >
                           <TableCell className="text-muted-foreground text-sm">{clientName}</TableCell>

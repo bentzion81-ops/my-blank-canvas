@@ -245,6 +245,17 @@ const Attendance = () => {
     <div className="flex flex-col">
       <AppHeader title="Attendance" subtitle={subtitle} />
       <div className="flex-1 space-y-4 p-4 lg:p-6">
+        <Tabs value={topTab} onValueChange={(v) => setTopTab(v as TopTab)}>
+          <TabsList>
+            <TabsTrigger value="attendance">נוכחות</TabsTrigger>
+            <TabsTrigger value="no_work">תקופות אי-עבודה</TabsTrigger>
+          </TabsList>
+        </Tabs>
+
+        {topTab === "no_work" ? (
+          <NoWorkPeriodsPanel />
+        ) : (
+        <>
         {/* Alerts panel */}
         <AttendanceAlertsPanel
           selectedDay={selectedDay}

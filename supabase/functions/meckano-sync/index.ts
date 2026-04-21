@@ -139,12 +139,24 @@ async function syncEmployees(isCron: boolean, userId: string | null) {
         u.departmentId ?? u.department_id ?? u.department ?? u.deptId ?? u.dept_id ??
         (u.department && typeof u.department === "object" ? (u.department.id ?? u.department.code) : "") ?? "",
       );
+      // Detect inactive across many possible Meckano field shapes
+      const statusStr = String(u.status ?? u.employeeStatus ?? u.employee_status ?? "").toLowerCase();
+      const hasEndDate = !!(u.terminationDate || u.termination_date || u.endDate || u.end_date || u.endWorkDate || u.end_work_date || u.leaveDate || u.leave_date);
+      const isInactive =
+        u.active === false ||
+        u.isActive === false ||
+        u.is_active === false ||
+        u.enabled === false ||
+        u.deleted === true ||
+        u.isDeleted === true ||
+        /inactive|disabled|terminated|deleted|left|former|archived/.test(statusStr) ||
+        hasEndDate;
       return {
         meckano_employee_id: meckanoId,
         first_name: u.firstName ?? u.first_name ?? first,
         last_name: u.lastName ?? u.last_name ?? last,
         israeli_phone: u.phone ?? u.mobile ?? null,
-        status: (u.active === false || u.status === "inactive") ? "inactive" : "active",
+        status: isInactive ? "inactive" : "active",
         employee_type: "permanent" as const,
         _meckano_dept_id: deptId,
       };
@@ -223,10 +235,17 @@ async function syncEmployees(isCron: boolean, userId: string | null) {
       }
     }
 
+    const inactiveCount = rows.filter((r) => r.status === "inactive").length;
     await endLog(logId, {
       status: "success",
       records_count: created + updated,
-      metadata: { fetched: list.length, created, updated, links_created: linksCreated, links_skipped: linksSkipped },
+      metadata: {
+        fetched: list.length, created, updated,
+        links_created: linksCreated, links_skipped: linksSkipped,
+        inactive_count: inactiveCount,
+        sample_user_keys: list[0] ? Object.keys(list[0]) : [],
+        sample_user: list[0] ?? null,
+      },
     });
     return { ok: true, fetched: list.length, created, updated, links_created: linksCreated, links_skipped: linksSkipped };
   } catch (e) {

@@ -19,18 +19,32 @@ const Employees = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("employees")
-        .select("*, employee_client_assignments(client_id, clients(name))")
+        .select("*, employee_client_assignments(is_primary, end_date, client_id, clients(name))")
         .order("first_name");
       if (error) throw error;
       return data;
     },
   });
 
-  const filtered = employees.filter((e: any) =>
-    `${e.first_name} ${e.last_name} ${e.passport_number || ""} ${e.israeli_phone || ""}`
-      .toLowerCase()
-      .includes(search.toLowerCase())
-  );
+  const getClientName = (e: any): string => {
+    const assignments = e.employee_client_assignments ?? [];
+    const active = assignments.filter((a: any) => a.clients && !a.end_date);
+    const primary = active.find((a: any) => a.is_primary) ?? active[0] ?? assignments.find((a: any) => a.clients);
+    return primary?.clients?.name ?? "";
+  };
+
+  const filtered = employees
+    .filter((e: any) =>
+      `${e.first_name} ${e.last_name} ${e.passport_number || ""} ${e.israeli_phone || ""} ${getClientName(e)}`
+        .toLowerCase()
+        .includes(search.toLowerCase()),
+    )
+    .sort((a: any, b: any) => {
+      const ca = getClientName(a) || "\uffff";
+      const cb = getClientName(b) || "\uffff";
+      if (ca !== cb) return ca.localeCompare(cb);
+      return `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`);
+    });
 
   return (
     <div className="flex flex-col">

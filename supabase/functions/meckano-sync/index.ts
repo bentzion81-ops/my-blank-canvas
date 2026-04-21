@@ -185,13 +185,17 @@ Deno.serve(async (req) => {
         errors.push({ path: a.path, status: r.status, body: r.raw.slice(0, 200) });
       }
       if (!payload) {
+        const friendly =
+          "Meckano API key has no access to attendance endpoints. " +
+          "All public REST controllers (/attendance*, /oneTimeReport, /attendanceReporting…) returned 404 'unknown controller'. " +
+          "Action: in Meckano → Settings → API, generate a key with 'Reports' / 'Attendance' permission, then update the MECKANO_API_KEY secret.";
         await admin.from("sync_logs").update({
           status: "error",
-          error_message: "No attendance endpoint matched",
+          error_message: friendly,
           finished_at: new Date().toISOString(),
           metadata: { from: dFrom, to: dTo, attempts: errors },
         }).eq("id", logId);
-        return jres({ ok: false, error: "No attendance endpoint matched", attempts: errors }, 502);
+        return jres({ ok: false, error: friendly, attempts: errors });
       }
 
       const records: any[] = Array.isArray(payload)

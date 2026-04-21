@@ -20,9 +20,8 @@ type SyncResult = { ok: boolean; [k: string]: any };
 export const MeckanoSyncPanel = () => {
   const [busy, setBusy] = useState<string | null>(null);
   const [lastResult, setLastResult] = useState<SyncResult | null>(null);
-  const today = format(new Date(), "yyyy-MM-dd");
-  const [from, setFrom] = useState(today);
-  const [to, setTo] = useState(today);
+  const today = new Date();
+  const [range, setRange] = useState<DateRange | undefined>({ from: today, to: today });
 
   const { data: logs, refetch } = useQuery({
     queryKey: ["sync-logs"],

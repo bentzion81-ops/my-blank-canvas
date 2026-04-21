@@ -465,10 +465,14 @@ async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userI
     await endLog(logId, {
       status: "success",
       records_count: stored,
-      metadata: { from: dFrom, to: dTo, used_path: usedPath, raw_count: dayRows.length, stored, unmatched, batch_id: batchId },
+      metadata: { from: dFrom, to: dTo, used_path: usedPath, raw_count: dayRows.length, stored, unmatched, batch_id: batchId, debug_shape: debugShape },
     });
-    return { ok: true, used_path: usedPath, fetched: dayRows.length, stored, unmatched };
+    return { ok: true, used_path: usedPath, fetched: dayRows.length, stored, unmatched, debug_shape: debugShape };
   } catch (e) {
+    await endLog(logId, { status: "error", error_message: String(e) });
+    return { ok: false, error: String(e) };
+  }
+}
     await endLog(logId, { status: "error", error_message: String(e) });
     return { ok: false, error: String(e) };
   }

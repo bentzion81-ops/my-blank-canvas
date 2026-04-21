@@ -48,6 +48,28 @@ const diffMinutes = (actualIso: string, expectedHHmm: string) => {
   return ah * 60 + am - (eh * 60 + em);
 };
 
+// Current time in Israel TZ as minutes since midnight on a given date.
+// Returns null if the given date is not "today" in Israel.
+const minutesNowInIsraelIfToday = (dateStr: string): number | null => {
+  const fmt = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Jerusalem",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(new Date());
+  const y = fmt.find((p) => p.type === "year")?.value;
+  const mo = fmt.find((p) => p.type === "month")?.value;
+  const d = fmt.find((p) => p.type === "day")?.value;
+  const h = Number(fmt.find((p) => p.type === "hour")?.value || "0");
+  const mi = Number(fmt.find((p) => p.type === "minute")?.value || "0");
+  const todayStr = `${y}-${mo}-${d}`;
+  if (todayStr !== dateStr) return null;
+  return h * 60 + mi;
+};
+
 interface Props {
   selectedDay: Date;
   onSelectedDayChange: (d: Date) => void;

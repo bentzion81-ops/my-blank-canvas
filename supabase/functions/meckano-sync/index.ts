@@ -373,7 +373,7 @@ async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userI
       .map((e: any) => ({
         meckano_report_id: String(e.id),
         meckano_employee_id: String(e.userId),
-        event_timestamp: new Date(tsToUtcMs(Number(e.ts))).toISOString(),
+        event_timestamp: new Date(meckanoToUtcMs(e)).toISOString(),
         event_type: e.isOut ? "out" : "in",
         latitude: e.lat ?? null,
         longitude: e.lng ?? null,
@@ -385,7 +385,7 @@ async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userI
     }
 
     // Group punches by employee + date (use Meckano's dateStr for Israel-local date)
-    type Punch = { ts: number; isOut: boolean };
+    type Punch = { ts: number; isOut: boolean; raw: any };
     const byEmpDay = new Map<string, Map<string, Punch[]>>();
     for (const e of entries) {
       const meckEmp = String(e.userId ?? "");
@@ -396,38 +396,35 @@ async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userI
         const [d, m, y] = e.dateStr.split(".").map((x: string) => x.padStart(2, "0"));
         date = `${y}-${m}-${d}`;
       } else {
-        // Fallback: derive Israel-local date from ts (which is already local-as-UTC)
         date = new Date(ts * 1000).toISOString().slice(0, 10);
       }
       if (!byEmpDay.has(meckEmp)) byEmpDay.set(meckEmp, new Map());
       const dayMap = byEmpDay.get(meckEmp)!;
       if (!dayMap.has(date)) dayMap.set(date, []);
-      dayMap.get(date)!.push({ ts, isOut: !!e.isOut });
+      dayMap.get(date)!.push({ ts, isOut: !!e.isOut, raw: e });
     }
 
     const shifts: Array<{ meckEmp: string; date: string; checkIn: Date; checkOut: Date | null; hours: number }> = [];
     for (const [meckEmp, dayMap] of byEmpDay) {
       for (const [date, punches] of dayMap) {
         punches.sort((a, b) => a.ts - b.ts);
-        let openIn: number | null = null;
+        let openIn: Punch | null = null;
         for (const p of punches) {
           if (!p.isOut) {
             if (openIn !== null) {
-              // unmatched IN → record as zero-hour shift, then start new
-              shifts.push({ meckEmp, date, checkIn: new Date(tsToUtcMs(openIn)), checkOut: null, hours: 0 });
+              shifts.push({ meckEmp, date, checkIn: new Date(meckanoToUtcMs(openIn.raw)), checkOut: null, hours: 0 });
             }
-            openIn = p.ts;
+            openIn = p;
           } else {
             if (openIn !== null) {
-              const hours = (p.ts - openIn) / 3600;
-              shifts.push({ meckEmp, date, checkIn: new Date(tsToUtcMs(openIn)), checkOut: new Date(tsToUtcMs(p.ts)), hours });
+              const hours = (p.ts - openIn.ts) / 3600;
+              shifts.push({ meckEmp, date, checkIn: new Date(meckanoToUtcMs(openIn.raw)), checkOut: new Date(meckanoToUtcMs(p.raw)), hours });
               openIn = null;
             }
-            // OUT without IN → ignore
           }
         }
         if (openIn !== null) {
-          shifts.push({ meckEmp, date, checkIn: new Date(tsToUtcMs(openIn)), checkOut: null, hours: 0 });
+          shifts.push({ meckEmp, date, checkIn: new Date(meckanoToUtcMs(openIn.raw)), checkOut: null, hours: 0 });
         }
       }
     }

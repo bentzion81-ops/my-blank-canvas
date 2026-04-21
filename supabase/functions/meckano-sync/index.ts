@@ -322,14 +322,7 @@ async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userI
     const payload: any = r.data;
     const usedPath = "PUT /time-reports";
 
-    // Debug: capture top-level shape so we can normalize correctly
-    const debugShape: any = {
-      type: Array.isArray(payload) ? "array" : typeof payload,
-      length: Array.isArray(payload) ? payload.length : undefined,
-      top_keys: payload && typeof payload === "object" && !Array.isArray(payload) ? Object.keys(payload).slice(0, 30) : undefined,
-      sample: Array.isArray(payload) ? payload.slice(0, 2) : payload,
-      raw_preview: r.raw.slice(0, 1500),
-    };
+
 
     // Meckano /time-reports returns AGGREGATED per-employee summary for the period:
     //   { status: true, data: [ { userId, userName, regular (hours), numDays, total, overtime,

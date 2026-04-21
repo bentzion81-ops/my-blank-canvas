@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, Edit, Loader2 } from "lucide-react";
 import { EmployeeAssignments } from "@/components/employees/EmployeeAssignments";
 import { EmployeeMonthlyHours } from "@/components/employees/EmployeeMonthlyHours";
+import { EmployeeAttendanceReport } from "@/components/employees/EmployeeAttendanceReport";
 
 const EmployeeProfile = () => {
   const { id } = useParams();
@@ -72,6 +73,7 @@ const EmployeeProfile = () => {
           <TabsList>
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="attendance">Assignments & Hours</TabsTrigger>
+            <TabsTrigger value="report">Attendance Report</TabsTrigger>
             <TabsTrigger value="payroll">Payroll</TabsTrigger>
             <TabsTrigger value="expenses">Expenses</TabsTrigger>
             <TabsTrigger value="documents">Documents</TabsTrigger>
@@ -133,6 +135,10 @@ const EmployeeProfile = () => {
           <TabsContent value="attendance" className="space-y-4">
             <EmployeeAssignments employeeId={id!} />
             <EmployeeMonthlyHours employeeId={id!} />
+          </TabsContent>
+
+          <TabsContent value="report">
+            <EmployeeAttendanceReport employeeId={id!} />
           </TabsContent>
 
           <TabsContent value="payroll">

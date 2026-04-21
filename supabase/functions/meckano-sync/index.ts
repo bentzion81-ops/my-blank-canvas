@@ -311,25 +311,61 @@ async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userI
       ? r.data
       : ((r.data as any)?.data ?? []);
 
-    // Helper: Meckano `ts` is a Unix timestamp expressed in Israel local time
-    // (not true UTC). Their displayed time = ts treated as if it were UTC.
-    // To store the correct UTC instant, subtract Israel's offset for that date
-    // (+2h in winter, +3h in DST/summer).
-    const israelOffsetSeconds = (ts: number) => {
-      const date = new Date(ts * 1000);
+    // SAFE STRATEGY: Meckano provides `dateStr` (DD.MM.YYYY) and `timeStr` (HH:mm)
+    // representing exactly what Meckano displays in Israel local time.
+    // To make our stored timestamps EXACTLY match Meckano regardless of DST or
+    // server location, we build the UTC instant from those strings + the actual
+    // Israel offset at that wall-clock moment (DST-aware).
+    const israelOffsetSecondsAt = (year: number, month: number, day: number, hour: number, minute: number) => {
+      // Build a "naive" UTC date with the wall-clock components, then ask what
+      // that instant looks like in Asia/Jerusalem. The diff = the offset.
+      const asUtc = Date.UTC(year, month - 1, day, hour, minute, 0);
       const parts = new Intl.DateTimeFormat("en-US", {
         timeZone: "Asia/Jerusalem",
         timeZoneName: "shortOffset",
-      }).formatToParts(date);
+        year: "numeric",
+      }).formatToParts(new Date(asUtc));
       const tz = parts.find((p) => p.type === "timeZoneName")?.value || "GMT+2";
       const m = tz.match(/GMT([+-])(\d{1,2})(?::(\d{2}))?/);
       if (!m) return 2 * 3600;
       const sign = m[1] === "-" ? -1 : 1;
-      const h = Number(m[2]);
-      const mm = Number(m[3] ?? 0);
-      return sign * (h * 3600 + mm * 60);
+      return sign * (Number(m[2]) * 3600 + Number(m[3] ?? 0) * 60);
     };
-    const tsToUtcMs = (ts: number) => (ts - israelOffsetSeconds(ts)) * 1000;
+
+    // Build UTC ms from Meckano's dateStr "DD.MM.YYYY" + timeStr "HH:mm".
+    // Falls back to ts-based math only if those strings are missing.
+    const meckanoToUtcMs = (e: any): number => {
+      const dateStr: string = e.dateStr ?? "";
+      const timeStr: string = e.timeStr ?? "";
+      const dm = dateStr.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+      const tm = timeStr.match(/^(\d{1,2}):(\d{2})/);
+      if (dm && tm) {
+        const day = Number(dm[1]);
+        const month = Number(dm[2]);
+        const year = Number(dm[3]);
+        const hour = Number(tm[1]);
+        const minute = Number(tm[2]);
+        const offsetSec = israelOffsetSecondsAt(year, month, day, hour, minute);
+        const utcMs = Date.UTC(year, month - 1, day, hour, minute, 0) - offsetSec * 1000;
+        return utcMs;
+      }
+      // Fallback: treat ts as Israel-local-as-UTC and subtract offset
+      const ts = Number(e.ts ?? 0);
+      const d = new Date(ts * 1000);
+      const off = israelOffsetSecondsAt(
+        d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate(),
+        d.getUTCHours(), d.getUTCMinutes(),
+      );
+      return (ts - off) * 1000;
+    };
+    const tsToUtcMs = (ts: number) => {
+      const d = new Date(ts * 1000);
+      const off = israelOffsetSecondsAt(
+        d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate(),
+        d.getUTCHours(), d.getUTCMinutes(),
+      );
+      return (ts - off) * 1000;
+    };
 
     // Persist raw punches
     const rawRows = entries
@@ -337,7 +373,7 @@ async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userI
       .map((e: any) => ({
         meckano_report_id: String(e.id),
         meckano_employee_id: String(e.userId),
-        event_timestamp: new Date(tsToUtcMs(Number(e.ts))).toISOString(),
+        event_timestamp: new Date(meckanoToUtcMs(e)).toISOString(),
         event_type: e.isOut ? "out" : "in",
         latitude: e.lat ?? null,
         longitude: e.lng ?? null,
@@ -349,7 +385,7 @@ async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userI
     }
 
     // Group punches by employee + date (use Meckano's dateStr for Israel-local date)
-    type Punch = { ts: number; isOut: boolean };
+    type Punch = { ts: number; isOut: boolean; raw: any };
     const byEmpDay = new Map<string, Map<string, Punch[]>>();
     for (const e of entries) {
       const meckEmp = String(e.userId ?? "");
@@ -360,38 +396,35 @@ async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userI
         const [d, m, y] = e.dateStr.split(".").map((x: string) => x.padStart(2, "0"));
         date = `${y}-${m}-${d}`;
       } else {
-        // Fallback: derive Israel-local date from ts (which is already local-as-UTC)
         date = new Date(ts * 1000).toISOString().slice(0, 10);
       }
       if (!byEmpDay.has(meckEmp)) byEmpDay.set(meckEmp, new Map());
       const dayMap = byEmpDay.get(meckEmp)!;
       if (!dayMap.has(date)) dayMap.set(date, []);
-      dayMap.get(date)!.push({ ts, isOut: !!e.isOut });
+      dayMap.get(date)!.push({ ts, isOut: !!e.isOut, raw: e });
     }
 
     const shifts: Array<{ meckEmp: string; date: string; checkIn: Date; checkOut: Date | null; hours: number }> = [];
     for (const [meckEmp, dayMap] of byEmpDay) {
       for (const [date, punches] of dayMap) {
         punches.sort((a, b) => a.ts - b.ts);
-        let openIn: number | null = null;
+        let openIn: Punch | null = null;
         for (const p of punches) {
           if (!p.isOut) {
             if (openIn !== null) {
-              // unmatched IN → record as zero-hour shift, then start new
-              shifts.push({ meckEmp, date, checkIn: new Date(tsToUtcMs(openIn)), checkOut: null, hours: 0 });
+              shifts.push({ meckEmp, date, checkIn: new Date(meckanoToUtcMs(openIn.raw)), checkOut: null, hours: 0 });
             }
-            openIn = p.ts;
+            openIn = p;
           } else {
             if (openIn !== null) {
-              const hours = (p.ts - openIn) / 3600;
-              shifts.push({ meckEmp, date, checkIn: new Date(tsToUtcMs(openIn)), checkOut: new Date(tsToUtcMs(p.ts)), hours });
+              const hours = (p.ts - openIn.ts) / 3600;
+              shifts.push({ meckEmp, date, checkIn: new Date(meckanoToUtcMs(openIn.raw)), checkOut: new Date(meckanoToUtcMs(p.raw)), hours });
               openIn = null;
             }
-            // OUT without IN → ignore
           }
         }
         if (openIn !== null) {
-          shifts.push({ meckEmp, date, checkIn: new Date(tsToUtcMs(openIn)), checkOut: null, hours: 0 });
+          shifts.push({ meckEmp, date, checkIn: new Date(meckanoToUtcMs(openIn.raw)), checkOut: null, hours: 0 });
         }
       }
     }

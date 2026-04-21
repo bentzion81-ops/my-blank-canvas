@@ -78,14 +78,76 @@ export const MeckanoSyncPanel = () => {
 
           <div className="flex flex-wrap items-end gap-2">
             <div className="space-y-1">
-              <Label className="text-xs">From</Label>
-              <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="h-9 w-40" />
+              <Label className="text-xs">Date range</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "h-9 w-[280px] justify-start text-left font-normal",
+                      !range && "text-muted-foreground",
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {range?.from ? (
+                      range.to ? (
+                        <>
+                          {format(range.from, "dd/MM/yyyy")} – {format(range.to, "dd/MM/yyyy")}
+                        </>
+                      ) : (
+                        format(range.from, "dd/MM/yyyy")
+                      )
+                    ) : (
+                      <span>Pick a date range</span>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="range"
+                    defaultMonth={range?.from}
+                    selected={range}
+                    onSelect={setRange}
+                    numberOfMonths={2}
+                    className={cn("p-3 pointer-events-auto")}
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
-            <div className="space-y-1">
-              <Label className="text-xs">To</Label>
-              <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="h-9 w-40" />
+            <div className="flex flex-wrap gap-1">
+              {[
+                { label: "Today", days: 0 },
+                { label: "Last 7d", days: 7 },
+                { label: "Last 30d", days: 30 },
+                { label: "This month", days: -1 },
+              ].map((p) => (
+                <Button
+                  key={p.label}
+                  size="sm"
+                  variant="ghost"
+                  className="h-8 text-xs"
+                  onClick={() => {
+                    const end = new Date();
+                    let start = new Date();
+                    if (p.days === -1) start = new Date(end.getFullYear(), end.getMonth(), 1);
+                    else start.setDate(end.getDate() - p.days);
+                    setRange({ from: start, to: end });
+                  }}
+                >
+                  {p.label}
+                </Button>
+              ))}
             </div>
-            <Button size="sm" disabled={!!busy} onClick={() => run("sync_attendance", { from, to })}>
+            <Button
+              size="sm"
+              disabled={!!busy || !range?.from}
+              onClick={() =>
+                run("sync_attendance", {
+                  from: format(range!.from!, "yyyy-MM-dd"),
+                  to: format(range!.to ?? range!.from!, "yyyy-MM-dd"),
+                })
+              }
+            >
               {busy === "sync_attendance" ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Clock className="h-4 w-4 mr-1" />}
               Sync attendance
             </Button>

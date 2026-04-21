@@ -17,6 +17,7 @@ import { useState, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import type { DateRange } from "react-day-picker";
 import { AbsenceDialog, ABSENCE_LABELS, type AbsenceStatus } from "@/components/attendance/AbsenceDialog";
+import { AttendanceAlertsPanel } from "@/components/attendance/AttendanceAlertsPanel";
 
 type ViewMode = "day" | "range" | "month";
 
@@ -241,6 +242,17 @@ const Attendance = () => {
     <div className="flex flex-col">
       <AppHeader title="Attendance" subtitle={subtitle} />
       <div className="flex-1 space-y-4 p-4 lg:p-6">
+        {/* Alerts panel */}
+        <AttendanceAlertsPanel
+          selectedDay={selectedDay}
+          onSelectedDayChange={(d) => {
+            setSelectedDay(d);
+            setView("day");
+          }}
+          mode={view === "month" ? "month" : "day"}
+          onModeChange={(m) => setView(m)}
+        />
+
         {/* Date selector */}
         <Card className="border-0 shadow-sm">
           <CardContent className="p-3 flex flex-wrap items-center gap-3">

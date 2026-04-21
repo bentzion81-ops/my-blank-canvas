@@ -70,9 +70,26 @@ export const MeckanoSyncPanel = () => {
               {busy === "discover" ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Search className="h-4 w-4 mr-1" />}
               Discover endpoints
             </Button>
+            <Button size="sm" variant="outline" disabled={!!busy} onClick={() => run("sync_departments")}>
+              {busy === "sync_departments" ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Users className="h-4 w-4 mr-1" />}
+              Sync departments → clients
+            </Button>
             <Button size="sm" variant="outline" disabled={!!busy} onClick={() => run("sync_employees")}>
               {busy === "sync_employees" ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Users className="h-4 w-4 mr-1" />}
               Sync employees
+            </Button>
+            <Button
+              size="sm"
+              disabled={!!busy || !range?.from}
+              onClick={() =>
+                run("sync_all", {
+                  from: range?.from ? format(range.from, "yyyy-MM-dd") : undefined,
+                  to: range?.to ? format(range.to, "yyyy-MM-dd") : range?.from ? format(range.from, "yyyy-MM-dd") : undefined,
+                })
+              }
+            >
+              {busy === "sync_all" ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-1" />}
+              Sync everything
             </Button>
           </div>
 

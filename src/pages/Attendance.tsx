@@ -346,7 +346,7 @@ const Attendance = () => {
                     <TableHead className="hidden md:table-cell">Check Out</TableHead>
                     {!isSingleDay && <TableHead className="hidden md:table-cell">Hours</TableHead>}
                     <TableHead>Status</TableHead>
-                    {isSingleDay && <TableHead>Actions</TableHead>}
+                    <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -355,7 +355,16 @@ const Attendance = () => {
                       {!isSingleDay && (
                         <TableCell className="text-xs">{format(new Date(a.date), "dd/MM/yyyy")}</TableCell>
                       )}
-                      <TableCell className="font-medium">{a.name}</TableCell>
+                      <TableCell className="font-medium">
+                        {a.name}
+                        {a.absence && (
+                          <div className="text-[10px] text-muted-foreground mt-0.5">
+                            {ABSENCE_LABELS[a.absence.status as AbsenceStatus]}
+                            {a.absence.replacement_name && ` — ${a.absence.replacement_name}`}
+                            {a.absence.notes && ` · ${a.absence.notes}`}
+                          </div>
+                        )}
+                      </TableCell>
                       <TableCell>{a.client}</TableCell>
                       {isSingleDay && <TableCell className="hidden md:table-cell">{a.scheduled}</TableCell>}
                       <TableCell className="hidden md:table-cell">{a.checkIn || "—"}</TableCell>
@@ -365,16 +374,35 @@ const Attendance = () => {
                           {a.hours != null ? Number(a.hours).toFixed(2) : "—"}
                         </TableCell>
                       )}
-                      <TableCell><StatusBadge status={a.status} /></TableCell>
-                      {isSingleDay && (
-                        <TableCell>
-                          {(a.status === "not reported" || a.status === "late") && (
+                      <TableCell>
+                        {a.status === "absent" && a.absence ? (
+                          <Badge variant="outline" className="gap-1">
+                            <UserX className="h-3 w-3" />
+                            {ABSENCE_LABELS[a.absence.status as AbsenceStatus]}
+                          </Badge>
+                        ) : (
+                          <StatusBadge status={a.status} />
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex gap-1">
+                          {(a.status === "not reported" || a.status === "absent") && a.employeeId && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 text-xs"
+                              onClick={() => setAbsenceDialog({ employeeId: a.employeeId!, name: a.name, date: a.date })}
+                            >
+                              <UserX className="h-3 w-3 mr-1" /> {a.absence ? "ערוך" : "סמן חיסור"}
+                            </Button>
+                          )}
+                          {isSingleDay && (a.status === "not reported" || a.status === "late") && (
                             <Button variant="ghost" size="sm" className="h-7 text-xs">
                               <MessageCircle className="h-3 w-3 mr-1" /> Send
                             </Button>
                           )}
-                        </TableCell>
-                      )}
+                        </div>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -383,6 +411,15 @@ const Attendance = () => {
           </CardContent>
         </Card>
       </div>
+      {absenceDialog && (
+        <AbsenceDialog
+          open={!!absenceDialog}
+          onOpenChange={(o) => !o && setAbsenceDialog(null)}
+          employeeId={absenceDialog.employeeId}
+          employeeName={absenceDialog.name}
+          date={absenceDialog.date}
+        />
+      )}
     </div>
   );
 };

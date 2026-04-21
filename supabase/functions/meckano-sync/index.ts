@@ -315,104 +315,73 @@ async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userI
       await endLog(logId, {
         status: "error",
         error_message: `Meckano /time-reports returned ${r.status}`,
-        metadata: { status: r.status, body: r.raw.slice(0, 500) },
+        metadata: { status: r.status, body: r.raw.slice(0, 1000) },
       });
-      return { ok: false, error: `Meckano /time-reports ${r.status}`, body: r.raw.slice(0, 500) };
+      return { ok: false, error: `Meckano /time-reports ${r.status}`, body: r.raw.slice(0, 1000) };
     }
     const payload: any = r.data;
     const usedPath = "PUT /time-reports";
 
-    // Meckano attendance report can return either:
-    //  - a flat array of daily records per employee
-    //  - an object { employees: [ { id, days: [...] } ] }
-    //  - a nested map { "<empId>": { "<date>": {...} } }
-    // Normalize to per-day rows.
-    type DayRow = {
+
+
+    // Meckano /time-reports returns AGGREGATED per-employee summary for the period:
+    //   { status: true, data: [ { userId, userName, regular (hours), numDays, total, overtime,
+    //                              reportStart (unix), reportEnd (unix), departmentId, ... } ] }
+    // We store one summary row per employee per period start date.
+    const list: any[] = Array.isArray(payload) ? payload : (payload?.data ?? []);
+
+    type SummaryRow = {
       meckEmp: string;
-      date: string;       // YYYY-MM-DD
-      checkIn: string | null;   // ISO timestamp or null
-      checkOut: string | null;
+      empName: string;
+      periodStart: string;  // YYYY-MM-DD
+      periodEnd: string;    // YYYY-MM-DD
+      regular: number;
+      overtime: number;
+      total: number;
+      numDays: number;
+      departmentId: string | null;
       raw: any;
     };
-    const dayRows: DayRow[] = [];
-
-    const pushDay = (meckEmp: string, date: string, rec: any) => {
-      if (!meckEmp || !date) return;
-      const ci = rec.checkIn ?? rec.check_in ?? rec.entry ?? rec.entryTime ?? rec.startTime ?? rec.start ?? null;
-      const co = rec.checkOut ?? rec.check_out ?? rec.exit ?? rec.exitTime ?? rec.endTime ?? rec.end ?? null;
-      const toIso = (v: any) => {
-        if (!v) return null;
-        // value can be "08:30" → combine with date
-        if (typeof v === "string" && /^\d{2}:\d{2}(:\d{2})?$/.test(v)) {
-          return new Date(`${date}T${v.length === 5 ? v + ":00" : v}+02:00`).toISOString();
-        }
-        const d = new Date(v);
-        return isNaN(d.getTime()) ? null : d.toISOString();
-      };
-      dayRows.push({
-        meckEmp: String(meckEmp),
-        date,
-        checkIn: toIso(ci),
-        checkOut: toIso(co),
-        raw: rec,
-      });
+    const summaries: SummaryRow[] = [];
+    const tsToDate = (ts: any) => {
+      if (!ts) return dFrom;
+      const d = new Date(Number(ts) * 1000);
+      return isNaN(d.getTime()) ? dFrom : d.toISOString().slice(0, 10);
     };
-
-    const flat: any[] = Array.isArray(payload)
-      ? payload
-      : payload?.data ?? payload?.attendance ?? payload?.reports ?? payload?.records ?? [];
-
-    if (Array.isArray(flat) && flat.length) {
-      for (const rec of flat) {
-        const meckEmp = String(rec.employeeId ?? rec.userId ?? rec.employee_id ?? rec.user_id ?? rec.empId ?? "");
-        const date = String(rec.date ?? rec.workDate ?? rec.day ?? "").slice(0, 10);
-        pushDay(meckEmp, date, rec);
-      }
-    } else if (payload && typeof payload === "object") {
-      // Try { employees: [...] } shape
-      const emps = (payload as any).employees ?? (payload as any).users ?? null;
-      if (Array.isArray(emps)) {
-        for (const e of emps) {
-          const meckEmp = String(e.id ?? e.employeeId ?? e.userId ?? "");
-          const days = e.days ?? e.attendance ?? e.records ?? [];
-          if (Array.isArray(days)) {
-            for (const d of days) {
-              const date = String(d.date ?? d.workDate ?? d.day ?? "").slice(0, 10);
-              pushDay(meckEmp, date, d);
-            }
-          }
-        }
-      } else {
-        // Try nested map { empId: { date: {...} } }
-        for (const [empKey, byDate] of Object.entries(payload)) {
-          if (byDate && typeof byDate === "object") {
-            for (const [dateKey, rec] of Object.entries(byDate as any)) {
-              if (rec && typeof rec === "object") {
-                pushDay(empKey, String(dateKey).slice(0, 10), rec);
-              }
-            }
-          }
-        }
-      }
+    for (const e of list) {
+      const meckEmp = String(e.userId ?? e.employeeId ?? e.id ?? "");
+      if (!meckEmp) continue;
+      summaries.push({
+        meckEmp,
+        empName: String(e.userName ?? ""),
+        periodStart: tsToDate(e.reportStart) || dFrom,
+        periodEnd: tsToDate(e.reportEnd) || dTo,
+        regular: Number(e.regular ?? 0),
+        overtime: Number(e.overtime ?? 0),
+        total: Number(e.total ?? 0),
+        numDays: Number(e.numDays ?? 0),
+        departmentId: e.departmentId != null ? String(e.departmentId) : null,
+        raw: e,
+      });
     }
 
-    // Persist raw rows (one per day, using employee+date as report id)
-    const rawRows = dayRows.map((r) => ({
-      meckano_report_id: `${r.meckEmp}-${r.date}`,
-      meckano_employee_id: r.meckEmp,
-      event_timestamp: r.checkIn ?? r.checkOut ?? new Date(r.date).toISOString(),
-      event_type: "daily",
+    // Persist raw rows
+    const rawRows = summaries.map((s) => ({
+      meckano_report_id: `${s.meckEmp}-${s.periodStart}-${s.periodEnd}`,
+      meckano_employee_id: s.meckEmp,
+      event_timestamp: new Date(s.periodStart).toISOString(),
+      event_type: "summary",
       latitude: null,
       longitude: null,
       address: null,
-      raw_payload: r.raw,
+      raw_payload: s.raw,
     }));
     if (rawRows.length) {
       await admin.from("meckano_attendance_raw").upsert(rawRows, { onConflict: "meckano_report_id" });
     }
 
     // Map Meckano employees → internal UUIDs
-    const meckIds = Array.from(new Set(dayRows.map((r) => r.meckEmp)));
+    const meckIds = Array.from(new Set(summaries.map((s) => s.meckEmp)));
     const { data: emps } = await admin
       .from("employees")
       .select("id, meckano_employee_id")
@@ -422,33 +391,32 @@ async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userI
     const batchIns = await admin.from("attendance_import_batches").insert({
       source: "meckano",
       status: "completed",
-      record_count: dayRows.length,
-      notes: `Sync ${dFrom} → ${dTo}${usedPath ? ` via ${usedPath}` : ""}`,
+      record_count: summaries.length,
+      notes: `Sync ${dFrom} → ${dTo} via ${usedPath}`,
     }).select("id").single();
     const batchId = batchIns.data?.id;
 
     let stored = 0;
     let unmatched = 0;
-    for (const r of dayRows) {
-      const empId = empMap.get(r.meckEmp);
+    for (const s of summaries) {
+      const empId = empMap.get(s.meckEmp);
       if (!empId) { unmatched++; continue; }
-      const hours = (r.checkIn && r.checkOut)
-        ? Math.max(0, (new Date(r.checkOut).getTime() - new Date(r.checkIn).getTime()) / 3_600_000)
-        : 0;
-      // Upsert by (employee_id, date) — delete existing meckano-source row for same day first
+      // Replace any existing meckano summary for this employee in this period
       await admin.from("attendance_records")
         .delete()
         .eq("employee_id", empId)
-        .eq("date", r.date)
+        .gte("date", s.periodStart)
+        .lte("date", s.periodEnd)
         .eq("source", "meckano");
       const { error } = await admin.from("attendance_records").insert({
         employee_id: empId,
-        date: r.date,
-        check_in: r.checkIn,
-        check_out: r.checkOut,
-        hours_worked: Number(hours.toFixed(2)),
+        date: s.periodStart,
+        check_in: null,
+        check_out: null,
+        hours_worked: s.regular,
         source: "meckano",
         batch_id: batchId,
+        notes: `Period ${s.periodStart} → ${s.periodEnd} • ${s.numDays} days • regular ${s.regular}h • OT ${s.overtime}h`,
       });
       if (!error) stored++;
     }
@@ -456,9 +424,12 @@ async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userI
     await endLog(logId, {
       status: "success",
       records_count: stored,
-      metadata: { from: dFrom, to: dTo, used_path: usedPath, raw_count: dayRows.length, stored, unmatched, batch_id: batchId },
+      metadata: {
+        from: dFrom, to: dTo, used_path: usedPath,
+        raw_count: summaries.length, stored, unmatched, batch_id: batchId,
+      },
     });
-    return { ok: true, used_path: usedPath, fetched: dayRows.length, stored, unmatched };
+    return { ok: true, used_path: usedPath, fetched: summaries.length, stored, unmatched };
   } catch (e) {
     await endLog(logId, { status: "error", error_message: String(e) });
     return { ok: false, error: String(e) };

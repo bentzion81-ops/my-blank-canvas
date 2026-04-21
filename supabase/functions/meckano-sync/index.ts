@@ -464,14 +464,17 @@ Deno.serve(async (req) => {
       "/users", "/departments",
     ];
     const restPutProbes = [
-      { path: "/time-reports-detailed", body: { fromDate: fromTs, toDate: toTs, fetchInactive: true } },
-      { path: "/employee-attendance-report", body: { fromDate: fromTs, toDate: toTs, fetchInactive: true } },
-      { path: "/attendance-report", body: { fromDate: fromTs, toDate: toTs, fetchInactive: true } },
-      { path: "/daily-attendance", body: { fromDate: fromTs, toDate: toTs, fetchInactive: true } },
-      { path: "/daily-report", body: { fromDate: fromTs, toDate: toTs, fetchInactive: true } },
-      { path: "/time-reports/detailed", body: { fromDate: fromTs, toDate: toTs, fetchInactive: true } },
-      { path: "/punches", body: { fromDate: fromTs, toDate: toTs, fetchInactive: true } },
-      { path: "/attendance-punches", body: { fromDate: fromTs, toDate: toTs, fetchInactive: true } },
+      { path: "/time-reports/detailed/full", body: { fromDate: fromTs, toDate: toTs, fetchInactive: true } },
+      { path: "/time-reports/full", body: { fromDate: fromTs, toDate: toTs, fetchInactive: true, includeDays: true, detailed: true } },
+      { path: "/time-reports/by-day", body: { fromDate: fromTs, toDate: toTs, fetchInactive: true } },
+      { path: "/time-reports/days", body: { fromDate: fromTs, toDate: toTs, fetchInactive: true } },
+      { path: "/time-reports/events", body: { fromDate: fromTs, toDate: toTs, fetchInactive: true } },
+      { path: "/employee-events", body: { fromDate: fromTs, toDate: toTs, fetchInactive: true } },
+      { path: "/events", body: { fromDate: fromTs, toDate: toTs, fetchInactive: true } },
+      { path: "/attendance/days", body: { fromDate: fromTs, toDate: toTs, fetchInactive: true } },
+      { path: "/employee-time-reports/detailed", body: { fromDate: fromTs, toDate: toTs, fetchInactive: true } },
+      { path: "/report/get", body: { fromDate: fromTs, toDate: toTs, fetchInactive: true } },
+      { path: "/time-reports/detailed", body: { fromDate: fromTs, toDate: toTs, fetchInactive: true, detailed: true, includeEvents: true, includeShifts: true, byDay: true } },
     ];
     const results: Record<string, any> = {};
     for (const p of restProbes) {

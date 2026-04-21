@@ -193,23 +193,6 @@ const Attendance = () => {
       };
     });
 
-    // Range / month: actual records + absences (no record)
-    const recordRows = (records || []).map((r: any) => {
-      const absence = absenceMap.get(`${r.employee_id}-${r.date}`);
-      return {
-        key: r.id,
-        date: r.date,
-        employeeId: r.employee_id,
-        name: `${r.employees?.first_name || ""} ${r.employees?.last_name || ""}`.trim() || "—",
-        client: r.clients?.name || "—",
-        scheduled: "—",
-        checkIn: r.check_in ? format(new Date(r.check_in), "HH:mm") : null,
-        checkOut: r.check_out ? format(new Date(r.check_out), "HH:mm") : null,
-        hours: r.hours_worked ?? null,
-        status: r.check_in ? "arrived" : absence ? "absent" : "not reported",
-        absence,
-      };
-    });
     const recordKeys = new Set(recordRows.map((r) => `${r.employeeId}-${r.date}`));
     const absenceOnlyRows = (absences || [])
       .filter((a: any) => !recordKeys.has(`${a.employee_id}-${a.date}`))

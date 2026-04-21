@@ -235,10 +235,17 @@ async function syncEmployees(isCron: boolean, userId: string | null) {
       }
     }
 
+    const inactiveCount = rows.filter((r) => r.status === "inactive").length;
     await endLog(logId, {
       status: "success",
       records_count: created + updated,
-      metadata: { fetched: list.length, created, updated, links_created: linksCreated, links_skipped: linksSkipped },
+      metadata: {
+        fetched: list.length, created, updated,
+        links_created: linksCreated, links_skipped: linksSkipped,
+        inactive_count: inactiveCount,
+        sample_user_keys: list[0] ? Object.keys(list[0]) : [],
+        sample_user: list[0] ?? null,
+      },
     });
     return { ok: true, fetched: list.length, created, updated, links_created: linksCreated, links_skipped: linksSkipped };
   } catch (e) {

@@ -473,10 +473,6 @@ async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userI
     return { ok: false, error: String(e) };
   }
 }
-    await endLog(logId, { status: "error", error_message: String(e) });
-    return { ok: false, error: String(e) };
-  }
-}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });

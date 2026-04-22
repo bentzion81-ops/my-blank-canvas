@@ -242,6 +242,7 @@ export const AttendanceAlertsPanel = ({
 
   type AbsenceEntry = {
     id: string;
+    employeeId: string;
     name: string;
     client: string;
     date: string;
@@ -253,6 +254,7 @@ export const AttendanceAlertsPanel = ({
   const absenceEntries = useMemo<AbsenceEntry[]>(() => {
     return absences.map((a: any) => ({
       id: a.id,
+      employeeId: a.employee_id,
       name: `${a.employees?.first_name || ""} ${a.employees?.last_name || ""}`.trim() || "—",
       client: clientByEmployee.get(a.employee_id) || "—",
       date: a.date,
@@ -261,6 +263,17 @@ export const AttendanceAlertsPanel = ({
       notes: a.notes,
     }));
   }, [absences, clientByEmployee]);
+
+  // Dialog state for marking/editing an absence on click
+  const [dialogState, setDialogState] = useState<{
+    open: boolean;
+    employeeId: string;
+    employeeName: string;
+    date: string;
+  }>({ open: false, employeeId: "", employeeName: "", date: "" });
+
+  const openDialog = (employeeId: string, employeeName: string, date: string) =>
+    setDialogState({ open: true, employeeId, employeeName, date });
 
   // Group by client
   const groupByClient = <T extends { client: string }>(arr: T[]) => {

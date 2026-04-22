@@ -322,63 +322,24 @@ export function DuplicateEmployeesPanel() {
 
           <ScrollArea className="max-h-[60vh] pr-2">
             <div className="space-y-3">
-              {groups.map((group) => (
-                <Card key={group.key} className="p-3 space-y-3">
-                  <CandidateRow candidate={group.primary} primary />
-                  {group.matches.map((m) => (
-                    <div key={`${m.candidate.source}:${m.candidate.id}`} className="space-y-2">
-                      <CandidateRow candidate={m.candidate} reasons={m.reasons} />
-                      <div className="flex items-center gap-2 flex-wrap pr-4">
-                        {m.candidate.source === "replacement" && group.primary.source !== "replacement" && (
-                          <Button
-                            size="sm"
-                            disabled={merging === m.candidate.id}
-                            onClick={() => mergeWorkerIntoEmployee(m.candidate.id, group.primary.id)}
-                          >
-                            <Link2 className="h-3.5 w-3.5 mr-1" />
-                            אחד את המחליף לתוך עובד #{group.primary.display_name}
-                          </Button>
-                        )}
-                        {group.primary.source === "replacement" && m.candidate.source !== "replacement" && (
-                          <Button
-                            size="sm"
-                            disabled={merging === group.primary.id}
-                            onClick={() => mergeWorkerIntoEmployee(group.primary.id, m.candidate.id)}
-                          >
-                            <Link2 className="h-3.5 w-3.5 mr-1" />
-                            אחד את המחליף לתוך עובד #{m.candidate.display_name}
-                          </Button>
-                        )}
-                        {group.primary.source !== "replacement" && m.candidate.source !== "replacement" && (
-                          <>
-                            <Button
-                              size="sm"
-                              disabled={merging === m.candidate.id}
-                              onClick={() => mergeEmployeeIntoEmployee(m.candidate.id, group.primary.id)}
-                            >
-                              <Link2 className="h-3.5 w-3.5 mr-1" />
-                              השאר את הראשון, אחד אליו את השני
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              disabled={merging === group.primary.id}
-                              onClick={() => mergeEmployeeIntoEmployee(group.primary.id, m.candidate.id)}
-                            >
-                              השאר את השני
-                            </Button>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                  <div className="flex justify-end">
-                    <Button size="sm" variant="ghost" onClick={() => dismissGroup(group.key)}>
-                      <X className="h-3.5 w-3.5 mr-1" /> זו לא כפילות
-                    </Button>
-                  </div>
-                </Card>
-              ))}
+              {groups.map((group) => {
+                const all = [group.primary, ...group.matches.map((m) => m.candidate)];
+                const reasonsMap = new Map(
+                  group.matches.map((m) => [`${m.candidate.source}:${m.candidate.id}`, m.reasons]),
+                );
+                return (
+                  <DuplicateGroupCard
+                    key={group.key}
+                    groupKey={group.key}
+                    candidates={all}
+                    reasonsMap={reasonsMap}
+                    merging={merging}
+                    onDismiss={() => dismissGroup(group.key)}
+                    onMergeWorker={mergeWorkerIntoEmployee}
+                    onMergeEmployee={mergeEmployeeIntoEmployee}
+                  />
+                );
+              })}
             </div>
           </ScrollArea>
 
@@ -388,6 +349,94 @@ export function DuplicateEmployeesPanel() {
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+function DuplicateGroupCard({
+  groupKey,
+  candidates,
+  reasonsMap,
+  merging,
+  onDismiss,
+  onMergeWorker,
+  onMergeEmployee,
+}: {
+  groupKey: string;
+  candidates: Candidate[];
+  reasonsMap: Map<string, string[]>;
+  merging: string | null;
+  onDismiss: () => void;
+  onMergeWorker: (workerId: string, employeeId: string) => Promise<void>;
+  onMergeEmployee: (fromId: string, intoId: string) => Promise<void>;
+}) {
+  // Default: keep the candidate with most data (prefer non-replacement, then meckano).
+  const defaultKeep =
+    candidates.find((c) => c.source === "meckano") ??
+    candidates.find((c) => c.source === "manual") ??
+    candidates[0];
+  const [keepKey, setKeepKey] = useState(`${defaultKeep.source}:${defaultKeep.id}`);
+  const keep = candidates.find((c) => `${c.source}:${c.id}` === keepKey) ?? defaultKeep;
+  const others = candidates.filter((c) => `${c.source}:${c.id}` !== keepKey);
+
+  // Cannot keep a replacement worker as the surviving record (no employees row to attach history to).
+  const canMerge = keep.source !== "replacement";
+  const isBusy = merging !== null;
+
+  const doMerge = async () => {
+    if (!canMerge) return;
+    for (const o of others) {
+      if (o.source === "replacement") {
+        await onMergeWorker(o.id, keep.id);
+      } else {
+        await onMergeEmployee(o.id, keep.id);
+      }
+    }
+  };
+
+  return (
+    <Card className="p-3 space-y-3">
+      <div className="text-xs font-medium text-muted-foreground">בחר את העובד שיישאר — היתר יאוחדו אליו:</div>
+      <div className="space-y-2">
+        {candidates.map((c) => {
+          const ck = `${c.source}:${c.id}`;
+          const reasons = reasonsMap.get(ck);
+          const isKept = ck === keepKey;
+          return (
+            <label
+              key={ck}
+              className={`flex items-start gap-3 rounded-md border p-2 cursor-pointer transition-colors ${
+                isKept ? "border-primary bg-primary/5" : "border-border hover:bg-muted/40"
+              }`}
+            >
+              <input
+                type="radio"
+                name={`keep-${groupKey}`}
+                checked={isKept}
+                onChange={() => setKeepKey(ck)}
+                className="mt-1"
+              />
+              <CandidateRow candidate={c} reasons={reasons} primary={isKept} />
+            </label>
+          );
+        })}
+      </div>
+
+      {!canMerge && (
+        <div className="text-xs text-destructive">
+          לא ניתן להשאיר עובד מחליף כרשומה הראשית — בחר עובד רגיל (מקאנו / ידני) כדי לאחד אליו.
+        </div>
+      )}
+
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <Button size="sm" variant="ghost" onClick={onDismiss} disabled={isBusy}>
+          <X className="h-3.5 w-3.5 mr-1" /> זו לא כפילות
+        </Button>
+        <Button size="sm" disabled={!canMerge || isBusy} onClick={doMerge}>
+          <Link2 className="h-3.5 w-3.5 mr-1" />
+          אחד {others.length} רשומות לתוך {keep.display_name}
+        </Button>
+      </div>
+    </Card>
   );
 }
 

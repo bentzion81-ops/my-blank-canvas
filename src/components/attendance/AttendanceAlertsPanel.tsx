@@ -95,18 +95,24 @@ export const AttendanceAlertsPanel = ({
   const fromStr = format(fromDate, "yyyy-MM-dd");
   const toStr = format(toDate, "yyyy-MM-dd");
 
-  const { data: activeEmployeeIds = [] } = useQuery({
+  const { data: activeEmployees = [] } = useQuery({
     queryKey: ["alerts-active-synced-employees"],
     queryFn: async () => {
       const { data } = await supabase
         .from("employees")
-        .select("id")
+        .select("id, first_name, last_name")
         .eq("status", "active")
         .eq("meckano_synced", true);
-      return (data || []).map((e: any) => e.id as string);
+      return data || [];
     },
   });
-  const activeSet = useMemo(() => new Set(activeEmployeeIds), [activeEmployeeIds]);
+  const employeeNameById = useMemo(() => {
+    const m = new Map<string, string>();
+    (activeEmployees as any[]).forEach((e) => {
+      m.set(e.id, `${e.first_name || ""} ${e.last_name || ""}`.trim() || "—");
+    });
+    return m;
+  }, [activeEmployees]);
 
   const { data: records = [] } = useQuery({
     queryKey: ["alerts-records", fromStr, toStr],

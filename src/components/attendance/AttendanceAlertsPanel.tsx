@@ -254,6 +254,7 @@ export const AttendanceAlertsPanel = ({
         if (!exp || !exp.working || !exp.in) return;
         const k = `${employeeId}-${dateStr}`;
         if (recordKey.has(k) || absenceKey.has(k)) return;
+        if (isNoWorkDay(employeeId, dateStr)) return;
 
         // Only alert if today in Israel & expected time already passed.
         // Past dates without report should already be auto-flipped to absences.

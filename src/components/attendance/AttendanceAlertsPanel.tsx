@@ -153,11 +153,44 @@ export const AttendanceAlertsPanel = ({
     queryFn: async () => {
       const { data } = await supabase
         .from("employee_client_assignments")
-        .select("employee_id, is_primary, clients(name)")
-        .is("end_date", null);
+        .select("employee_id, client_id, is_primary, start_date, end_date, clients(name)");
       return data || [];
     },
   });
+
+  const { data: noWorkPeriods = [] } = useQuery({
+    queryKey: ["alerts-no-work-periods", fromStr, toStr],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("no_work_periods")
+        .select("scope, employee_id, client_id, from_date, to_date")
+        .lte("from_date", toStr)
+        .gte("to_date", fromStr);
+      return data || [];
+    },
+  });
+
+  // Returns true if the (employee, date) is covered by any no_work period
+  // (either directly for the employee, or for a client they were assigned to on that date).
+  const isNoWorkDay = useMemo(() => {
+    return (employeeId: string, dateStr: string) => {
+      for (const p of noWorkPeriods as any[]) {
+        if (dateStr < p.from_date || dateStr > p.to_date) continue;
+        if (p.scope === "employee" && p.employee_id === employeeId) return true;
+        if (p.scope === "client" && p.client_id) {
+          const matched = (assignments as any[]).some(
+            (a) =>
+              a.employee_id === employeeId &&
+              a.client_id === p.client_id &&
+              (!a.start_date || a.start_date <= dateStr) &&
+              (!a.end_date || a.end_date >= dateStr),
+          );
+          if (matched) return true;
+        }
+      }
+      return false;
+    };
+  }, [noWorkPeriods, assignments]);
 
   const expectedMap = useMemo(() => {
     const m = new Map<string, Record<DayType, { in: string | null; out: string | null; working: boolean }>>();
@@ -175,6 +208,7 @@ export const AttendanceAlertsPanel = ({
   const clientByEmployee = useMemo(() => {
     const m = new Map<string, string>();
     assignments.forEach((a: any) => {
+      if (a.end_date) return; // only currently active assignments
       if (!m.has(a.employee_id) || a.is_primary) {
         m.set(a.employee_id, a.clients?.name || "—");
       }
@@ -221,6 +255,7 @@ export const AttendanceAlertsPanel = ({
         if (!exp || !exp.working || !exp.in) return;
         const k = `${employeeId}-${dateStr}`;
         if (recordKey.has(k) || absenceKey.has(k)) return;
+        if (isNoWorkDay(employeeId, dateStr)) return;
 
         // Only alert if today in Israel & expected time already passed.
         // Past dates without report should already be auto-flipped to absences.
@@ -242,7 +277,7 @@ export const AttendanceAlertsPanel = ({
       });
     });
     return out;
-  }, [records, absences, expectedMap, clientByEmployee, fromDate, toDate]);
+  }, [records, absences, expectedMap, clientByEmployee, fromDate, toDate, isNoWorkDay]);
 
   type AbsenceEntry = {
     id: string;
@@ -292,7 +327,9 @@ export const AttendanceAlertsPanel = ({
 
   // Unclassified absences (auto-detected no_show) stay as alerts at top.
   // Classified ones (replacement / no_work / vacation / sick) move to bottom "reports".
-  const unclassifiedAbsences = absenceEntries.filter((a) => a.status === "no_show");
+  const unclassifiedAbsences = absenceEntries.filter(
+    (a) => a.status === "no_show" && !isNoWorkDay(a.employeeId, a.date),
+  );
   const classifiedAbsences = absenceEntries.filter((a) => a.status !== "no_show");
 
   const missingGroups = groupByClient(missingEntries);

@@ -286,8 +286,14 @@ export const AttendanceAlertsPanel = ({
     return Array.from(m.entries()).sort((a, b) => a[0].localeCompare(b[0], "he"));
   };
 
+  // Unclassified absences (auto-detected no_show) stay as alerts at top.
+  // Classified ones (replacement / no_work / vacation / sick) move to bottom "reports".
+  const unclassifiedAbsences = absenceEntries.filter((a) => a.status === "no_show");
+  const classifiedAbsences = absenceEntries.filter((a) => a.status !== "no_show");
+
   const missingGroups = groupByClient(missingEntries);
-  const absenceGroups = groupByClient(absenceEntries);
+  const unclassifiedAbsenceGroups = groupByClient(unclassifiedAbsences);
+  const classifiedAbsenceGroups = groupByClient(classifiedAbsences);
 
   const isToday = isSameDay(selectedDay, new Date());
   const rangeLabel =

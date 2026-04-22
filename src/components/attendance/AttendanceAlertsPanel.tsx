@@ -96,12 +96,13 @@ export const AttendanceAlertsPanel = ({
   const toStr = format(toDate, "yyyy-MM-dd");
 
   const { data: activeEmployeeIds = [] } = useQuery({
-    queryKey: ["alerts-active-employees"],
+    queryKey: ["alerts-active-synced-employees"],
     queryFn: async () => {
       const { data } = await supabase
         .from("employees")
         .select("id")
-        .eq("status", "active");
+        .eq("status", "active")
+        .eq("meckano_synced", true);
       return (data || []).map((e: any) => e.id as string);
     },
   });
@@ -112,8 +113,9 @@ export const AttendanceAlertsPanel = ({
     queryFn: async () => {
       const { data } = await supabase
         .from("attendance_records")
-        .select("id, date, check_in, check_out, employee_id, client_id, employees!inner(first_name, last_name, status), clients(name)")
+        .select("id, date, check_in, check_out, employee_id, client_id, employees!inner(first_name, last_name, status, meckano_synced), clients(name)")
         .eq("employees.status", "active")
+        .eq("employees.meckano_synced", true)
         .gte("date", fromStr)
         .lte("date", toStr);
       return data || [];
@@ -125,8 +127,9 @@ export const AttendanceAlertsPanel = ({
     queryFn: async () => {
       const { data } = await supabase
         .from("attendance_absences")
-        .select("id, date, status, employee_id, replacement_name, notes, employees!inner(first_name, last_name, status)")
+        .select("id, date, status, employee_id, replacement_name, notes, employees!inner(first_name, last_name, status, meckano_synced)")
         .eq("employees.status", "active")
+        .eq("employees.meckano_synced", true)
         .gte("date", fromStr)
         .lte("date", toStr);
       return data || [];
@@ -134,12 +137,13 @@ export const AttendanceAlertsPanel = ({
   });
 
   const { data: expectedHours = [] } = useQuery({
-    queryKey: ["alerts-expected-hours"],
+    queryKey: ["alerts-expected-synced-hours"],
     queryFn: async () => {
       const { data } = await supabase
         .from("employee_expected_hours")
-        .select("employee_id, day_type, is_working_day, expected_check_in, expected_check_out, employees!inner(status)")
-        .eq("employees.status", "active");
+        .select("employee_id, day_type, is_working_day, expected_check_in, expected_check_out, employees!inner(status, meckano_synced)")
+        .eq("employees.status", "active")
+        .eq("employees.meckano_synced", true);
       return data || [];
     },
   });

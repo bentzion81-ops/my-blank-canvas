@@ -199,7 +199,8 @@ export function DuplicateEmployeesPanel() {
         .from("employees")
         .select(
           "id, first_name, last_name, passport_number, israeli_phone, foreign_phone, meckano_employee_id, status, created_at, employee_client_assignments(is_primary, end_date, clients(name))",
-        );
+        )
+        .eq("status", "active");
       if (error) throw error;
       return (data ?? []) as Employee[];
     },

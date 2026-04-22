@@ -229,6 +229,18 @@ const EmployeeForm = () => {
                 Used to link this employee to attendance reports synced from Meckano.
               </p>
             </div>
+            <div className="md:col-span-2 flex items-start justify-between gap-4 rounded-md border p-3">
+              <div className="space-y-0.5">
+                <Label>מסונכרן עם מקאנו</Label>
+                <p className="text-xs text-muted-foreground">
+                  כאשר מופעל, נמשוך נתוני נוכחות ממקאנו עבור עובד זה והתראות על איחורים/חיסורים יופעלו. כאשר כבוי — לא ימשכו נתונים והתראות ממקאנו לא יופעלו.
+                </p>
+              </div>
+              <Switch
+                checked={form.meckano_synced}
+                onCheckedChange={(v) => update("meckano_synced", v)}
+              />
+            </div>
           </CardContent>
         </Card>
 

@@ -299,17 +299,23 @@ export const AttendanceAlertsPanel = ({
   };
 
   const absenceEntries = useMemo<AbsenceEntry[]>(() => {
-    return absences.map((a: any) => ({
-      id: a.id,
-      employeeId: a.employee_id,
-      name: `${a.employees?.first_name || ""} ${a.employees?.last_name || ""}`.trim() || "—",
-      client: clientByEmployee.get(a.employee_id) || "—",
-      date: a.date,
-      status: a.status,
-      replacement: a.replacement_name,
-      notes: a.notes,
-    }));
-  }, [absences, clientByEmployee]);
+    return absences.map((a: any) => {
+      const empName =
+        `${a.employees?.first_name || ""} ${a.employees?.last_name || ""}`.trim() ||
+        employeeNameById.get(a.employee_id) ||
+        "—";
+      return {
+        id: a.id,
+        employeeId: a.employee_id,
+        name: empName,
+        client: clientByEmployee.get(a.employee_id) || "—",
+        date: a.date,
+        status: a.status,
+        replacement: a.replacement_name,
+        notes: a.notes,
+      };
+    });
+  }, [absences, clientByEmployee, employeeNameById]);
 
   // Dialog state for marking/editing an absence on click
   const [dialogState, setDialogState] = useState<{

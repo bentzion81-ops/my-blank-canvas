@@ -252,6 +252,14 @@ const Attendance = () => {
   const notReportedCount = rows.filter((a) => a.status === "not reported").length;
   const totalHours = rows.reduce((sum, r) => sum + (Number(r.hours) || 0), 0);
 
+  // KPIs for the redesigned header strip
+  const pendingAbsencesCount = (absences || []).filter(
+    (a: any) => a.status === "no_show" && a.notes === "נוצר אוטומטית - לא דווחה כניסה"
+  ).length;
+  const pendingLateCount = (pendingLateNotifs || []).length;
+  const totalReportsCount = (records || []).length;
+  const specialEventsCount = 0; // Placeholder - to be defined later
+
   const subtitle = isSingleDay
     ? format(fromDate, "EEEE, dd/MM/yyyy")
     : `${format(fromDate, "dd/MM/yyyy")} – ${format(toDate, "dd/MM/yyyy")}`;

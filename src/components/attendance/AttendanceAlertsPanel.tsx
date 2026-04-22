@@ -326,7 +326,9 @@ export const AttendanceAlertsPanel = ({
 
   // Unclassified absences (auto-detected no_show) stay as alerts at top.
   // Classified ones (replacement / no_work / vacation / sick) move to bottom "reports".
-  const unclassifiedAbsences = absenceEntries.filter((a) => a.status === "no_show");
+  const unclassifiedAbsences = absenceEntries.filter(
+    (a) => a.status === "no_show" && !isNoWorkDay(a.employeeId, a.date),
+  );
   const classifiedAbsences = absenceEntries.filter((a) => a.status !== "no_show");
 
   const missingGroups = groupByClient(missingEntries);

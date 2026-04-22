@@ -367,9 +367,52 @@ export const AttendanceAlertsPanel = ({
   );
   const classifiedAbsences = absenceEntries.filter((a) => a.status !== "no_show");
 
+  // On-time / valid reports: employees who actually checked in, with no absence record.
+  type OkEntry = {
+    id: string;
+    employeeId: string;
+    name: string;
+    client: string;
+    date: string;
+    checkIn: string;
+    checkOut: string | null;
+    expected: string | null;
+    lateMinutes: number;
+  };
+  const okReports = useMemo<OkEntry[]>(() => {
+    const absenceKey = new Set(absences.map((a: any) => `${a.employee_id}-${a.date}`));
+    const out: OkEntry[] = [];
+    (records as any[]).forEach((r) => {
+      if (!r.check_in) return;
+      if (absenceKey.has(`${r.employee_id}-${r.date}`)) return;
+      const dt = dayTypeFor(new Date(r.date));
+      const exp = expectedMap.get(r.employee_id)?.[dt];
+      const expectedIn = exp?.in || null;
+      const late = expectedIn ? diffMinutes(r.check_in, expectedIn) : 0;
+      // Only "ok" if not late by 20+ min (lateness already shown elsewhere as alert)
+      if (late >= 20) return;
+      out.push({
+        id: r.id,
+        employeeId: r.employee_id,
+        name:
+          `${r.employees?.first_name || ""} ${r.employees?.last_name || ""}`.trim() ||
+          employeeNameById.get(r.employee_id) ||
+          "—",
+        client: r.clients?.name || clientByEmployee.get(r.employee_id) || "—",
+        date: r.date,
+        checkIn: format(new Date(r.check_in), "HH:mm"),
+        checkOut: r.check_out ? format(new Date(r.check_out), "HH:mm") : null,
+        expected: expectedIn ? expectedIn.slice(0, 5) : null,
+        lateMinutes: late,
+      });
+    });
+    return out.sort((a, b) => b.date.localeCompare(a.date) || a.checkIn.localeCompare(b.checkIn));
+  }, [records, absences, expectedMap, employeeNameById, clientByEmployee]);
+
   const missingGroups = groupByClient(missingEntries);
   const unclassifiedAbsenceGroups = groupByClient(unclassifiedAbsences);
   const classifiedAbsenceGroups = groupByClient(classifiedAbsences);
+  const okReportGroups = groupByClient(okReports);
 
   const isToday = isSameDay(selectedDay, new Date());
   const rangeLabel =

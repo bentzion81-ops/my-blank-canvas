@@ -36,7 +36,7 @@ const defaultForm = {
   passport_expiration: "",
   visa_expiration: "",
   meckano_employee_id: "",
-  meckano_synced: false,
+  meckano_synced: true,
 };
 
 const EmployeeForm = () => {

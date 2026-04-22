@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Clock, Users, AlertTriangle, CheckCircle, Search, RefreshCw, MessageCircle, CalendarIcon, UserX } from "lucide-react";
+import { Clock, Users, AlertTriangle, CheckCircle, Search, RefreshCw, MessageCircle, CalendarIcon, UserX, Sparkles, FileText } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay } from "date-fns";
@@ -90,6 +90,21 @@ const Attendance = () => {
         .from("employee_expected_hours" as any)
         .select("employee_id, day_type, is_working_day, expected_check_in, expected_check_out");
       return (data as any[]) || [];
+    },
+  });
+
+  // Pending late-attendance notifications in the active date range (unread = pending).
+  const { data: pendingLateNotifs } = useQuery({
+    queryKey: ["pending-late-notifs", fromStr, toStr],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("notifications")
+        .select("id, entity_id, created_at, is_read")
+        .eq("type", "late_attendance")
+        .eq("is_read", false)
+        .gte("created_at", `${fromStr}T00:00:00`)
+        .lte("created_at", `${toStr}T23:59:59`);
+      return data || [];
     },
   });
 
@@ -237,6 +252,14 @@ const Attendance = () => {
   const notReportedCount = rows.filter((a) => a.status === "not reported").length;
   const totalHours = rows.reduce((sum, r) => sum + (Number(r.hours) || 0), 0);
 
+  // KPIs for the redesigned header strip
+  const pendingAbsencesCount = (absences || []).filter(
+    (a: any) => a.status === "no_show" && a.notes === "נוצר אוטומטית - לא דווחה כניסה"
+  ).length;
+  const pendingLateCount = (pendingLateNotifs || []).length;
+  const totalReportsCount = (records || []).length;
+  const specialEventsCount = 0; // Placeholder - to be defined later
+
   const subtitle = isSingleDay
     ? format(fromDate, "EEEE, dd/MM/yyyy")
     : `${format(fromDate, "dd/MM/yyyy")} – ${format(toDate, "dd/MM/yyyy")}`;
@@ -256,17 +279,6 @@ const Attendance = () => {
           <NoWorkPeriodsPanel />
         ) : (
         <>
-        {/* Alerts panel */}
-        <AttendanceAlertsPanel
-          selectedDay={selectedDay}
-          onSelectedDayChange={(d) => {
-            setSelectedDay(d);
-            setView("day");
-          }}
-          mode={view === "month" ? "month" : "day"}
-          onModeChange={(m) => setView(m)}
-        />
-
         {/* Date selector */}
         <Card className="border-0 shadow-sm">
           <CardContent className="p-3 flex flex-wrap items-center gap-3">
@@ -387,22 +399,44 @@ const Attendance = () => {
           </CardContent>
         </Card>
 
+        {/* KPI strip - reflects current date selection */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           <KpiCard
-            title={isSingleDay ? "Scheduled" : "Records"}
-            value={String(rows.length)}
-            icon={Users}
+            title="אירועים מיוחדים"
+            value={String(specialEventsCount)}
+            icon={Sparkles}
             variant="info"
           />
-          <KpiCard title="Arrived" value={String(arrivedCount)} icon={CheckCircle} variant="success" />
           <KpiCard
-            title={isSingleDay ? "Not Reported" : "Total Hours"}
-            value={isSingleDay ? String(notReportedCount) : totalHours.toFixed(1)}
-            icon={isSingleDay ? AlertTriangle : Clock}
-            variant={isSingleDay ? "destructive" : "info"}
+            title="חיסורים ממתינים לטיפול"
+            value={String(pendingAbsencesCount)}
+            icon={UserX}
+            variant={pendingAbsencesCount > 0 ? "destructive" : "success"}
           />
-          <KpiCard title="Late" value={String(lateCount)} icon={Clock} variant="warning" />
+          <KpiCard
+            title="איחורים ממתינים לטיפול"
+            value={String(pendingLateCount)}
+            icon={Clock}
+            variant={pendingLateCount > 0 ? "warning" : "success"}
+          />
+          <KpiCard
+            title='סה"כ דיווחים'
+            value={String(totalReportsCount)}
+            icon={FileText}
+            variant="info"
+          />
         </div>
+
+        {/* Alerts panel */}
+        <AttendanceAlertsPanel
+          selectedDay={selectedDay}
+          onSelectedDayChange={(d) => {
+            setSelectedDay(d);
+            setView("day");
+          }}
+          mode={view === "month" ? "month" : "day"}
+          onModeChange={(m) => setView(m)}
+        />
 
         <Card className="border-0 shadow-sm">
           <CardHeader className="pb-3">

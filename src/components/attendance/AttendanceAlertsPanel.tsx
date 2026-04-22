@@ -445,14 +445,14 @@ export const AttendanceAlertsPanel = ({
         {/* ABSENCES */}
         <div>
           <div className="flex items-center gap-2 mb-2">
-            <UserX className="h-4 w-4 text-destructive" />
-            <h3 className="text-sm font-semibold">חיסורים</h3>
-            <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/20">
+            <UserX className="h-4 w-4 text-info" />
+            <h3 className="text-sm font-semibold">דיווחים (אירועים מסומנים)</h3>
+            <Badge variant="outline" className="bg-info/10 text-info border-info/20">
               {absenceEntries.length}
             </Badge>
           </div>
           {absenceGroups.length === 0 ? (
-            <p className="text-xs text-muted-foreground py-2">אין חיסורים בטווח זה</p>
+            <p className="text-xs text-muted-foreground py-2">אין דיווחים בטווח זה</p>
           ) : (
             <div className="space-y-2">
               {absenceGroups.map(([client, items]) => (
@@ -482,7 +482,13 @@ export const AttendanceAlertsPanel = ({
                         </div>
                         <Badge
                           variant="outline"
-                          className="bg-destructive/10 text-destructive border-destructive/20 whitespace-nowrap"
+                          className={cn(
+                            "whitespace-nowrap",
+                            e.status === "no_show" && "bg-destructive/10 text-destructive border-destructive/20",
+                            e.status === "replacement" && "bg-warning/10 text-warning border-warning/20",
+                            e.status === "no_work" && "bg-muted text-muted-foreground border-border",
+                            (e.status === "vacation" || e.status === "sick") && "bg-info/10 text-info border-info/20",
+                          )}
                         >
                           {ABSENCE_LABELS[e.status as AbsenceStatus] || e.status}
                         </Badge>

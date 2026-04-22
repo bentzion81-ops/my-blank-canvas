@@ -27,6 +27,11 @@ type Employee = {
   meckano_employee_id: string | null;
   status: string;
   created_at: string;
+  employee_client_assignments?: Array<{
+    is_primary: boolean;
+    end_date: string | null;
+    clients: { name: string } | null;
+  }>;
 };
 
 type ReplacementWorker = {
@@ -35,6 +40,11 @@ type ReplacementWorker = {
   passport_number: string;
   phone: string | null;
   is_active: boolean;
+  replacement_reports?: Array<{
+    work_date: string;
+    clients: { name: string } | null;
+    assigned_custom_workplace: string | null;
+  }>;
 };
 
 type Source = "meckano" | "manual" | "replacement";
@@ -45,6 +55,7 @@ type Candidate = {
   display_name: string;
   passport: string | null;
   phone: string | null;
+  client_name: string | null;
   raw: Employee | ReplacementWorker;
 };
 
@@ -75,23 +86,36 @@ const normalizePassport = (s: string | null) => {
   return s.replace(/\s+/g, "").toUpperCase();
 };
 
-const employeeToCandidate = (e: Employee): Candidate => ({
-  id: e.id,
-  source: e.meckano_employee_id ? "meckano" : "manual",
-  display_name: `${e.first_name ?? ""} ${e.last_name ?? ""}`.trim(),
-  passport: e.passport_number,
-  phone: e.israeli_phone || e.foreign_phone,
-  raw: e,
-});
+const employeeToCandidate = (e: Employee): Candidate => {
+  const assignments = e.employee_client_assignments ?? [];
+  const active = assignments.filter((a) => a.clients && !a.end_date);
+  const primary = active.find((a) => a.is_primary) ?? active[0] ?? assignments.find((a) => a.clients);
+  return {
+    id: e.id,
+    source: e.meckano_employee_id ? "meckano" : "manual",
+    display_name: `${e.first_name ?? ""} ${e.last_name ?? ""}`.trim(),
+    passport: e.passport_number,
+    phone: e.israeli_phone || e.foreign_phone,
+    client_name: primary?.clients?.name ?? null,
+    raw: e,
+  };
+};
 
-const workerToCandidate = (w: ReplacementWorker): Candidate => ({
-  id: w.id,
-  source: "replacement",
-  display_name: w.full_name,
-  passport: w.passport_number,
-  phone: w.phone,
-  raw: w,
-});
+const workerToCandidate = (w: ReplacementWorker): Candidate => {
+  const reports = w.replacement_reports ?? [];
+  const sorted = [...reports].sort((a, b) => (b.work_date || "").localeCompare(a.work_date || ""));
+  const last = sorted[0];
+  const clientName = last?.clients?.name ?? last?.assigned_custom_workplace ?? null;
+  return {
+    id: w.id,
+    source: "replacement",
+    display_name: w.full_name,
+    passport: w.passport_number,
+    phone: w.phone,
+    client_name: clientName,
+    raw: w,
+  };
+};
 
 const sourceLabel: Record<Source, string> = {
   meckano: "מקאנו",

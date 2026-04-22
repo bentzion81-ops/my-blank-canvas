@@ -208,6 +208,7 @@ export const AttendanceAlertsPanel = ({
   const clientByEmployee = useMemo(() => {
     const m = new Map<string, string>();
     assignments.forEach((a: any) => {
+      if (a.end_date) return; // only currently active assignments
       if (!m.has(a.employee_id) || a.is_primary) {
         m.set(a.employee_id, a.clients?.name || "—");
       }

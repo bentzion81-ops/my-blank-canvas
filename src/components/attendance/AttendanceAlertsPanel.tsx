@@ -15,6 +15,7 @@ import {
   AlertCircle,
   UserX,
   Pencil,
+  CheckCircle2,
 } from "lucide-react";
 import {
   format,
@@ -366,9 +367,52 @@ export const AttendanceAlertsPanel = ({
   );
   const classifiedAbsences = absenceEntries.filter((a) => a.status !== "no_show");
 
+  // On-time / valid reports: employees who actually checked in, with no absence record.
+  type OkEntry = {
+    id: string;
+    employeeId: string;
+    name: string;
+    client: string;
+    date: string;
+    checkIn: string;
+    checkOut: string | null;
+    expected: string | null;
+    lateMinutes: number;
+  };
+  const okReports = useMemo<OkEntry[]>(() => {
+    const absenceKey = new Set(absences.map((a: any) => `${a.employee_id}-${a.date}`));
+    const out: OkEntry[] = [];
+    (records as any[]).forEach((r) => {
+      if (!r.check_in) return;
+      if (absenceKey.has(`${r.employee_id}-${r.date}`)) return;
+      const dt = dayTypeFor(new Date(r.date));
+      const exp = expectedMap.get(r.employee_id)?.[dt];
+      const expectedIn = exp?.in || null;
+      const late = expectedIn ? diffMinutes(r.check_in, expectedIn) : 0;
+      // Only "ok" if not late by 20+ min (lateness already shown elsewhere as alert)
+      if (late >= 20) return;
+      out.push({
+        id: r.id,
+        employeeId: r.employee_id,
+        name:
+          `${r.employees?.first_name || ""} ${r.employees?.last_name || ""}`.trim() ||
+          employeeNameById.get(r.employee_id) ||
+          "—",
+        client: r.clients?.name || clientByEmployee.get(r.employee_id) || "—",
+        date: r.date,
+        checkIn: format(new Date(r.check_in), "HH:mm"),
+        checkOut: r.check_out ? format(new Date(r.check_out), "HH:mm") : null,
+        expected: expectedIn ? expectedIn.slice(0, 5) : null,
+        lateMinutes: late,
+      });
+    });
+    return out.sort((a, b) => b.date.localeCompare(a.date) || a.checkIn.localeCompare(b.checkIn));
+  }, [records, absences, expectedMap, employeeNameById, clientByEmployee]);
+
   const missingGroups = groupByClient(missingEntries);
   const unclassifiedAbsenceGroups = groupByClient(unclassifiedAbsences);
   const classifiedAbsenceGroups = groupByClient(classifiedAbsences);
+  const okReportGroups = groupByClient(okReports);
 
   const isToday = isSameDay(selectedDay, new Date());
   const rangeLabel =
@@ -608,6 +652,54 @@ export const AttendanceAlertsPanel = ({
                           {ABSENCE_LABELS[e.status as AbsenceStatus] || e.status}
                         </Badge>
                       </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* ON-TIME / VALID REPORTS */}
+        <div>
+          <div className="flex items-center gap-2 mb-2">
+            <CheckCircle2 className="h-4 w-4 text-success" />
+            <h3 className="text-sm font-semibold">דיווחים תקינים</h3>
+            <Badge variant="outline" className="bg-success/10 text-success border-success/20">
+              {okReports.length}
+            </Badge>
+          </div>
+          {okReportGroups.length === 0 ? (
+            <p className="text-xs text-muted-foreground py-2">אין דיווחים תקינים בטווח זה</p>
+          ) : (
+            <div className="space-y-2">
+              {okReportGroups.map(([client, items]) => (
+                <div key={`ok-${client}`} className="border rounded-md overflow-hidden">
+                  <div className="bg-muted/40 px-3 py-1.5 text-xs font-semibold flex items-center justify-between">
+                    <span>{client}</span>
+                    <span className="text-muted-foreground">{items.length}</span>
+                  </div>
+                  <div className="divide-y">
+                    {items.map((e) => (
+                      <div
+                        key={e.id}
+                        className="w-full px-3 py-2 text-xs flex items-center justify-between gap-2 text-right"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium truncate">{e.name}</div>
+                          <div className="text-muted-foreground text-[11px]">
+                            {format(new Date(e.date), "dd/MM/yyyy")} · כניסה {e.checkIn}
+                            {e.checkOut && ` · יציאה ${e.checkOut}`}
+                            {e.expected && ` · צפוי ${e.expected}`}
+                          </div>
+                        </div>
+                        <Badge
+                          variant="outline"
+                          className="bg-success/10 text-success border-success/20 whitespace-nowrap"
+                        >
+                          תקין
+                        </Badge>
+                      </div>
                     ))}
                   </div>
                 </div>

@@ -698,6 +698,7 @@ export type Database = {
           last_name: string
           loan_deduction: number | null
           meckano_employee_id: string | null
+          meckano_synced: boolean
           medical_insurance: number | null
           notes: string | null
           other_deductions: number | null
@@ -726,6 +727,7 @@ export type Database = {
           last_name: string
           loan_deduction?: number | null
           meckano_employee_id?: string | null
+          meckano_synced?: boolean
           medical_insurance?: number | null
           notes?: string | null
           other_deductions?: number | null
@@ -754,6 +756,7 @@ export type Database = {
           last_name?: string
           loan_deduction?: number | null
           meckano_employee_id?: string | null
+          meckano_synced?: boolean
           medical_insurance?: number | null
           notes?: string | null
           other_deductions?: number | null

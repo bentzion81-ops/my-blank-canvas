@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Plus, Search, Users } from "lucide-react";
+import { DuplicateEmployeesPanel } from "@/components/employees/DuplicateEmployeesPanel";
 
 const Employees = () => {
   const navigate = useNavigate();
@@ -54,6 +55,7 @@ const Employees = () => {
     <div className="flex flex-col">
       <AppHeader title="Employees" subtitle={`${employees.length} total employees`} />
       <div className="flex-1 space-y-4 p-4 lg:p-6">
+        <DuplicateEmployeesPanel />
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div className="relative flex-1 max-w-sm">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />

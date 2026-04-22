@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { Loader2, ArrowLeft } from "lucide-react";
 
@@ -35,6 +36,7 @@ const defaultForm = {
   passport_expiration: "",
   visa_expiration: "",
   meckano_employee_id: "",
+  meckano_synced: false,
 };
 
 const EmployeeForm = () => {
@@ -80,6 +82,7 @@ const EmployeeForm = () => {
         passport_expiration: existing.passport_expiration || "",
         visa_expiration: existing.visa_expiration || "",
         meckano_employee_id: (existing as any).meckano_employee_id || "",
+        meckano_synced: (existing as any).meckano_synced ?? false,
       });
     }
   }, [existing]);
@@ -225,6 +228,18 @@ const EmployeeForm = () => {
               <p className="text-xs text-muted-foreground">
                 Used to link this employee to attendance reports synced from Meckano.
               </p>
+            </div>
+            <div className="md:col-span-2 flex items-start justify-between gap-4 rounded-md border p-3">
+              <div className="space-y-0.5">
+                <Label>מסונכרן עם מקאנו</Label>
+                <p className="text-xs text-muted-foreground">
+                  כאשר מופעל, נמשוך נתוני נוכחות ממקאנו עבור עובד זה והתראות על איחורים/חיסורים יופעלו. כאשר כבוי — לא ימשכו נתונים והתראות ממקאנו לא יופעלו.
+                </p>
+              </div>
+              <Switch
+                checked={form.meckano_synced}
+                onCheckedChange={(v) => update("meckano_synced", v)}
+              />
             </div>
           </CardContent>
         </Card>

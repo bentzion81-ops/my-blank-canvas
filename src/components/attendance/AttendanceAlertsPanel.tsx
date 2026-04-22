@@ -178,12 +178,14 @@ export const AttendanceAlertsPanel = ({
         if (dateStr < p.from_date || dateStr > p.to_date) continue;
         if (p.scope === "employee" && p.employee_id === employeeId) return true;
         if (p.scope === "client" && p.client_id) {
+          // Suppress if employee is assigned to this client and the assignment
+          // overlaps the no-work period (not necessarily the specific date —
+          // covers cases where assignment started after the no-work window).
           const matched = (assignments as any[]).some(
             (a) =>
               a.employee_id === employeeId &&
               a.client_id === p.client_id &&
-              (!a.start_date || a.start_date <= dateStr) &&
-              (!a.end_date || a.end_date >= dateStr),
+              (!a.end_date || a.end_date >= p.from_date),
           );
           if (matched) return true;
         }

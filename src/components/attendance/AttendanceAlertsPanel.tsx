@@ -659,6 +659,54 @@ export const AttendanceAlertsPanel = ({
             </div>
           )}
         </div>
+
+        {/* ON-TIME / VALID REPORTS */}
+        <div>
+          <div className="flex items-center gap-2 mb-2">
+            <CheckCircle2 className="h-4 w-4 text-success" />
+            <h3 className="text-sm font-semibold">דיווחים תקינים</h3>
+            <Badge variant="outline" className="bg-success/10 text-success border-success/20">
+              {okReports.length}
+            </Badge>
+          </div>
+          {okReportGroups.length === 0 ? (
+            <p className="text-xs text-muted-foreground py-2">אין דיווחים תקינים בטווח זה</p>
+          ) : (
+            <div className="space-y-2">
+              {okReportGroups.map(([client, items]) => (
+                <div key={`ok-${client}`} className="border rounded-md overflow-hidden">
+                  <div className="bg-muted/40 px-3 py-1.5 text-xs font-semibold flex items-center justify-between">
+                    <span>{client}</span>
+                    <span className="text-muted-foreground">{items.length}</span>
+                  </div>
+                  <div className="divide-y">
+                    {items.map((e) => (
+                      <div
+                        key={e.id}
+                        className="w-full px-3 py-2 text-xs flex items-center justify-between gap-2 text-right"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium truncate">{e.name}</div>
+                          <div className="text-muted-foreground text-[11px]">
+                            {format(new Date(e.date), "dd/MM/yyyy")} · כניסה {e.checkIn}
+                            {e.checkOut && ` · יציאה ${e.checkOut}`}
+                            {e.expected && ` · צפוי ${e.expected}`}
+                          </div>
+                        </div>
+                        <Badge
+                          variant="outline"
+                          className="bg-success/10 text-success border-success/20 whitespace-nowrap"
+                        >
+                          תקין
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </CardContent>
       <AbsenceDialog
         open={dialogState.open}

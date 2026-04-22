@@ -95,18 +95,24 @@ export const AttendanceAlertsPanel = ({
   const fromStr = format(fromDate, "yyyy-MM-dd");
   const toStr = format(toDate, "yyyy-MM-dd");
 
-  const { data: activeEmployeeIds = [] } = useQuery({
+  const { data: activeEmployees = [] } = useQuery({
     queryKey: ["alerts-active-synced-employees"],
     queryFn: async () => {
       const { data } = await supabase
         .from("employees")
-        .select("id")
+        .select("id, first_name, last_name")
         .eq("status", "active")
         .eq("meckano_synced", true);
-      return (data || []).map((e: any) => e.id as string);
+      return data || [];
     },
   });
-  const activeSet = useMemo(() => new Set(activeEmployeeIds), [activeEmployeeIds]);
+  const employeeNameById = useMemo(() => {
+    const m = new Map<string, string>();
+    (activeEmployees as any[]).forEach((e) => {
+      m.set(e.id, `${e.first_name || ""} ${e.last_name || ""}`.trim() || "—");
+    });
+    return m;
+  }, [activeEmployees]);
 
   const { data: records = [] } = useQuery({
     queryKey: ["alerts-records", fromStr, toStr],
@@ -270,7 +276,7 @@ export const AttendanceAlertsPanel = ({
         out.push({
           id: `miss-${employeeId}-${dateStr}`,
           employeeId,
-          name: nameById.get(employeeId) || "—",
+          name: employeeNameById.get(employeeId) || "—",
           client: clientByEmployee.get(employeeId) || "—",
           date: dateStr,
           expected: exp.in.slice(0, 5),
@@ -279,7 +285,7 @@ export const AttendanceAlertsPanel = ({
       });
     });
     return out;
-  }, [records, absences, expectedMap, clientByEmployee, fromDate, toDate, isNoWorkDay]);
+  }, [records, absences, expectedMap, clientByEmployee, employeeNameById, fromDate, toDate, isNoWorkDay]);
 
   type AbsenceEntry = {
     id: string;
@@ -293,17 +299,23 @@ export const AttendanceAlertsPanel = ({
   };
 
   const absenceEntries = useMemo<AbsenceEntry[]>(() => {
-    return absences.map((a: any) => ({
-      id: a.id,
-      employeeId: a.employee_id,
-      name: `${a.employees?.first_name || ""} ${a.employees?.last_name || ""}`.trim() || "—",
-      client: clientByEmployee.get(a.employee_id) || "—",
-      date: a.date,
-      status: a.status,
-      replacement: a.replacement_name,
-      notes: a.notes,
-    }));
-  }, [absences, clientByEmployee]);
+    return absences.map((a: any) => {
+      const empName =
+        `${a.employees?.first_name || ""} ${a.employees?.last_name || ""}`.trim() ||
+        employeeNameById.get(a.employee_id) ||
+        "—";
+      return {
+        id: a.id,
+        employeeId: a.employee_id,
+        name: empName,
+        client: clientByEmployee.get(a.employee_id) || "—",
+        date: a.date,
+        status: a.status,
+        replacement: a.replacement_name,
+        notes: a.notes,
+      };
+    });
+  }, [absences, clientByEmployee, employeeNameById]);
 
   // Dialog state for marking/editing an absence on click
   const [dialogState, setDialogState] = useState<{
@@ -329,8 +341,28 @@ export const AttendanceAlertsPanel = ({
 
   // Unclassified absences (auto-detected no_show) stay as alerts at top.
   // Classified ones (replacement / no_work / vacation / sick) move to bottom "reports".
+  // Suppress auto-detected no_show for today if the shift hasn't ended yet
+  // (gives the employee time to actually arrive before flagging them).
+  const isShiftStillOngoingToday = (employeeId: string, dateStr: string): boolean => {
+    const nowMin = minutesNowInIsraelIfToday(dateStr);
+    if (nowMin === null) return false; // not today
+    const dt = dayTypeFor(new Date(dateStr));
+    const exp = expectedMap.get(employeeId)?.[dt];
+    if (!exp || !exp.working) return false;
+    // If shift has an expected_check_out, suppress until then.
+    // Otherwise, suppress until end of day (00:00 next day).
+    if (exp.out) {
+      const [eh, em] = exp.out.split(":").map(Number);
+      return nowMin < eh * 60 + em;
+    }
+    return true;
+  };
+
   const unclassifiedAbsences = absenceEntries.filter(
-    (a) => a.status === "no_show" && !isNoWorkDay(a.employeeId, a.date),
+    (a) =>
+      a.status === "no_show" &&
+      !isNoWorkDay(a.employeeId, a.date) &&
+      !isShiftStillOngoingToday(a.employeeId, a.date),
   );
   const classifiedAbsences = absenceEntries.filter((a) => a.status !== "no_show");
 

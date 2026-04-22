@@ -276,7 +276,7 @@ export const AttendanceAlertsPanel = ({
         out.push({
           id: `miss-${employeeId}-${dateStr}`,
           employeeId,
-          name: nameById.get(employeeId) || "—",
+          name: employeeNameById.get(employeeId) || "—",
           client: clientByEmployee.get(employeeId) || "—",
           date: dateStr,
           expected: exp.in.slice(0, 5),
@@ -285,7 +285,7 @@ export const AttendanceAlertsPanel = ({
       });
     });
     return out;
-  }, [records, absences, expectedMap, clientByEmployee, fromDate, toDate, isNoWorkDay]);
+  }, [records, absences, expectedMap, clientByEmployee, employeeNameById, fromDate, toDate, isNoWorkDay]);
 
   type AbsenceEntry = {
     id: string;

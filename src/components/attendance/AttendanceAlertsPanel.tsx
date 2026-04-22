@@ -463,9 +463,17 @@ export const AttendanceAlertsPanel = ({
                   </div>
                   <div className="divide-y">
                     {items.map((e) => (
-                      <div key={e.id} className="px-3 py-2 text-xs flex items-center justify-between gap-2">
+                      <button
+                        key={e.id}
+                        type="button"
+                        onClick={() => openDialog(e.employeeId, e.name, e.date)}
+                        className="w-full px-3 py-2 text-xs flex items-center justify-between gap-2 hover:bg-accent/40 transition text-right"
+                      >
                         <div className="flex-1 min-w-0">
-                          <div className="font-medium truncate">{e.name}</div>
+                          <div className="font-medium truncate flex items-center gap-1">
+                            {e.name}
+                            <Pencil className="h-3 w-3 text-muted-foreground opacity-60" />
+                          </div>
                           <div className="text-muted-foreground text-[11px]">
                             {format(new Date(e.date), "dd/MM/yyyy")}
                             {e.replacement && ` · מחליף: ${e.replacement}`}
@@ -476,9 +484,9 @@ export const AttendanceAlertsPanel = ({
                           variant="outline"
                           className="bg-destructive/10 text-destructive border-destructive/20 whitespace-nowrap"
                         >
-                          {e.status}
+                          {ABSENCE_LABELS[e.status as AbsenceStatus] || e.status}
                         </Badge>
-                      </div>
+                      </button>
                     ))}
                   </div>
                 </div>
@@ -487,6 +495,13 @@ export const AttendanceAlertsPanel = ({
           )}
         </div>
       </CardContent>
+      <AbsenceDialog
+        open={dialogState.open}
+        onOpenChange={(open) => setDialogState((s) => ({ ...s, open }))}
+        employeeId={dialogState.employeeId}
+        employeeName={dialogState.employeeName}
+        date={dialogState.date}
+      />
     </Card>
   );
 };

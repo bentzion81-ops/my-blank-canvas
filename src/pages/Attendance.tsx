@@ -93,6 +93,21 @@ const Attendance = () => {
     },
   });
 
+  // Pending late-attendance notifications in the active date range (unread = pending).
+  const { data: pendingLateNotifs } = useQuery({
+    queryKey: ["pending-late-notifs", fromStr, toStr],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("notifications")
+        .select("id, entity_id, created_at, is_read")
+        .eq("type", "late_attendance")
+        .eq("is_read", false)
+        .gte("created_at", `${fromStr}T00:00:00`)
+        .lte("created_at", `${toStr}T23:59:59`);
+      return data || [];
+    },
+  });
+
   // Build lookup: employee_id -> day_type -> {in, out}
   const expectedMap = useMemo(() => {
     const m = new Map<string, Record<string, { in: string | null; out: string | null; working: boolean }>>();

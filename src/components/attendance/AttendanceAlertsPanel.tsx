@@ -396,21 +396,21 @@ export const AttendanceAlertsPanel = ({
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* MISSING REPORTS (treated as late until they become absences) */}
+        {/* MISSING REPORTS + UNCLASSIFIED ABSENCES (alerts that still need handling) */}
         <div>
           <div className="flex items-center gap-2 mb-2">
             <AlertCircle className="h-4 w-4 text-warning" />
-            <h3 className="text-sm font-semibold">איחורים (לא דווחו)</h3>
+            <h3 className="text-sm font-semibold">חיסורים ואיחורים (לא סווגו)</h3>
             <Badge variant="outline" className="bg-warning/10 text-warning border-warning/20">
-              {missingEntries.length}
+              {missingEntries.length + unclassifiedAbsences.length}
             </Badge>
           </div>
-          {missingGroups.length === 0 ? (
-            <p className="text-xs text-muted-foreground py-2">אין איחורים בטווח זה</p>
+          {missingGroups.length === 0 && unclassifiedAbsenceGroups.length === 0 ? (
+            <p className="text-xs text-muted-foreground py-2">אין התראות בטווח זה</p>
           ) : (
             <div className="space-y-2">
               {missingGroups.map(([client, items]) => (
-                <div key={client} className="border rounded-md overflow-hidden">
+                <div key={`miss-${client}`} className="border rounded-md overflow-hidden">
                   <div className="bg-muted/40 px-3 py-1.5 text-xs font-semibold flex items-center justify-between">
                     <span>{client}</span>
                     <span className="text-muted-foreground">{items.length}</span>
@@ -444,24 +444,58 @@ export const AttendanceAlertsPanel = ({
                   </div>
                 </div>
               ))}
+              {unclassifiedAbsenceGroups.map(([client, items]) => (
+                <div key={`abs-${client}`} className="border rounded-md overflow-hidden">
+                  <div className="bg-muted/40 px-3 py-1.5 text-xs font-semibold flex items-center justify-between">
+                    <span>{client}</span>
+                    <span className="text-muted-foreground">{items.length}</span>
+                  </div>
+                  <div className="divide-y">
+                    {items.map((e) => (
+                      <button
+                        key={e.id}
+                        type="button"
+                        onClick={() => openDialog(e.employeeId, e.name, e.date)}
+                        className="w-full px-3 py-2 text-xs flex items-center justify-between gap-2 hover:bg-accent/40 transition text-right"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium truncate flex items-center gap-1">
+                            {e.name}
+                            <Pencil className="h-3 w-3 text-muted-foreground opacity-60" />
+                          </div>
+                          <div className="text-muted-foreground text-[11px]">
+                            {format(new Date(e.date), "dd/MM/yyyy")} · חיסור — לא סווג
+                          </div>
+                        </div>
+                        <Badge
+                          variant="outline"
+                          className="bg-destructive/10 text-destructive border-destructive/20 whitespace-nowrap"
+                        >
+                          לא הגיע
+                        </Badge>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>
 
-        {/* ABSENCES */}
+        {/* CLASSIFIED REPORTS */}
         <div>
           <div className="flex items-center gap-2 mb-2">
             <UserX className="h-4 w-4 text-info" />
             <h3 className="text-sm font-semibold">דיווחים (אירועים מסומנים)</h3>
             <Badge variant="outline" className="bg-info/10 text-info border-info/20">
-              {absenceEntries.length}
+              {classifiedAbsences.length}
             </Badge>
           </div>
-          {absenceGroups.length === 0 ? (
+          {classifiedAbsenceGroups.length === 0 ? (
             <p className="text-xs text-muted-foreground py-2">אין דיווחים בטווח זה</p>
           ) : (
             <div className="space-y-2">
-              {absenceGroups.map(([client, items]) => (
+              {classifiedAbsenceGroups.map(([client, items]) => (
                 <div key={client} className="border rounded-md overflow-hidden">
                   <div className="bg-muted/40 px-3 py-1.5 text-xs font-semibold flex items-center justify-between">
                     <span>{client}</span>

@@ -182,6 +182,7 @@ export const AttendanceAlertsPanel = ({
   // but no attendance record AND no absence record yet. Once they report (even late) — alert clears.
   type MissingEntry = {
     id: string;
+    employeeId: string;
     name: string;
     client: string;
     date: string;

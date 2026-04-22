@@ -482,7 +482,13 @@ export const AttendanceAlertsPanel = ({
                         </div>
                         <Badge
                           variant="outline"
-                          className="bg-destructive/10 text-destructive border-destructive/20 whitespace-nowrap"
+                          className={cn(
+                            "whitespace-nowrap",
+                            e.status === "no_show" && "bg-destructive/10 text-destructive border-destructive/20",
+                            e.status === "replacement" && "bg-warning/10 text-warning border-warning/20",
+                            e.status === "no_work" && "bg-muted text-muted-foreground border-border",
+                            (e.status === "vacation" || e.status === "sick") && "bg-info/10 text-info border-info/20",
+                          )}
                         >
                           {ABSENCE_LABELS[e.status as AbsenceStatus] || e.status}
                         </Badge>

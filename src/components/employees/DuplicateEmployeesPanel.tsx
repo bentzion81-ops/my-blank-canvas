@@ -460,6 +460,9 @@ function CandidateRow({
           {primary && <Badge variant="secondary">ראשי</Badge>}
         </div>
         <div className="text-xs text-muted-foreground mt-1 flex flex-wrap gap-x-4 gap-y-0.5">
+          <span>
+            לקוח: <span className="text-foreground font-medium">{candidate.client_name || "לא משויך"}</span>
+          </span>
           {candidate.passport && <span>דרכון: {candidate.passport}</span>}
           {candidate.phone && <span>טלפון: {candidate.phone}</span>}
         </div>

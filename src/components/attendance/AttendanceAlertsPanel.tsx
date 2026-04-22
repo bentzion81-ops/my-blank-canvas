@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
+import { AbsenceDialog, ABSENCE_LABELS, type AbsenceStatus } from "./AbsenceDialog";
 import {
   ChevronLeft,
   ChevronRight,
@@ -13,6 +14,7 @@ import {
   AlertTriangle,
   AlertCircle,
   UserX,
+  Pencil,
 } from "lucide-react";
 import {
   format,

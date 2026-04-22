@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Plus, Search, Users } from "lucide-react";
 import { DuplicateEmployeesPanel } from "@/components/employees/DuplicateEmployeesPanel";
+import { MissingExpectedHoursPanel } from "@/components/employees/MissingExpectedHoursPanel";
 
 const Employees = () => {
   const navigate = useNavigate();

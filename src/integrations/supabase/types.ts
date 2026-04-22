@@ -575,6 +575,7 @@ export type Database = {
       }
       employee_expected_hours: {
         Row: {
+          active_days: string[] | null
           created_at: string
           day_type: Database["public"]["Enums"]["expected_day_type"]
           employee_id: string
@@ -585,6 +586,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          active_days?: string[] | null
           created_at?: string
           day_type: Database["public"]["Enums"]["expected_day_type"]
           employee_id: string
@@ -595,6 +597,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          active_days?: string[] | null
           created_at?: string
           day_type?: Database["public"]["Enums"]["expected_day_type"]
           employee_id?: string

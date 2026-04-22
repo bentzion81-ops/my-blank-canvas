@@ -158,8 +158,10 @@ const Attendance = () => {
       );
       const now = new Date();
       const isToday = isSameDay(fromDate, new Date());
+      const seenEmployeeIds = new Set<string>();
 
-      return scheduled.map((schedule: any) => {
+      const scheduledRows = scheduled.map((schedule: any) => {
+        seenEmployeeIds.add(schedule.employee_id);
         const record = records?.find((r: any) => r.employee_id === schedule.employee_id);
         const absence = absenceMap.get(`${schedule.employee_id}-${fromStr}`);
         const scheduledTime = schedule.start_time;
@@ -198,6 +200,50 @@ const Attendance = () => {
           absence,
         };
       });
+
+      // Include actual reports from employees not on the schedule for this day
+      const extraRecordRows = (records || [])
+        .filter((r: any) => !seenEmployeeIds.has(r.employee_id))
+        .map((r: any) => {
+          seenEmployeeIds.add(r.employee_id);
+          const absence = absenceMap.get(`${r.employee_id}-${fromStr}`);
+          return {
+            key: r.id,
+            date: fromStr,
+            employeeId: r.employee_id,
+            name: `${r.employees?.first_name || ""} ${r.employees?.last_name || ""}`.trim() || "—",
+            client: r.clients?.name || "—",
+            scheduled: "—",
+            checkIn: r.check_in ? format(new Date(r.check_in), "HH:mm") : null,
+            checkOut: r.check_out ? format(new Date(r.check_out), "HH:mm") : null,
+            checkInRaw: r.check_in || null,
+            checkOutRaw: r.check_out || null,
+            hours: r.hours_worked ?? null,
+            status: r.check_in ? "arrived" : absence ? "absent" : "not reported",
+            absence,
+          };
+        });
+
+      // Include absences for employees not yet covered
+      const extraAbsenceRows = (absences || [])
+        .filter((a: any) => !seenEmployeeIds.has(a.employee_id))
+        .map((a: any) => ({
+          key: `abs-${a.id}`,
+          date: fromStr,
+          employeeId: a.employee_id,
+          name: `${a.employees?.first_name || ""} ${a.employees?.last_name || ""}`.trim() || "—",
+          client: "—",
+          scheduled: "—",
+          checkIn: null,
+          checkOut: null,
+          checkInRaw: null,
+          checkOutRaw: null,
+          hours: null,
+          status: "absent",
+          absence: a,
+        }));
+
+      return [...scheduledRows, ...extraRecordRows, ...extraAbsenceRows];
     }
 
     // Range / month: actual records + absences (no record)

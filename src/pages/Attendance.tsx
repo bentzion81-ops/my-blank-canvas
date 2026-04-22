@@ -279,8 +279,164 @@ const Attendance = () => {
           <NoWorkPeriodsPanel />
         ) : (
         <>
+        {/* Date selector */}
+        <Card className="border-0 shadow-sm">
+          <CardContent className="p-3 flex flex-wrap items-center gap-3">
+            <Tabs value={view} onValueChange={(v) => setView(v as ViewMode)}>
+              <TabsList>
+                <TabsTrigger value="day">Day</TabsTrigger>
+                <TabsTrigger value="range">Range</TabsTrigger>
+                <TabsTrigger value="month">Month</TabsTrigger>
+              </TabsList>
+            </Tabs>
+
+            {view === "day" && (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className="h-9 justify-start font-normal">
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {format(selectedDay, "dd/MM/yyyy")}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={selectedDay}
+                    onSelect={(d) => d && setSelectedDay(d)}
+                    initialFocus
+                    className={cn("p-3 pointer-events-auto")}
+                  />
+                </PopoverContent>
+              </Popover>
+            )}
+
+            {view === "range" && (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className="h-9 w-[280px] justify-start font-normal">
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {range?.from
+                      ? range.to
+                        ? `${format(range.from, "dd/MM/yyyy")} – ${format(range.to, "dd/MM/yyyy")}`
+                        : format(range.from, "dd/MM/yyyy")
+                      : "Pick a range"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="range"
+                    selected={range}
+                    onSelect={setRange}
+                    numberOfMonths={2}
+                    className={cn("p-3 pointer-events-auto")}
+                  />
+                </PopoverContent>
+              </Popover>
+            )}
+
+            {view === "month" && (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className="h-9 justify-start font-normal">
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {format(month, "MMMM yyyy")}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={month}
+                    month={month}
+                    onMonthChange={setMonth}
+                    onSelect={(d) => d && setMonth(startOfMonth(d))}
+                    className={cn("p-3 pointer-events-auto")}
+                  />
+                </PopoverContent>
+              </Popover>
+            )}
+
+            {view === "range" && (
+              <div className="flex flex-wrap gap-1">
+                {[
+                  { label: "Today", days: 0 },
+                  { label: "Last 7d", days: 7 },
+                  { label: "Last 30d", days: 30 },
+                  { label: "This month", days: -1 },
+                ].map((p) => (
+                  <Button
+                    key={p.label}
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 text-xs"
+                    onClick={() => {
+                      const end = new Date();
+                      let start = new Date();
+                      if (p.days === -1) start = startOfMonth(end);
+                      else start.setDate(end.getDate() - p.days);
+                      setRange({ from: start, to: end });
+                    }}
+                  >
+                    {p.label}
+                  </Button>
+                ))}
+              </div>
+            )}
+
+            <div className="ml-auto flex items-center gap-2">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search..."
+                  className="pl-9 h-9 w-48"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+              <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
+                <RefreshCw className={cn("h-4 w-4 mr-1", isFetching && "animate-spin")} /> Refresh
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* KPI strip - reflects current date selection */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <KpiCard
+            title="אירועים מיוחדים"
+            value={String(specialEventsCount)}
+            icon={Sparkles}
+            variant="info"
+          />
+          <KpiCard
+            title="חיסורים ממתינים לטיפול"
+            value={String(pendingAbsencesCount)}
+            icon={UserX}
+            variant={pendingAbsencesCount > 0 ? "destructive" : "success"}
+          />
+          <KpiCard
+            title="איחורים ממתינים לטיפול"
+            value={String(pendingLateCount)}
+            icon={Clock}
+            variant={pendingLateCount > 0 ? "warning" : "success"}
+          />
+          <KpiCard
+            title='סה"כ דיווחים'
+            value={String(totalReportsCount)}
+            icon={FileText}
+            variant="info"
+          />
+        </div>
+
         {/* Alerts panel */}
         <AttendanceAlertsPanel
+          selectedDay={selectedDay}
+          onSelectedDayChange={(d) => {
+            setSelectedDay(d);
+            setView("day");
+          }}
+          mode={view === "month" ? "month" : "day"}
+          onModeChange={(m) => setView(m)}
+        />
           selectedDay={selectedDay}
           onSelectedDayChange={(d) => {
             setSelectedDay(d);

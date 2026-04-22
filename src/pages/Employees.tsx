@@ -56,6 +56,7 @@ const Employees = () => {
     <div className="flex flex-col">
       <AppHeader title="Employees" subtitle={`${employees.length} total employees`} />
       <div className="flex-1 space-y-4 p-4 lg:p-6">
+        <MissingExpectedHoursPanel />
         <DuplicateEmployeesPanel />
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div className="relative flex-1 max-w-sm">

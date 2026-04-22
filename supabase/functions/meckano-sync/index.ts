@@ -429,12 +429,20 @@ async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userI
       }
     }
 
-    // Map Meckano employees → internal UUIDs
+    // Map Meckano employees → internal UUIDs (only employees flagged as synced with Meckano)
     const meckIds = Array.from(byEmpDay.keys());
     const { data: emps } = meckIds.length
-      ? await admin.from("employees").select("id, meckano_employee_id").in("meckano_employee_id", meckIds)
+      ? await admin
+          .from("employees")
+          .select("id, meckano_employee_id, meckano_synced")
+          .in("meckano_employee_id", meckIds)
       : { data: [] };
-    const empMap = new Map((emps ?? []).map((e: any) => [String(e.meckano_employee_id), e.id]));
+    const empMap = new Map(
+      (emps ?? [])
+        .filter((e: any) => e.meckano_synced === true)
+        .map((e: any) => [String(e.meckano_employee_id), e.id]),
+    );
+    const skippedNotSynced = (emps ?? []).filter((e: any) => e.meckano_synced !== true).length;
 
     const batchIns = await admin.from("attendance_import_batches").insert({
       source: "meckano",

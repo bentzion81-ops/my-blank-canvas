@@ -341,8 +341,28 @@ export const AttendanceAlertsPanel = ({
 
   // Unclassified absences (auto-detected no_show) stay as alerts at top.
   // Classified ones (replacement / no_work / vacation / sick) move to bottom "reports".
+  // Suppress auto-detected no_show for today if the shift hasn't ended yet
+  // (gives the employee time to actually arrive before flagging them).
+  const isShiftStillOngoingToday = (employeeId: string, dateStr: string): boolean => {
+    const nowMin = minutesNowInIsraelIfToday(dateStr);
+    if (nowMin === null) return false; // not today
+    const dt = dayTypeFor(new Date(dateStr));
+    const exp = expectedMap.get(employeeId)?.[dt];
+    if (!exp || !exp.working) return false;
+    // If shift has an expected_check_out, suppress until then.
+    // Otherwise, suppress until end of day (00:00 next day).
+    if (exp.out) {
+      const [eh, em] = exp.out.split(":").map(Number);
+      return nowMin < eh * 60 + em;
+    }
+    return true;
+  };
+
   const unclassifiedAbsences = absenceEntries.filter(
-    (a) => a.status === "no_show" && !isNoWorkDay(a.employeeId, a.date),
+    (a) =>
+      a.status === "no_show" &&
+      !isNoWorkDay(a.employeeId, a.date) &&
+      !isShiftStillOngoingToday(a.employeeId, a.date),
   );
   const classifiedAbsences = absenceEntries.filter((a) => a.status !== "no_show");
 

@@ -228,6 +228,7 @@ export const AttendanceAlertsPanel = ({
 
         out.push({
           id: `miss-${employeeId}-${dateStr}`,
+          employeeId,
           name: nameById.get(employeeId) || "—",
           client: clientByEmployee.get(employeeId) || "—",
           date: dateStr,

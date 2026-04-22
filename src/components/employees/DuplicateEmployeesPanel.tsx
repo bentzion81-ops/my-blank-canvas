@@ -198,7 +198,7 @@ export function DuplicateEmployeesPanel() {
       const { data, error } = await supabase
         .from("employees")
         .select(
-          "id, first_name, last_name, passport_number, israeli_phone, foreign_phone, meckano_employee_id, status, created_at",
+          "id, first_name, last_name, passport_number, israeli_phone, foreign_phone, meckano_employee_id, status, created_at, employee_client_assignments(is_primary, end_date, clients(name))",
         );
       if (error) throw error;
       return (data ?? []) as Employee[];
@@ -210,7 +210,9 @@ export function DuplicateEmployeesPanel() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("replacement_workers")
-        .select("id, full_name, passport_number, phone, is_active");
+        .select(
+          "id, full_name, passport_number, phone, is_active, replacement_reports(work_date, assigned_custom_workplace, clients:assigned_client_id(name))",
+        );
       if (error) throw error;
       return (data ?? []) as ReplacementWorker[];
     },

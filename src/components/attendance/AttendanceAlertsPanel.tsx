@@ -276,7 +276,7 @@ export const AttendanceAlertsPanel = ({
       });
     });
     return out;
-  }, [records, absences, expectedMap, clientByEmployee, fromDate, toDate]);
+  }, [records, absences, expectedMap, clientByEmployee, fromDate, toDate, isNoWorkDay]);
 
   type AbsenceEntry = {
     id: string;

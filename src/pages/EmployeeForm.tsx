@@ -81,6 +81,7 @@ const EmployeeForm = () => {
         passport_expiration: existing.passport_expiration || "",
         visa_expiration: existing.visa_expiration || "",
         meckano_employee_id: (existing as any).meckano_employee_id || "",
+        meckano_synced: (existing as any).meckano_synced ?? false,
       });
     }
   }, [existing]);

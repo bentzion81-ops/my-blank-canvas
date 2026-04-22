@@ -499,10 +499,11 @@ async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userI
         raw_events: entries.length,
         shifts: shifts.length,
         stored, unmatched,
+        skipped_not_synced: skippedNotSynced,
         batch_id: batchId,
       },
     });
-    return { ok: true, raw_events: entries.length, shifts: shifts.length, stored, unmatched };
+    return { ok: true, raw_events: entries.length, shifts: shifts.length, stored, unmatched, skipped_not_synced: skippedNotSynced };
   } catch (e) {
     await endLog(logId, { status: "error", error_message: String(e) });
     return { ok: false, error: String(e) };

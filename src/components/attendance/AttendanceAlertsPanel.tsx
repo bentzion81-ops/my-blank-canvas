@@ -411,9 +411,17 @@ export const AttendanceAlertsPanel = ({
                   </div>
                   <div className="divide-y">
                     {items.map((e) => (
-                      <div key={e.id} className="px-3 py-2 text-xs flex items-center justify-between gap-2">
+                      <button
+                        key={e.id}
+                        type="button"
+                        onClick={() => openDialog(e.employeeId, e.name, e.date)}
+                        className="w-full px-3 py-2 text-xs flex items-center justify-between gap-2 hover:bg-accent/40 transition text-right"
+                      >
                         <div className="flex-1 min-w-0">
-                          <div className="font-medium truncate">{e.name}</div>
+                          <div className="font-medium truncate flex items-center gap-1">
+                            {e.name}
+                            <Pencil className="h-3 w-3 text-muted-foreground opacity-60" />
+                          </div>
                           <div className="text-muted-foreground text-[11px]">
                             {format(new Date(e.date), "dd/MM/yyyy")} · לא דווחה כניסה{" "}
                             <span className="opacity-70">(צפוי {e.expected})</span>
@@ -425,7 +433,7 @@ export const AttendanceAlertsPanel = ({
                         >
                           +{Math.round(e.minutesPast)} דק׳
                         </Badge>
-                      </div>
+                      </button>
                     ))}
                   </div>
                 </div>

@@ -96,6 +96,9 @@ export const AbsenceDialog = ({ open, onOpenChange, employeeId, employeeName, da
       toast.success("נשמר בהצלחה");
       qc.invalidateQueries({ queryKey: ["attendance-range"] });
       qc.invalidateQueries({ queryKey: ["attendance-absences"] });
+      qc.invalidateQueries({ queryKey: ["alerts-absences"] });
+      qc.invalidateQueries({ queryKey: ["alerts-records"] });
+      qc.invalidateQueries({ queryKey: ["employee-attendance-month"] });
       qc.invalidateQueries({ queryKey: ["notifications"] });
       onSaved?.();
       onOpenChange(false);
@@ -115,6 +118,9 @@ export const AbsenceDialog = ({ open, onOpenChange, employeeId, employeeName, da
     toast.success("נמחק");
     qc.invalidateQueries({ queryKey: ["attendance-range"] });
     qc.invalidateQueries({ queryKey: ["attendance-absences"] });
+    qc.invalidateQueries({ queryKey: ["alerts-absences"] });
+    qc.invalidateQueries({ queryKey: ["alerts-records"] });
+    qc.invalidateQueries({ queryKey: ["employee-attendance-month"] });
     onSaved?.();
     onOpenChange(false);
   };

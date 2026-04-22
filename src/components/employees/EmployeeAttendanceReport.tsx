@@ -85,6 +85,27 @@ export const EmployeeAttendanceReport = ({ employeeId }: Props) => {
     },
   });
 
+  const { data: absences } = useQuery({
+    queryKey: ["employee-attendance-month-absences", employeeId, fromStr, toStr],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("attendance_absences")
+        .select("date, status, replacement_name, notes")
+        .eq("employee_id", employeeId)
+        .gte("date", fromStr)
+        .lte("date", toStr);
+      return data || [];
+    },
+  });
+
+  const ABSENCE_LABEL_HE: Record<string, string> = {
+    no_show: "לא הגיע",
+    replacement: "מחליף",
+    no_work: "אין עבודה",
+    vacation: "חופשה",
+    sick: "מחלה",
+  };
+
   const rows = useMemo<Row[]>(() => {
     const days = eachDayOfInterval({ start: monthStart, end: monthEnd });
     const byDate = new Map<string, any[]>();
@@ -93,6 +114,8 @@ export const EmployeeAttendanceReport = ({ employeeId }: Props) => {
       arr.push(r);
       byDate.set(r.date, arr);
     });
+    const absenceByDate = new Map<string, any>();
+    (absences || []).forEach((a: any) => absenceByDate.set(a.date, a));
 
     return days.map((d) => {
       const ds = format(d, "yyyy-MM-dd");
@@ -126,6 +149,16 @@ export const EmployeeAttendanceReport = ({ employeeId }: Props) => {
         hours = mins > 0 ? mins / 60 : 0;
       }
 
+      const absence = absenceByDate.get(ds);
+      let event: string | undefined;
+      if (absence) {
+        event = ABSENCE_LABEL_HE[absence.status] || absence.status;
+        if (absence.status === "replacement" && absence.replacement_name) {
+          event += ` (${absence.replacement_name})`;
+        }
+        if (absence.notes && !note) note = absence.notes;
+      }
+
       return {
         date: d,
         dateStr: ds,
@@ -136,9 +169,10 @@ export const EmployeeAttendanceReport = ({ employeeId }: Props) => {
         paidHours: hours,
         break: 0,
         note,
+        event,
       };
     });
-  }, [records, monthStart, monthEnd]);
+  }, [records, absences, monthStart, monthEnd]);
 
   const totals = useMemo(() => {
     const totalMins = rows.reduce((s, r) => s + r.hours * 60, 0);

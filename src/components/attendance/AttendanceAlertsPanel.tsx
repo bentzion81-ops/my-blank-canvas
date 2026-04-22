@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
+import { AbsenceDialog, ABSENCE_LABELS, type AbsenceStatus } from "./AbsenceDialog";
 import {
   ChevronLeft,
   ChevronRight,
@@ -13,6 +14,7 @@ import {
   AlertTriangle,
   AlertCircle,
   UserX,
+  Pencil,
 } from "lucide-react";
 import {
   format,
@@ -180,6 +182,7 @@ export const AttendanceAlertsPanel = ({
   // but no attendance record AND no absence record yet. Once they report (even late) — alert clears.
   type MissingEntry = {
     id: string;
+    employeeId: string;
     name: string;
     client: string;
     date: string;
@@ -225,6 +228,7 @@ export const AttendanceAlertsPanel = ({
 
         out.push({
           id: `miss-${employeeId}-${dateStr}`,
+          employeeId,
           name: nameById.get(employeeId) || "—",
           client: clientByEmployee.get(employeeId) || "—",
           date: dateStr,
@@ -238,6 +242,7 @@ export const AttendanceAlertsPanel = ({
 
   type AbsenceEntry = {
     id: string;
+    employeeId: string;
     name: string;
     client: string;
     date: string;
@@ -249,6 +254,7 @@ export const AttendanceAlertsPanel = ({
   const absenceEntries = useMemo<AbsenceEntry[]>(() => {
     return absences.map((a: any) => ({
       id: a.id,
+      employeeId: a.employee_id,
       name: `${a.employees?.first_name || ""} ${a.employees?.last_name || ""}`.trim() || "—",
       client: clientByEmployee.get(a.employee_id) || "—",
       date: a.date,
@@ -257,6 +263,17 @@ export const AttendanceAlertsPanel = ({
       notes: a.notes,
     }));
   }, [absences, clientByEmployee]);
+
+  // Dialog state for marking/editing an absence on click
+  const [dialogState, setDialogState] = useState<{
+    open: boolean;
+    employeeId: string;
+    employeeName: string;
+    date: string;
+  }>({ open: false, employeeId: "", employeeName: "", date: "" });
+
+  const openDialog = (employeeId: string, employeeName: string, date: string) =>
+    setDialogState({ open: true, employeeId, employeeName, date });
 
   // Group by client
   const groupByClient = <T extends { client: string }>(arr: T[]) => {
@@ -394,9 +411,17 @@ export const AttendanceAlertsPanel = ({
                   </div>
                   <div className="divide-y">
                     {items.map((e) => (
-                      <div key={e.id} className="px-3 py-2 text-xs flex items-center justify-between gap-2">
+                      <button
+                        key={e.id}
+                        type="button"
+                        onClick={() => openDialog(e.employeeId, e.name, e.date)}
+                        className="w-full px-3 py-2 text-xs flex items-center justify-between gap-2 hover:bg-accent/40 transition text-right"
+                      >
                         <div className="flex-1 min-w-0">
-                          <div className="font-medium truncate">{e.name}</div>
+                          <div className="font-medium truncate flex items-center gap-1">
+                            {e.name}
+                            <Pencil className="h-3 w-3 text-muted-foreground opacity-60" />
+                          </div>
                           <div className="text-muted-foreground text-[11px]">
                             {format(new Date(e.date), "dd/MM/yyyy")} · לא דווחה כניסה{" "}
                             <span className="opacity-70">(צפוי {e.expected})</span>
@@ -408,7 +433,7 @@ export const AttendanceAlertsPanel = ({
                         >
                           +{Math.round(e.minutesPast)} דק׳
                         </Badge>
-                      </div>
+                      </button>
                     ))}
                   </div>
                 </div>
@@ -438,9 +463,17 @@ export const AttendanceAlertsPanel = ({
                   </div>
                   <div className="divide-y">
                     {items.map((e) => (
-                      <div key={e.id} className="px-3 py-2 text-xs flex items-center justify-between gap-2">
+                      <button
+                        key={e.id}
+                        type="button"
+                        onClick={() => openDialog(e.employeeId, e.name, e.date)}
+                        className="w-full px-3 py-2 text-xs flex items-center justify-between gap-2 hover:bg-accent/40 transition text-right"
+                      >
                         <div className="flex-1 min-w-0">
-                          <div className="font-medium truncate">{e.name}</div>
+                          <div className="font-medium truncate flex items-center gap-1">
+                            {e.name}
+                            <Pencil className="h-3 w-3 text-muted-foreground opacity-60" />
+                          </div>
                           <div className="text-muted-foreground text-[11px]">
                             {format(new Date(e.date), "dd/MM/yyyy")}
                             {e.replacement && ` · מחליף: ${e.replacement}`}
@@ -451,9 +484,9 @@ export const AttendanceAlertsPanel = ({
                           variant="outline"
                           className="bg-destructive/10 text-destructive border-destructive/20 whitespace-nowrap"
                         >
-                          {e.status}
+                          {ABSENCE_LABELS[e.status as AbsenceStatus] || e.status}
                         </Badge>
-                      </div>
+                      </button>
                     ))}
                   </div>
                 </div>
@@ -462,6 +495,13 @@ export const AttendanceAlertsPanel = ({
           )}
         </div>
       </CardContent>
+      <AbsenceDialog
+        open={dialogState.open}
+        onOpenChange={(open) => setDialogState((s) => ({ ...s, open }))}
+        employeeId={dialogState.employeeId}
+        employeeName={dialogState.employeeName}
+        date={dialogState.date}
+      />
     </Card>
   );
 };

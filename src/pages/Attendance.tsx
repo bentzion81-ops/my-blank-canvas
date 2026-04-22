@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Clock, Users, AlertTriangle, CheckCircle, Search, RefreshCw, MessageCircle, CalendarIcon, UserX } from "lucide-react";
+import { Clock, Users, AlertTriangle, CheckCircle, Search, RefreshCw, MessageCircle, CalendarIcon, UserX, Sparkles, FileText } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay } from "date-fns";

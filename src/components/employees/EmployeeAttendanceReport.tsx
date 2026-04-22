@@ -85,6 +85,27 @@ export const EmployeeAttendanceReport = ({ employeeId }: Props) => {
     },
   });
 
+  const { data: absences } = useQuery({
+    queryKey: ["employee-attendance-month-absences", employeeId, fromStr, toStr],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("attendance_absences")
+        .select("date, status, replacement_name, notes")
+        .eq("employee_id", employeeId)
+        .gte("date", fromStr)
+        .lte("date", toStr);
+      return data || [];
+    },
+  });
+
+  const ABSENCE_LABEL_HE: Record<string, string> = {
+    no_show: "לא הגיע",
+    replacement: "מחליף",
+    no_work: "אין עבודה",
+    vacation: "חופשה",
+    sick: "מחלה",
+  };
+
   const rows = useMemo<Row[]>(() => {
     const days = eachDayOfInterval({ start: monthStart, end: monthEnd });
     const byDate = new Map<string, any[]>();

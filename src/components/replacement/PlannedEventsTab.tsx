@@ -80,24 +80,20 @@ export default function PlannedEventsTab() {
 
     // Auto-mark pending_fill for past occurrences and refresh next_occurrence for recurring
     const today = new Date(); today.setHours(0, 0, 0, 0);
-    const updates: Promise<any>[] = [];
+    const toUpdate: string[] = [];
     const list: PlannedEvent[] = [];
     for (const e of (evs as any[]) || []) {
       const nextDate = e.next_occurrence ? new Date(e.next_occurrence) : null;
       if (e.status === "scheduled" && nextDate && nextDate < today) {
-        if (e.recurrence === "none") {
-          updates.push(supabase.from("replacement_planned_events").update({ status: "pending_fill" }).eq("id", e.id));
-          list.push({ ...e, status: "pending_fill" });
-        } else {
-          // Mark as pending_fill, will be reset to scheduled with next date after fill
-          updates.push(supabase.from("replacement_planned_events").update({ status: "pending_fill" }).eq("id", e.id));
-          list.push({ ...e, status: "pending_fill" });
-        }
+        toUpdate.push(e.id);
+        list.push({ ...e, status: "pending_fill" });
       } else {
         list.push(e);
       }
     }
-    if (updates.length) await Promise.all(updates);
+    if (toUpdate.length) {
+      await supabase.from("replacement_planned_events").update({ status: "pending_fill" }).in("id", toUpdate);
+    }
     setEvents(list);
     setLoading(false);
   };

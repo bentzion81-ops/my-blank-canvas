@@ -378,14 +378,14 @@ function FillEventDialog({
     }
   }, [event]);
 
-  if (!event) return null;
-
   const hours = useMemo(() => {
     if (!checkIn || !checkOut) return 0;
     const [h1, m1] = checkIn.split(":").map(Number);
     const [h2, m2] = checkOut.split(":").map(Number);
     return Math.max(0, (h2 * 60 + m2 - h1 * 60 - m1) / 60);
   }, [checkIn, checkOut]);
+
+  if (!event) return null;
   const wageNum = parseFloat(wage) || 0;
 
   const submit = async () => {

@@ -14,6 +14,8 @@ import { toast } from "sonner";
 import { Loader2, MapPin, ChevronLeft, ChevronRight, ExternalLink, Copy } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { getShareableAppOrigin } from "@/lib/utils";
+import ApprovedEventsTab from "@/components/replacement/ApprovedEventsTab";
+import PlannedEventsTab from "@/components/replacement/PlannedEventsTab";
 
 type Report = {
   id: string;
@@ -87,20 +89,24 @@ export default function ReplacementAdmin() {
         </Card>
       </div>
 
-      <Tabs defaultValue="pending" className="space-y-4">
+      <Tabs defaultValue="reports" className="space-y-4">
         <TabsList>
+          <TabsTrigger value="reports">דיווחי עובדים</TabsTrigger>
+          <TabsTrigger value="approved">אירועים מאושרים</TabsTrigger>
+          <TabsTrigger value="planned">אירועים מתוכננים</TabsTrigger>
           <TabsTrigger value="pending">ממתינים לאישור</TabsTrigger>
           <TabsTrigger value="employees">עובדים</TabsTrigger>
           <TabsTrigger value="clients">לקוחות</TabsTrigger>
           <TabsTrigger value="changes">בקשות שינוי</TabsTrigger>
-          <TabsTrigger value="all">כל הדיווחים</TabsTrigger>
         </TabsList>
 
+        <TabsContent value="reports"><AllReportsTab /></TabsContent>
+        <TabsContent value="approved"><ApprovedEventsTab /></TabsContent>
+        <TabsContent value="planned"><PlannedEventsTab /></TabsContent>
         <TabsContent value="pending"><PendingTab /></TabsContent>
         <TabsContent value="employees"><EmployeesTab /></TabsContent>
         <TabsContent value="clients"><ClientsTab /></TabsContent>
         <TabsContent value="changes"><ChangesTab /></TabsContent>
-        <TabsContent value="all"><AllReportsTab /></TabsContent>
       </Tabs>
     </div>
   );

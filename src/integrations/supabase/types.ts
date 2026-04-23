@@ -1349,6 +1349,109 @@ export type Database = {
           },
         ]
       }
+      replacement_planned_events: {
+        Row: {
+          client_id: string | null
+          created_at: string
+          created_by: string | null
+          custom_workplace: string | null
+          event_date: string | null
+          expected_check_in: string | null
+          expected_check_out: string | null
+          expected_hours: number | null
+          expected_payment: number | null
+          hourly_wage: number | null
+          id: string
+          maps_link: string | null
+          monthly_day: number | null
+          next_occurrence: string | null
+          notes: string | null
+          notified_at: string | null
+          recurrence: Database["public"]["Enums"]["replacement_event_recurrence"]
+          replacement_report_id: string | null
+          status: Database["public"]["Enums"]["replacement_planned_event_status"]
+          title: string
+          updated_at: string
+          weekday: number | null
+          worker_id: string | null
+          workplace_address: string | null
+        }
+        Insert: {
+          client_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          custom_workplace?: string | null
+          event_date?: string | null
+          expected_check_in?: string | null
+          expected_check_out?: string | null
+          expected_hours?: number | null
+          expected_payment?: number | null
+          hourly_wage?: number | null
+          id?: string
+          maps_link?: string | null
+          monthly_day?: number | null
+          next_occurrence?: string | null
+          notes?: string | null
+          notified_at?: string | null
+          recurrence?: Database["public"]["Enums"]["replacement_event_recurrence"]
+          replacement_report_id?: string | null
+          status?: Database["public"]["Enums"]["replacement_planned_event_status"]
+          title: string
+          updated_at?: string
+          weekday?: number | null
+          worker_id?: string | null
+          workplace_address?: string | null
+        }
+        Update: {
+          client_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          custom_workplace?: string | null
+          event_date?: string | null
+          expected_check_in?: string | null
+          expected_check_out?: string | null
+          expected_hours?: number | null
+          expected_payment?: number | null
+          hourly_wage?: number | null
+          id?: string
+          maps_link?: string | null
+          monthly_day?: number | null
+          next_occurrence?: string | null
+          notes?: string | null
+          notified_at?: string | null
+          recurrence?: Database["public"]["Enums"]["replacement_event_recurrence"]
+          replacement_report_id?: string | null
+          status?: Database["public"]["Enums"]["replacement_planned_event_status"]
+          title?: string
+          updated_at?: string
+          weekday?: number | null
+          worker_id?: string | null
+          workplace_address?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "replacement_planned_events_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "replacement_planned_events_replacement_report_id_fkey"
+            columns: ["replacement_report_id"]
+            isOneToOne: false
+            referencedRelation: "replacement_reports"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "replacement_planned_events_worker_id_fkey"
+            columns: ["worker_id"]
+            isOneToOne: false
+            referencedRelation: "replacement_workers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       replacement_reports: {
         Row: {
           approved_at: string | null
@@ -1750,7 +1853,13 @@ export type Database = {
         | "other"
       payroll_status: "draft" | "ready" | "partially_paid" | "paid"
       replacement_change_request_status: "open" | "resolved" | "dismissed"
+      replacement_event_recurrence: "none" | "weekly" | "monthly"
       replacement_language: "he" | "en" | "si"
+      replacement_planned_event_status:
+        | "scheduled"
+        | "pending_fill"
+        | "completed"
+        | "cancelled"
       replacement_report_status:
         | "pending"
         | "approved"
@@ -1939,7 +2048,14 @@ export const Constants = {
       ],
       payroll_status: ["draft", "ready", "partially_paid", "paid"],
       replacement_change_request_status: ["open", "resolved", "dismissed"],
+      replacement_event_recurrence: ["none", "weekly", "monthly"],
       replacement_language: ["he", "en", "si"],
+      replacement_planned_event_status: [
+        "scheduled",
+        "pending_fill",
+        "completed",
+        "cancelled",
+      ],
       replacement_report_status: [
         "pending",
         "approved",

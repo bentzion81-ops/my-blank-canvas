@@ -14,6 +14,8 @@ import { toast } from "sonner";
 import { Loader2, MapPin, ChevronLeft, ChevronRight, ExternalLink, Copy } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { getShareableAppOrigin } from "@/lib/utils";
+import ApprovedEventsTab from "@/components/replacement/ApprovedEventsTab";
+import PlannedEventsTab from "@/components/replacement/PlannedEventsTab";
 
 type Report = {
   id: string;

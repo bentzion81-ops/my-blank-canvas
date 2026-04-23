@@ -124,7 +124,7 @@ export default function PlannedEventsTab() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <AlertCircle className="h-5 w-5 text-amber-600" />
+            <AlertCircle className="h-5 w-5 text-warning" />
             ממתינים למילוי ({pendingFill.length})
           </CardTitle>
         </CardHeader>

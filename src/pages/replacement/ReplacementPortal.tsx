@@ -237,10 +237,12 @@ function PassportStep({
             className="h-12 text-lg"
             value={value}
             onChange={(e) => onChange(e.target.value)}
+            minLength={8}
             autoFocus
           />
+          <p className="text-xs text-muted-foreground">{t("passportMinLen", lang)}</p>
         </div>
-        <Button className="w-full h-12 text-base" onClick={onSubmit} disabled={loading || !value.trim()}>
+        <Button className="w-full h-12 text-base" onClick={onSubmit} disabled={loading || value.trim().length < 8}>
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : t("identify", lang)}
         </Button>
       </CardContent>

@@ -90,12 +90,17 @@ export default function ReplacementPortal() {
             value={passport}
             onChange={setPassport}
             onSubmit={async () => {
-              if (!passport.trim()) return;
+              const trimmed = passport.trim();
+              if (!trimmed) return;
+              if (trimmed.length < 8) {
+                toast.error(t("passportMinLen", lang));
+                return;
+              }
               setLoading(true);
               const { data } = await supabase
                 .from("replacement_workers")
                 .select("*")
-                .eq("passport_number", passport.trim())
+                .eq("passport_number", trimmed)
                 .maybeSingle();
               setLoading(false);
               if (data) {

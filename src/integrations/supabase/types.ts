@@ -1854,7 +1854,16 @@ export type Database = {
       payroll_status: "draft" | "ready" | "partially_paid" | "paid"
       replacement_change_request_status: "open" | "resolved" | "dismissed"
       replacement_event_recurrence: "none" | "weekly" | "monthly"
-      replacement_language: "he" | "en" | "si"
+      replacement_language:
+        | "he"
+        | "en"
+        | "si"
+        | "hi"
+        | "ta"
+        | "bn"
+        | "te"
+        | "ml"
+        | "pa"
       replacement_planned_event_status:
         | "scheduled"
         | "pending_fill"
@@ -2049,7 +2058,17 @@ export const Constants = {
       payroll_status: ["draft", "ready", "partially_paid", "paid"],
       replacement_change_request_status: ["open", "resolved", "dismissed"],
       replacement_event_recurrence: ["none", "weekly", "monthly"],
-      replacement_language: ["he", "en", "si"],
+      replacement_language: [
+        "he",
+        "en",
+        "si",
+        "hi",
+        "ta",
+        "bn",
+        "te",
+        "ml",
+        "pa",
+      ],
       replacement_planned_event_status: [
         "scheduled",
         "pending_fill",

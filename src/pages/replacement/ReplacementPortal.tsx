@@ -90,12 +90,17 @@ export default function ReplacementPortal() {
             value={passport}
             onChange={setPassport}
             onSubmit={async () => {
-              if (!passport.trim()) return;
+              const trimmed = passport.trim();
+              if (!trimmed) return;
+              if (trimmed.length < 8) {
+                toast.error(t("passportMinLen", lang));
+                return;
+              }
               setLoading(true);
               const { data } = await supabase
                 .from("replacement_workers")
                 .select("*")
-                .eq("passport_number", passport.trim())
+                .eq("passport_number", trimmed)
                 .maybeSingle();
               setLoading(false);
               if (data) {
@@ -232,10 +237,12 @@ function PassportStep({
             className="h-12 text-lg"
             value={value}
             onChange={(e) => onChange(e.target.value)}
+            minLength={8}
             autoFocus
           />
+          <p className="text-xs text-muted-foreground">{t("passportMinLen", lang)}</p>
         </div>
-        <Button className="w-full h-12 text-base" onClick={onSubmit} disabled={loading || !value.trim()}>
+        <Button className="w-full h-12 text-base" onClick={onSubmit} disabled={loading || value.trim().length < 8}>
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : t("identify", lang)}
         </Button>
       </CardContent>
@@ -252,20 +259,33 @@ function RegisterStep({
   passport: string;
   onRegistered: (w: Worker) => void;
 }) {
-  const [fullName, setFullName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [phone, setPhone] = useState("");
   const [pref, setPref] = useState<Lang>(lang);
   const [loading, setLoading] = useState(false);
 
+  // English letters, spaces, hyphens, apostrophes only
+  const englishOnlyRegex = /^[A-Za-z\s'-]+$/;
+  const sanitizeEnglish = (v: string) => v.replace(/[^A-Za-z\s'-]/g, "");
+
   const submit = async () => {
-    if (!fullName.trim()) return toast.error(t("required", lang));
+    const fn = firstName.trim();
+    const ln = lastName.trim();
+    const ph = phone.trim();
+    if (!fn || !ln) return toast.error(t("required", lang));
+    if (!englishOnlyRegex.test(fn) || !englishOnlyRegex.test(ln)) {
+      return toast.error(t("englishOnly", lang));
+    }
+    if (!ph) return toast.error(t("phoneRequired", lang));
+    if (passport.trim().length < 8) return toast.error(t("passportMinLen", lang));
     setLoading(true);
     const { data, error } = await supabase
       .from("replacement_workers")
       .insert({
-        full_name: fullName.trim(),
+        full_name: `${fn} ${ln}`,
         passport_number: passport.trim(),
-        phone: phone.trim() || null,
+        phone: ph,
         preferred_language: pref,
       })
       .select()
@@ -286,13 +306,42 @@ function RegisterStep({
           <Label>{t("passportNumber", lang)}</Label>
           <Input value={passport} disabled className="h-12" />
         </div>
-        <div className="space-y-2">
-          <Label>{t("fullName", lang)} *</Label>
-          <Input className="h-12 text-lg" value={fullName} onChange={(e) => setFullName(e.target.value)} />
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-2">
+            <Label>{t("firstName", lang)} *</Label>
+            <Input
+              className="h-12 text-lg"
+              dir="ltr"
+              value={firstName}
+              onChange={(e) => setFirstName(sanitizeEnglish(e.target.value))}
+              placeholder="John"
+              autoComplete="given-name"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>{t("lastName", lang)} *</Label>
+            <Input
+              className="h-12 text-lg"
+              dir="ltr"
+              value={lastName}
+              onChange={(e) => setLastName(sanitizeEnglish(e.target.value))}
+              placeholder="Doe"
+              autoComplete="family-name"
+            />
+          </div>
         </div>
+        <p className="text-xs text-muted-foreground">{t("englishOnly", lang)}</p>
         <div className="space-y-2">
-          <Label>{t("phone", lang)}</Label>
-          <Input className="h-12 text-lg" value={phone} onChange={(e) => setPhone(e.target.value)} />
+          <Label>{t("phone", lang)} *</Label>
+          <Input
+            className="h-12 text-lg"
+            type="tel"
+            inputMode="tel"
+            dir="ltr"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            required
+          />
         </div>
         <div className="space-y-2">
           <Label>{t("language", lang)}</Label>
@@ -305,7 +354,11 @@ function RegisterStep({
             </SelectContent>
           </Select>
         </div>
-        <Button className="w-full h-12" onClick={submit} disabled={loading}>
+        <Button
+          className="w-full h-12"
+          onClick={submit}
+          disabled={loading || !firstName.trim() || !lastName.trim() || !phone.trim()}
+        >
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : t("register", lang)}
         </Button>
       </CardContent>

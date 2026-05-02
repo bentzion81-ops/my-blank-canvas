@@ -1763,7 +1763,29 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      work_logs_unified: {
+        Row: {
+          check_in: string | null
+          check_out: string | null
+          client_id: string | null
+          client_name: string | null
+          created_at: string | null
+          created_by: string | null
+          custom_workplace: string | null
+          employee_id: string | null
+          employee_name: string | null
+          hours_worked: number | null
+          id: string | null
+          notes: string | null
+          payment_amount: number | null
+          source: string | null
+          source_table: string | null
+          status: string | null
+          updated_at: string | null
+          work_date: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       apply_no_work_period: { Args: { _period_id: string }; Returns: number }

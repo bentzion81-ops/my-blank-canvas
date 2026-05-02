@@ -120,6 +120,59 @@ function ReportRow({ r, clients, onChanged }: { r: Report; clients: Client[]; on
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
 
+  // Editable fields
+  const [workDate, setWorkDate] = useState(r.work_date);
+  const [workerName, setWorkerName] = useState(r.worker_name);
+  const [passport, setPassport] = useState(r.passport_number);
+  const [checkIn, setCheckIn] = useState(r.check_in);
+  const [checkOut, setCheckOut] = useState(r.check_out);
+  const [wage, setWage] = useState(String(r.hourly_wage ?? ""));
+  const [workplaceDesc, setWorkplaceDesc] = useState(r.workplace_description || "");
+  const [workplaceAddress, setWorkplaceAddress] = useState(r.workplace_address || "");
+  const [mapsLink, setMapsLink] = useState(r.maps_link || "");
+  const [notes, setNotes] = useState(r.notes || "");
+
+  // Reset state when row data changes
+  useEffect(() => {
+    setClientId(r.assigned_client_id || "");
+    setCustomName(r.assigned_custom_workplace || "");
+    setWorkDate(r.work_date);
+    setWorkerName(r.worker_name);
+    setPassport(r.passport_number);
+    setCheckIn(r.check_in);
+    setCheckOut(r.check_out);
+    setWage(String(r.hourly_wage ?? ""));
+    setWorkplaceDesc(r.workplace_description || "");
+    setWorkplaceAddress(r.workplace_address || "");
+    setMapsLink(r.maps_link || "");
+    setNotes(r.notes || "");
+  }, [r.id]);
+
+  const computedHours = useMemo(() => {
+    if (!checkIn || !checkOut) return Number(r.total_hours) || 0;
+    const [h1, m1] = checkIn.split(":").map(Number);
+    const [h2, m2] = checkOut.split(":").map(Number);
+    if ([h1, m1, h2, m2].some((n) => isNaN(n))) return Number(r.total_hours) || 0;
+    return Math.max(0, (h2 * 60 + m2 - h1 * 60 - m1) / 60);
+  }, [checkIn, checkOut, r.total_hours]);
+  const wageNum = parseFloat(wage) || 0;
+  const computedPayment = computedHours * wageNum;
+
+  const buildEditedPatch = () => ({
+    work_date: workDate,
+    worker_name: workerName.trim(),
+    passport_number: passport.trim(),
+    check_in: checkIn,
+    check_out: checkOut,
+    hourly_wage: wageNum,
+    total_hours: computedHours,
+    total_payment: computedPayment,
+    workplace_description: workplaceDesc.trim(),
+    workplace_address: workplaceAddress.trim() || null,
+    maps_link: mapsLink.trim() || null,
+    notes: notes.trim() || null,
+  });
+
   const update = async (patch: any) => {
     setBusy(true);
     const { error } = await supabase.from("replacement_reports").update(patch).eq("id", r.id);
@@ -129,11 +182,14 @@ function ReportRow({ r, clients, onChanged }: { r: Report; clients: Client[]; on
     setOpen(false);
   };
 
+  const saveOnly = () => update(buildEditedPatch());
+
   const approve = () => {
     if (!clientId && !customName.trim()) {
       return toast.error("יש לשייך ללקוח קיים או להזין מקום עבודה חדש");
     }
     update({
+      ...buildEditedPatch(),
       status: "approved",
       assigned_client_id: clientId || null,
       assigned_custom_workplace: clientId ? null : customName.trim(),
@@ -143,7 +199,7 @@ function ReportRow({ r, clients, onChanged }: { r: Report; clients: Client[]; on
     });
   };
 
-  const reject = () => update({ status: "rejected", rejection_reason: reason || null });
+  const reject = () => update({ ...buildEditedPatch(), status: "rejected", rejection_reason: reason || null });
 
   return (
     <>

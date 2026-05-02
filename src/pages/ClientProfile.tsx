@@ -126,6 +126,10 @@ const ClientProfile = () => {
             />
           </TabsContent>
 
+          <TabsContent value="work-logs">
+            <WorkLogsTable scope="client" clientId={id!} />
+          </TabsContent>
+
           <TabsContent value="billing">
             <Card className="border-0 shadow-sm">
               <CardContent className="py-12 text-center text-muted-foreground">

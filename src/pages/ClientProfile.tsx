@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, Edit, Loader2, MapPin } from "lucide-react";
 import { ClientEmployeesTab, ClientHoursAndBilling } from "@/components/clients/ClientEmployeesAndBilling";
 import { ClientWorkPlanningCard } from "@/components/clients/ClientWorkPlanningCard";
+import { WorkLogsTable } from "@/components/work-logs/WorkLogsTable";
 
 const ClientProfile = () => {
   const { id } = useParams();
@@ -59,6 +60,7 @@ const ClientProfile = () => {
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="employees">Employees</TabsTrigger>
             <TabsTrigger value="hours">Hours</TabsTrigger>
+            <TabsTrigger value="work-logs">Work Logs</TabsTrigger>
             <TabsTrigger value="billing">Billing</TabsTrigger>
             <TabsTrigger value="documents">Documents</TabsTrigger>
           </TabsList>

@@ -11,6 +11,7 @@ import { EmployeeAssignments } from "@/components/employees/EmployeeAssignments"
 import { EmployeeMonthlyHours } from "@/components/employees/EmployeeMonthlyHours";
 import { EmployeeAttendanceReport } from "@/components/employees/EmployeeAttendanceReport";
 import { EmployeeExpectedHours } from "@/components/employees/EmployeeExpectedHours";
+import { WorkLogsTable } from "@/components/work-logs/WorkLogsTable";
 
 const EmployeeProfile = () => {
   const { id } = useParams();
@@ -74,6 +75,7 @@ const EmployeeProfile = () => {
           <TabsList>
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="attendance">Assignments & Hours</TabsTrigger>
+            <TabsTrigger value="work-logs">Work Logs</TabsTrigger>
             <TabsTrigger value="report">Attendance Report</TabsTrigger>
             <TabsTrigger value="payroll">Payroll</TabsTrigger>
             <TabsTrigger value="expenses">Expenses</TabsTrigger>
@@ -137,6 +139,10 @@ const EmployeeProfile = () => {
             <EmployeeAssignments employeeId={id!} />
             <EmployeeExpectedHours employeeId={id!} />
             <EmployeeMonthlyHours employeeId={id!} />
+          </TabsContent>
+
+          <TabsContent value="work-logs">
+            <WorkLogsTable scope="employee" employeeId={id!} />
           </TabsContent>
 
           <TabsContent value="report">

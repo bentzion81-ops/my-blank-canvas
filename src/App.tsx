@@ -8,6 +8,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Attendance from "./pages/Attendance";
+import WorkLogs from "./pages/WorkLogs";
 import Employees from "./pages/Employees";
 import EmployeeForm from "./pages/EmployeeForm";
 import EmployeeProfile from "./pages/EmployeeProfile";
@@ -62,6 +63,7 @@ const App = () => (
             >
               <Route path="/" element={<Dashboard />} />
               <Route path="/attendance" element={<Attendance />} />
+              <Route path="/work-logs" element={<WorkLogs />} />
               <Route path="/employees" element={<Employees />} />
               <Route path="/employees/new" element={<EmployeeForm />} />
               <Route path="/employees/:id" element={<EmployeeProfile />} />

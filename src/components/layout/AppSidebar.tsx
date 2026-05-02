@@ -1,6 +1,7 @@
 import {
   LayoutDashboard,
   Clock,
+  ClipboardList,
   Users,
   Building2,
   Receipt,
@@ -35,6 +36,7 @@ import { Separator } from "@/components/ui/separator";
 const mainItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "Attendance", url: "/attendance", icon: Clock },
+  { title: "Work Logs", url: "/work-logs", icon: ClipboardList },
   { title: "Employees", url: "/employees", icon: Users },
   { title: "Clients", url: "/clients", icon: Building2 },
   { title: "Billing", url: "/billing", icon: Receipt },

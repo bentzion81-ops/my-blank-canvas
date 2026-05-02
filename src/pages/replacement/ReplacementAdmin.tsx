@@ -217,15 +217,37 @@ function ReportRow({ r, clients, onChanged }: { r: Report; clients: Client[]; on
     clientId !== (r.assigned_client_id || "") ||
     customName !== (r.assigned_custom_workplace || "");
 
-  const approve = () => {
+  const approve = async () => {
     if (!clientId && !customName.trim()) {
       return toast.error("יש לשייך ללקוח קיים או להזין מקום עבודה חדש");
+    }
+    let finalClientId = clientId;
+    if (!finalClientId && customName.trim()) {
+      // Create new client in main clients list
+      const { data: newClient, error: createErr } = await supabase
+        .from("clients")
+        .insert({
+          name: customName.trim(),
+          address: workplaceAddress.trim() || null,
+          google_maps_link: mapsLink.trim() || null,
+          billing_type: "hourly",
+          hourly_rate: 0,
+          status: "active",
+          client_type: "business",
+        })
+        .select("id")
+        .single();
+      if (createErr) {
+        return toast.error("שגיאה ביצירת לקוח חדש: " + createErr.message);
+      }
+      finalClientId = newClient.id;
+      toast.success(`נוצר לקוח חדש: ${customName.trim()}`);
     }
     update({
       ...buildEditedPatch(),
       status: "approved",
-      assigned_client_id: clientId || null,
-      assigned_custom_workplace: clientId ? null : customName.trim(),
+      assigned_client_id: finalClientId,
+      assigned_custom_workplace: null,
       approved_at: new Date().toISOString(),
       approved_by: user?.id,
       rejection_reason: null,

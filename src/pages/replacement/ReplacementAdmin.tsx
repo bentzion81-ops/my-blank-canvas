@@ -329,6 +329,9 @@ function ReportRow({ r, clients, onChanged }: { r: Report; clients: Client[]; on
             </div>
           </div>
           <DialogFooter className="gap-2 flex-wrap">
+            <Button variant="ghost" onClick={resetEdits} disabled={busy || !isDirty}>
+              בטל שינויים
+            </Button>
             <Button variant="secondary" onClick={saveOnly} disabled={busy}>
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "שמור שינויים"}
             </Button>

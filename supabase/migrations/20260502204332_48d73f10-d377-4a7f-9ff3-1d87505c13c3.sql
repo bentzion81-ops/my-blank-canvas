@@ -1,0 +1,1 @@
+ALTER VIEW public.work_logs_unified SET (security_invoker = true);

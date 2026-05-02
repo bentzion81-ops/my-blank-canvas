@@ -10,6 +10,7 @@ import { ArrowLeft, Edit, Loader2, MapPin } from "lucide-react";
 import { ClientEmployeesTab, ClientHoursAndBilling } from "@/components/clients/ClientEmployeesAndBilling";
 import { ClientWorkPlanningCard } from "@/components/clients/ClientWorkPlanningCard";
 import { WorkLogsTable } from "@/components/work-logs/WorkLogsTable";
+import { ClientApprovedReplacements } from "@/components/clients/ClientApprovedReplacements";
 
 const ClientProfile = () => {
   const { id } = useParams();
@@ -61,6 +62,7 @@ const ClientProfile = () => {
             <TabsTrigger value="employees">Employees</TabsTrigger>
             <TabsTrigger value="hours">Hours</TabsTrigger>
             <TabsTrigger value="work-logs">Work Logs</TabsTrigger>
+            <TabsTrigger value="replacements">Replacements</TabsTrigger>
             <TabsTrigger value="billing">Billing</TabsTrigger>
             <TabsTrigger value="documents">Documents</TabsTrigger>
           </TabsList>
@@ -128,6 +130,10 @@ const ClientProfile = () => {
 
           <TabsContent value="work-logs">
             <WorkLogsTable scope="client" clientId={id!} />
+          </TabsContent>
+
+          <TabsContent value="replacements">
+            <ClientApprovedReplacements clientId={id!} />
           </TabsContent>
 
           <TabsContent value="billing">

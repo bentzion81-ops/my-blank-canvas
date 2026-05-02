@@ -120,6 +120,59 @@ function ReportRow({ r, clients, onChanged }: { r: Report; clients: Client[]; on
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
 
+  // Editable fields
+  const [workDate, setWorkDate] = useState(r.work_date);
+  const [workerName, setWorkerName] = useState(r.worker_name);
+  const [passport, setPassport] = useState(r.passport_number);
+  const [checkIn, setCheckIn] = useState(r.check_in);
+  const [checkOut, setCheckOut] = useState(r.check_out);
+  const [wage, setWage] = useState(String(r.hourly_wage ?? ""));
+  const [workplaceDesc, setWorkplaceDesc] = useState(r.workplace_description || "");
+  const [workplaceAddress, setWorkplaceAddress] = useState(r.workplace_address || "");
+  const [mapsLink, setMapsLink] = useState(r.maps_link || "");
+  const [notes, setNotes] = useState(r.notes || "");
+
+  // Reset state when row data changes
+  useEffect(() => {
+    setClientId(r.assigned_client_id || "");
+    setCustomName(r.assigned_custom_workplace || "");
+    setWorkDate(r.work_date);
+    setWorkerName(r.worker_name);
+    setPassport(r.passport_number);
+    setCheckIn(r.check_in);
+    setCheckOut(r.check_out);
+    setWage(String(r.hourly_wage ?? ""));
+    setWorkplaceDesc(r.workplace_description || "");
+    setWorkplaceAddress(r.workplace_address || "");
+    setMapsLink(r.maps_link || "");
+    setNotes(r.notes || "");
+  }, [r.id]);
+
+  const computedHours = useMemo(() => {
+    if (!checkIn || !checkOut) return Number(r.total_hours) || 0;
+    const [h1, m1] = checkIn.split(":").map(Number);
+    const [h2, m2] = checkOut.split(":").map(Number);
+    if ([h1, m1, h2, m2].some((n) => isNaN(n))) return Number(r.total_hours) || 0;
+    return Math.max(0, (h2 * 60 + m2 - h1 * 60 - m1) / 60);
+  }, [checkIn, checkOut, r.total_hours]);
+  const wageNum = parseFloat(wage) || 0;
+  const computedPayment = computedHours * wageNum;
+
+  const buildEditedPatch = () => ({
+    work_date: workDate,
+    worker_name: workerName.trim(),
+    passport_number: passport.trim(),
+    check_in: checkIn,
+    check_out: checkOut,
+    hourly_wage: wageNum,
+    total_hours: computedHours,
+    total_payment: computedPayment,
+    workplace_description: workplaceDesc.trim(),
+    workplace_address: workplaceAddress.trim() || null,
+    maps_link: mapsLink.trim() || null,
+    notes: notes.trim() || null,
+  });
+
   const update = async (patch: any) => {
     setBusy(true);
     const { error } = await supabase.from("replacement_reports").update(patch).eq("id", r.id);
@@ -129,11 +182,14 @@ function ReportRow({ r, clients, onChanged }: { r: Report; clients: Client[]; on
     setOpen(false);
   };
 
+  const saveOnly = () => update(buildEditedPatch());
+
   const approve = () => {
     if (!clientId && !customName.trim()) {
       return toast.error("יש לשייך ללקוח קיים או להזין מקום עבודה חדש");
     }
     update({
+      ...buildEditedPatch(),
       status: "approved",
       assigned_client_id: clientId || null,
       assigned_custom_workplace: clientId ? null : customName.trim(),
@@ -143,7 +199,7 @@ function ReportRow({ r, clients, onChanged }: { r: Report; clients: Client[]; on
     });
   };
 
-  const reject = () => update({ status: "rejected", rejection_reason: reason || null });
+  const reject = () => update({ ...buildEditedPatch(), status: "rejected", rejection_reason: reason || null });
 
   return (
     <>
@@ -161,28 +217,64 @@ function ReportRow({ r, clients, onChanged }: { r: Report; clients: Client[]; on
       </TableRow>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>דיווח של {r.worker_name} — {r.work_date}</DialogTitle>
           </DialogHeader>
           <div className="grid gap-3 text-sm">
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>דרכון</Label><div>{r.passport_number}</div></div>
-              <div><Label>שעות</Label><div>{r.check_in} → {r.check_out} ({Number(r.total_hours).toFixed(2)}h)</div></div>
-              <div><Label>שכר/שעה</Label><div>{Number(r.hourly_wage).toFixed(2)}</div></div>
-              <div><Label>תשלום</Label><div className="font-semibold">{Number(r.total_payment).toFixed(2)}</div></div>
-            </div>
-            <div><Label>תיאור מקום העבודה</Label><div>{r.workplace_description}</div></div>
-            {r.workplace_address && <div><Label>כתובת</Label><div>{r.workplace_address}</div></div>}
-            {r.maps_link && (
-              <div>
-                <Label>מפה</Label>
-                <a href={r.maps_link} target="_blank" rel="noreferrer" className="text-primary inline-flex items-center gap-1 text-sm">
-                  <MapPin className="h-3 w-3" /> פתח <ExternalLink className="h-3 w-3" />
-                </a>
+              <div className="space-y-1">
+                <Label>שם עובד</Label>
+                <Input value={workerName} onChange={(e) => setWorkerName(e.target.value)} />
               </div>
-            )}
-            {r.notes && <div><Label>הערות</Label><div>{r.notes}</div></div>}
+              <div className="space-y-1">
+                <Label>דרכון</Label>
+                <Input value={passport} onChange={(e) => setPassport(e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <Label>תאריך</Label>
+                <Input type="date" value={workDate} onChange={(e) => setWorkDate(e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <Label>שכר/שעה</Label>
+                <Input type="number" step="0.01" value={wage} onChange={(e) => setWage(e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <Label>שעת כניסה</Label>
+                <Input type="time" value={checkIn} onChange={(e) => setCheckIn(e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <Label>שעת יציאה</Label>
+                <Input type="time" value={checkOut} onChange={(e) => setCheckOut(e.target.value)} />
+              </div>
+            </div>
+            <div className="text-xs text-muted-foreground">
+              סה"כ שעות: <strong className="text-foreground">{computedHours.toFixed(2)}</strong> ·
+              תשלום מחושב: <strong className="text-foreground">{computedPayment.toFixed(2)}</strong>
+            </div>
+            <div className="space-y-1">
+              <Label>תיאור מקום העבודה</Label>
+              <Input value={workplaceDesc} onChange={(e) => setWorkplaceDesc(e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label>כתובת</Label>
+              <Input value={workplaceAddress} onChange={(e) => setWorkplaceAddress(e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label>קישור למפה</Label>
+              <div className="flex gap-2">
+                <Input value={mapsLink} onChange={(e) => setMapsLink(e.target.value)} placeholder="https://maps..." />
+                {mapsLink && (
+                  <a href={mapsLink} target="_blank" rel="noreferrer" className="text-primary inline-flex items-center gap-1 text-sm whitespace-nowrap px-2">
+                    <MapPin className="h-3 w-3" /> פתח <ExternalLink className="h-3 w-3" />
+                  </a>
+                )}
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label>הערות</Label>
+              <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
+            </div>
 
             <div className="border-t pt-3 space-y-3">
               <div className="space-y-2">
@@ -205,8 +297,11 @@ function ReportRow({ r, clients, onChanged }: { r: Report; clients: Client[]; on
               </div>
             </div>
           </div>
-          <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => update({ status: "needs_clarification" })} disabled={busy}>
+          <DialogFooter className="gap-2 flex-wrap">
+            <Button variant="secondary" onClick={saveOnly} disabled={busy}>
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "שמור שינויים"}
+            </Button>
+            <Button variant="outline" onClick={() => update({ ...buildEditedPatch(), status: "needs_clarification" })} disabled={busy}>
               ממתין לבירור
             </Button>
             <Button variant="destructive" onClick={reject} disabled={busy}>דחה</Button>

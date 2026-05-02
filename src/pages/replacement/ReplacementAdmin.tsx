@@ -184,6 +184,37 @@ function ReportRow({ r, clients, onChanged }: { r: Report; clients: Client[]; on
 
   const saveOnly = () => update(buildEditedPatch());
 
+  const resetEdits = () => {
+    setClientId(r.assigned_client_id || "");
+    setCustomName(r.assigned_custom_workplace || "");
+    setWorkDate(r.work_date);
+    setWorkerName(r.worker_name);
+    setPassport(r.passport_number);
+    setCheckIn(r.check_in);
+    setCheckOut(r.check_out);
+    setWage(String(r.hourly_wage ?? ""));
+    setWorkplaceDesc(r.workplace_description || "");
+    setWorkplaceAddress(r.workplace_address || "");
+    setMapsLink(r.maps_link || "");
+    setNotes(r.notes || "");
+    setReason("");
+    toast.success("השינויים בוטלו - הוחזרו הערכים המקוריים");
+  };
+
+  const isDirty =
+    workDate !== r.work_date ||
+    workerName !== r.worker_name ||
+    passport !== r.passport_number ||
+    checkIn !== r.check_in ||
+    checkOut !== r.check_out ||
+    wage !== String(r.hourly_wage ?? "") ||
+    workplaceDesc !== (r.workplace_description || "") ||
+    workplaceAddress !== (r.workplace_address || "") ||
+    mapsLink !== (r.maps_link || "") ||
+    notes !== (r.notes || "") ||
+    clientId !== (r.assigned_client_id || "") ||
+    customName !== (r.assigned_custom_workplace || "");
+
   const approve = () => {
     if (!clientId && !customName.trim()) {
       return toast.error("יש לשייך ללקוח קיים או להזין מקום עבודה חדש");

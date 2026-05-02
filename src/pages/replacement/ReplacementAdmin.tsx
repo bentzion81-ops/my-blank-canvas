@@ -153,7 +153,9 @@ function ReportRow({ r, clients, onChanged }: { r: Report; clients: Client[]; on
     const [h1, m1] = checkIn.split(":").map(Number);
     const [h2, m2] = checkOut.split(":").map(Number);
     if ([h1, m1, h2, m2].some((n) => isNaN(n))) return Number(r.total_hours) || 0;
-    return Math.max(0, (h2 * 60 + m2 - h1 * 60 - m1) / 60);
+    let diff = (h2 * 60 + m2) - (h1 * 60 + m1);
+    if (diff < 0) diff += 24 * 60; // overnight shift
+    return diff / 60;
   }, [checkIn, checkOut, r.total_hours]);
   const wageNum = parseFloat(wage) || 0;
   const computedPayment = computedHours * wageNum;

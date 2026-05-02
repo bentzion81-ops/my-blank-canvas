@@ -62,6 +62,7 @@ const ClientProfile = () => {
             <TabsTrigger value="employees">Employees</TabsTrigger>
             <TabsTrigger value="hours">Hours</TabsTrigger>
             <TabsTrigger value="work-logs">Work Logs</TabsTrigger>
+            <TabsTrigger value="replacements">Replacements</TabsTrigger>
             <TabsTrigger value="billing">Billing</TabsTrigger>
             <TabsTrigger value="documents">Documents</TabsTrigger>
           </TabsList>

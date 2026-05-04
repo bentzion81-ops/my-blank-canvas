@@ -710,6 +710,7 @@ export type Database = {
           passport_number: string | null
           photo_url: string | null
           rent_deduction: number | null
+          source: Database["public"]["Enums"]["employee_source"]
           status: Database["public"]["Enums"]["employee_status"]
           target_monthly_hours: number | null
           transportation: number | null
@@ -739,6 +740,7 @@ export type Database = {
           passport_number?: string | null
           photo_url?: string | null
           rent_deduction?: number | null
+          source?: Database["public"]["Enums"]["employee_source"]
           status?: Database["public"]["Enums"]["employee_status"]
           target_monthly_hours?: number | null
           transportation?: number | null
@@ -768,6 +770,7 @@ export type Database = {
           passport_number?: string | null
           photo_url?: string | null
           rent_deduction?: number | null
+          source?: Database["public"]["Enums"]["employee_source"]
           status?: Database["public"]["Enums"]["employee_status"]
           target_monthly_hours?: number | null
           transportation?: number | null
@@ -1854,6 +1857,7 @@ export type Database = {
         | "invoice"
         | "receipt"
         | "other"
+      employee_source: "manual" | "meckano" | "replacement_link"
       employee_status: "active" | "inactive"
       employee_type: "permanent" | "temporary"
       expected_day_type: "weekday" | "friday" | "saturday"
@@ -2056,6 +2060,7 @@ export const Constants = {
         "receipt",
         "other",
       ],
+      employee_source: ["manual", "meckano", "replacement_link"],
       employee_status: ["active", "inactive"],
       employee_type: ["permanent", "temporary"],
       expected_day_type: ["weekday", "friday", "saturday"],

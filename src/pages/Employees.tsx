@@ -9,6 +9,18 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Plus, Search, Users } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+
+const sourceBadge = (source?: string) => {
+  switch (source) {
+    case "replacement_link":
+      return <Badge variant="secondary" className="bg-blue-100 text-blue-800 hover:bg-blue-100">Link</Badge>;
+    case "meckano":
+      return <Badge variant="secondary" className="bg-purple-100 text-purple-800 hover:bg-purple-100">Meckano</Badge>;
+    default:
+      return <Badge variant="outline">Manual</Badge>;
+  }
+};
 import { DuplicateEmployeesPanel } from "@/components/employees/DuplicateEmployeesPanel";
 import { MissingExpectedHoursPanel } from "@/components/employees/MissingExpectedHoursPanel";
 

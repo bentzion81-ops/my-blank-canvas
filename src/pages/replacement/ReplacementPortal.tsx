@@ -290,8 +290,32 @@ function RegisterStep({
       })
       .select()
       .single();
+    if (error) {
+      setLoading(false);
+      return toast.error(error.message);
+    }
+
+    // Also add to the main employees list (if not already present by passport)
+    const { data: existingEmp } = await supabase
+      .from("employees")
+      .select("id")
+      .eq("passport_number", passport.trim())
+      .maybeSingle();
+
+    if (!existingEmp) {
+      await supabase.from("employees").insert({
+        first_name: fn,
+        last_name: ln,
+        passport_number: passport.trim(),
+        foreign_phone: ph,
+        employee_type: "temporary",
+        status: "active",
+        meckano_synced: false,
+        source: "replacement_link",
+      } as any);
+    }
+
     setLoading(false);
-    if (error) return toast.error(error.message);
     onRegistered(data as Worker);
   };
 

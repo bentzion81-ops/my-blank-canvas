@@ -631,7 +631,18 @@ function ClientsTab() {
         <CardHeader>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <CardTitle>{selected ? selected.name : "בחר לקוח"}</CardTitle>
-            {selected && <MonthNav month={month} setMonth={setMonth} />}
+            <div className="flex items-center gap-2">
+              {selected && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => exportClientReportPdf(selected, month, reports, totals)}
+                >
+                  <FileDown className="h-4 w-4 mr-1" /> הורד PDF
+                </Button>
+              )}
+              {selected && <MonthNav month={month} setMonth={setMonth} />}
+            </div>
           </div>
           {selected && (
             <div className="flex gap-4 text-sm text-muted-foreground">
@@ -660,6 +671,72 @@ function ClientsTab() {
       </Card>
     </div>
   );
+}
+
+function exportClientReportPdf(
+  client: Client,
+  month: Date,
+  reports: Report[],
+  totals: { hours: number; pay: number },
+) {
+  const monthLabel = month.toLocaleDateString("he-IL", { month: "long", year: "numeric" });
+  const escape = (s: any) =>
+    String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+  const rowsHtml = reports
+    .map((r) => {
+      const place = r.assigned_custom_workplace || r.workplace_description || "";
+      return `<tr>
+        <td>${escape(r.work_date)}</td>
+        <td>${escape(r.worker_name)}</td>
+        <td>${escape(r.passport_number || "")}</td>
+        <td>${escape((r.check_in || "").slice(0, 5))}–${escape((r.check_out || "").slice(0, 5))}</td>
+        <td>${Number(r.total_hours).toFixed(2)}</td>
+        <td>${escape(place)}</td>
+        <td>${Number(r.total_payment).toFixed(2)}</td>
+        <td>${escape(r.status)}</td>
+      </tr>`;
+    })
+    .join("");
+
+  const html = `<!doctype html><html dir="rtl" lang="he"><head><meta charset="utf-8"/>
+    <title>${escape(client.name)} - ${escape(monthLabel)}</title>
+    <style>
+      body { font-family: -apple-system, "Segoe UI", Arial, sans-serif; padding: 24px; color: #111; }
+      h1 { font-size: 20px; margin: 0 0 4px; }
+      .sub { color: #555; font-size: 12px; margin-bottom: 16px; }
+      .totals { display: flex; gap: 24px; margin: 12px 0 18px; font-size: 13px; }
+      .totals strong { color: #000; }
+      table { width: 100%; border-collapse: collapse; font-size: 12px; }
+      th, td { border: 1px solid #ddd; padding: 6px 8px; text-align: right; }
+      th { background: #f3f4f6; font-weight: 600; }
+      tr:nth-child(even) td { background: #fafafa; }
+      @media print { body { padding: 0; } @page { size: A4; margin: 12mm; } }
+    </style></head><body>
+    <h1>דוח שעות מחליפים — ${escape(client.name)}</h1>
+    <div class="sub">${escape(monthLabel)} · נוצר ב-${new Date().toLocaleDateString("he-IL")}</div>
+    <div class="totals">
+      <span>סך שעות: <strong>${totals.hours.toFixed(2)}</strong></span>
+      <span>סך תשלום: <strong>₪${totals.pay.toFixed(2)}</strong></span>
+      <span>דיווחים: <strong>${reports.length}</strong></span>
+    </div>
+    <table>
+      <thead><tr>
+        <th>תאריך</th><th>עובד</th><th>דרכון</th><th>שעות</th><th>סה"כ</th><th>מקום</th><th>תשלום</th><th>סטטוס</th>
+      </tr></thead>
+      <tbody>${rowsHtml || `<tr><td colspan="8" style="text-align:center;color:#888;padding:20px">אין דיווחים בחודש זה</td></tr>`}</tbody>
+    </table>
+    <script>window.onload = () => { setTimeout(() => window.print(), 200); };</script>
+    </body></html>`;
+
+  const w = window.open("", "_blank");
+  if (!w) {
+    toast.error("הדפדפן חסם את הפתיחה. אפשר חלונות קופצים ונסה שוב.");
+    return;
+  }
+  w.document.open();
+  w.document.write(html);
+  w.document.close();
 }
 
 function ChangesTab() {

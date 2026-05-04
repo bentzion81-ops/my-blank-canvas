@@ -92,6 +92,7 @@ const Employees = () => {
                 <TableRow>
                   <TableHead>Client</TableHead>
                   <TableHead>Name</TableHead>
+                  <TableHead>Source</TableHead>
                   <TableHead className="hidden md:table-cell">Phone</TableHead>
                   <TableHead className="hidden md:table-cell">Citizenship</TableHead>
                   <TableHead className="hidden lg:table-cell">Type</TableHead>
@@ -101,13 +102,13 @@ const Employees = () => {
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                       Loading...
                     </TableCell>
                   </TableRow>
                 ) : filtered.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                       <Users className="h-8 w-8 mx-auto mb-2 opacity-40" />
                       No employees found
                     </TableCell>
@@ -123,7 +124,7 @@ const Employees = () => {
                       if (groupLabel !== lastClient) {
                         rows.push(
                           <TableRow key={`grp-${groupLabel}`} className="bg-muted/40 hover:bg-muted/40">
-                            <TableCell colSpan={6} className="py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                            <TableCell colSpan={7} className="py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                               {groupLabel}
                             </TableCell>
                           </TableRow>,
@@ -140,6 +141,7 @@ const Employees = () => {
                           <TableCell className="font-medium">
                             {emp.first_name} {emp.last_name}
                           </TableCell>
+                          <TableCell>{sourceBadge(emp.source)}</TableCell>
                           <TableCell className="hidden md:table-cell">
                             {emp.israeli_phone || emp.foreign_phone || "—"}
                           </TableCell>

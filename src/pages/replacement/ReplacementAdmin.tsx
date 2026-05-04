@@ -521,8 +521,8 @@ function EmployeesTab() {
 
   const load = async () => {
     if (!selected) return;
-    const start = monthStart(month).toISOString().slice(0, 10);
-    const end = monthEnd(month).toISOString().slice(0, 10);
+    const start = toLocalISODate(monthStart(month));
+    const end = toLocalISODate(monthEnd(month));
     const { data } = await supabase
       .from("replacement_reports")
       .select("*")

@@ -689,11 +689,9 @@ function exportClientReportPdf(
       return `<tr>
         <td>${escape(r.work_date)}</td>
         <td>${escape(r.worker_name)}</td>
-        <td>${escape(r.passport_number || "")}</td>
         <td>${escape((r.check_in || "").slice(0, 5))}–${escape((r.check_out || "").slice(0, 5))}</td>
         <td>${Number(r.total_hours).toFixed(2)}</td>
         <td>${escape(place)}</td>
-        <td>${Number(r.total_payment).toFixed(2)}</td>
         <td>${escape(r.status)}</td>
       </tr>`;
     })
@@ -717,14 +715,13 @@ function exportClientReportPdf(
     <div class="sub">${escape(monthLabel)} · נוצר ב-${new Date().toLocaleDateString("he-IL")}</div>
     <div class="totals">
       <span>סך שעות: <strong>${totals.hours.toFixed(2)}</strong></span>
-      <span>סך תשלום: <strong>₪${totals.pay.toFixed(2)}</strong></span>
       <span>דיווחים: <strong>${reports.length}</strong></span>
     </div>
     <table>
       <thead><tr>
-        <th>תאריך</th><th>עובד</th><th>דרכון</th><th>שעות</th><th>סה"כ</th><th>מקום</th><th>תשלום</th><th>סטטוס</th>
+        <th>תאריך</th><th>עובד</th><th>שעות</th><th>סה"כ</th><th>מקום</th><th>סטטוס</th>
       </tr></thead>
-      <tbody>${rowsHtml || `<tr><td colspan="8" style="text-align:center;color:#888;padding:20px">אין דיווחים בחודש זה</td></tr>`}</tbody>
+      <tbody>${rowsHtml || `<tr><td colspan="6" style="text-align:center;color:#888;padding:20px">אין דיווחים בחודש זה</td></tr>`}</tbody>
     </table>
     <script>window.onload = () => { setTimeout(() => window.print(), 200); };</script>
     </body></html>`;

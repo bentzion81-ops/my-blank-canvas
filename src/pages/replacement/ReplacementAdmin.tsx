@@ -438,17 +438,20 @@ function AllReportsTab() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [sortBy, setSortBy] = useState<"created_desc" | "created_asc" | "work_desc" | "work_asc">("created_desc");
   const clients = useClients();
 
   const load = async () => {
     setLoading(true);
-    let q = supabase.from("replacement_reports").select("*").order("work_date", { ascending: false });
+    const sortCol = sortBy.startsWith("created") ? "created_at" : "work_date";
+    const ascending = sortBy.endsWith("asc");
+    let q = supabase.from("replacement_reports").select("*").order(sortCol, { ascending });
     if (statusFilter !== "all") q = q.eq("status", statusFilter as any);
     const { data } = await q;
     setReports((data as Report[]) || []);
     setLoading(false);
   };
-  useEffect(() => { load(); }, [statusFilter]);
+  useEffect(() => { load(); }, [statusFilter, sortBy]);
 
   const filtered = reports.filter((r) =>
     !search.trim() ||
@@ -464,6 +467,15 @@ function AllReportsTab() {
           <CardTitle>כל הדיווחים</CardTitle>
           <div className="ml-auto flex gap-2">
             <Input placeholder="חיפוש לפי שם / דרכון / מקום" value={search} onChange={(e) => setSearch(e.target.value)} className="w-64" />
+            <Select value={sortBy} onValueChange={(v) => setSortBy(v as any)}>
+              <SelectTrigger className="w-52"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="created_desc">דיווחים אחרונים (חדש→ישן)</SelectItem>
+                <SelectItem value="created_asc">דיווחים ראשונים (ישן→חדש)</SelectItem>
+                <SelectItem value="work_desc">תאריך עבודה (חדש→ישן)</SelectItem>
+                <SelectItem value="work_asc">תאריך עבודה (ישן→חדש)</SelectItem>
+              </SelectContent>
+            </Select>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
               <SelectContent>
@@ -482,7 +494,7 @@ function AllReportsTab() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>תאריך</TableHead><TableHead>עובד</TableHead><TableHead>דרכון</TableHead>
+                <TableHead>תאריך עבודה</TableHead><TableHead>דווח בתאריך</TableHead><TableHead>עובד</TableHead><TableHead>דרכון</TableHead>
                 <TableHead>שעות</TableHead><TableHead>סה"כ</TableHead><TableHead>מקום</TableHead>
                 <TableHead>תשלום</TableHead><TableHead>סטטוס</TableHead>
               </TableRow>

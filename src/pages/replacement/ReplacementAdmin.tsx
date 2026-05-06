@@ -266,6 +266,9 @@ function ReportRow({ r, clients, onChanged }: { r: Report; clients: Client[]; on
     <>
       <TableRow className="cursor-pointer" onClick={() => setOpen(true)}>
         <TableCell>{r.work_date}</TableCell>
+        <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+          {new Date(r.created_at).toLocaleString("he-IL", { dateStyle: "short", timeStyle: "short" })}
+        </TableCell>
         <TableCell className="font-medium">{r.worker_name}</TableCell>
         <TableCell className="text-xs text-muted-foreground">{r.passport_number}</TableCell>
         <TableCell>{r.check_in}–{r.check_out}</TableCell>

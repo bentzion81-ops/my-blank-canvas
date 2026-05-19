@@ -384,9 +384,13 @@ async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userI
       await admin.from("meckano_attendance_raw").upsert(rawRows, { onConflict: "meckano_report_id" });
     }
 
-    // Group punches by employee + date (use Meckano's dateStr for Israel-local date)
-    type Punch = { ts: number; isOut: boolean; raw: any };
-    const byEmpDay = new Map<string, Map<string, Punch[]>>();
+    // Group punches by employee (ALL days together) so we can pair shifts that
+    // cross midnight (in at 20:00, out at 01:00 next day). Then we sort all
+    // punches chronologically and pair each `in` with the next `out`.
+    // The shift's date is derived from the `in` punch's Israel-local date
+    // (using Meckano's dateStr, which is what Meckano itself displays).
+    type Punch = { ts: number; isOut: boolean; raw: any; date: string };
+    const byEmp = new Map<string, Punch[]>();
     for (const e of entries) {
       const meckEmp = String(e.userId ?? "");
       const ts = Number(e.ts ?? 0);
@@ -398,39 +402,47 @@ async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userI
       } else {
         date = new Date(ts * 1000).toISOString().slice(0, 10);
       }
-      if (!byEmpDay.has(meckEmp)) byEmpDay.set(meckEmp, new Map());
-      const dayMap = byEmpDay.get(meckEmp)!;
-      if (!dayMap.has(date)) dayMap.set(date, []);
-      dayMap.get(date)!.push({ ts, isOut: !!e.isOut, raw: e });
+      if (!byEmp.has(meckEmp)) byEmp.set(meckEmp, []);
+      byEmp.get(meckEmp)!.push({ ts, isOut: !!e.isOut, raw: e, date });
     }
 
+    // Max plausible shift length in hours — anything longer is treated as an
+    // unpaired in (likely a forgotten clock-out) so we don't merge unrelated shifts.
+    const MAX_SHIFT_HOURS = 16;
+
     const shifts: Array<{ meckEmp: string; date: string; checkIn: Date; checkOut: Date | null; hours: number }> = [];
-    for (const [meckEmp, dayMap] of byEmpDay) {
-      for (const [date, punches] of dayMap) {
-        punches.sort((a, b) => a.ts - b.ts);
-        let openIn: Punch | null = null;
-        for (const p of punches) {
-          if (!p.isOut) {
-            if (openIn !== null) {
-              shifts.push({ meckEmp, date, checkIn: new Date(meckanoToUtcMs(openIn.raw)), checkOut: null, hours: 0 });
-            }
-            openIn = p;
-          } else {
-            if (openIn !== null) {
-              const hours = (p.ts - openIn.ts) / 3600;
-              shifts.push({ meckEmp, date, checkIn: new Date(meckanoToUtcMs(openIn.raw)), checkOut: new Date(meckanoToUtcMs(p.raw)), hours });
+    for (const [meckEmp, punches] of byEmp) {
+      punches.sort((a, b) => a.ts - b.ts);
+      let openIn: Punch | null = null;
+      for (const p of punches) {
+        if (!p.isOut) {
+          if (openIn !== null) {
+            // Unpaired previous in — store as missing-out shift on its own date
+            shifts.push({ meckEmp, date: openIn.date, checkIn: new Date(meckanoToUtcMs(openIn.raw)), checkOut: null, hours: 0 });
+          }
+          openIn = p;
+        } else {
+          if (openIn !== null) {
+            const hours = (p.ts - openIn.ts) / 3600;
+            if (hours <= MAX_SHIFT_HOURS) {
+              shifts.push({ meckEmp, date: openIn.date, checkIn: new Date(meckanoToUtcMs(openIn.raw)), checkOut: new Date(meckanoToUtcMs(p.raw)), hours });
+              openIn = null;
+            } else {
+              // Gap too large — treat the in as unpaired and drop the stray out
+              shifts.push({ meckEmp, date: openIn.date, checkIn: new Date(meckanoToUtcMs(openIn.raw)), checkOut: null, hours: 0 });
               openIn = null;
             }
           }
+          // stray `out` without a prior `in` — ignore
         }
-        if (openIn !== null) {
-          shifts.push({ meckEmp, date, checkIn: new Date(meckanoToUtcMs(openIn.raw)), checkOut: null, hours: 0 });
-        }
+      }
+      if (openIn !== null) {
+        shifts.push({ meckEmp, date: openIn.date, checkIn: new Date(meckanoToUtcMs(openIn.raw)), checkOut: null, hours: 0 });
       }
     }
 
     // Map Meckano employees → internal UUIDs (only employees flagged as synced with Meckano)
-    const meckIds = Array.from(byEmpDay.keys());
+    const meckIds = Array.from(byEmp.keys());
     const { data: emps } = meckIds.length
       ? await admin
           .from("employees")

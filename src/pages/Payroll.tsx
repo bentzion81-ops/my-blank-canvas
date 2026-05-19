@@ -273,6 +273,15 @@ const Payroll = () => {
               {monthOptions.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
             </SelectContent>
           </Select>
+          <div className="relative flex-1 max-w-sm">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search by name, phone, passport..."
+              className="pl-9 h-9"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
         </div>
 
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">

@@ -39,6 +39,7 @@ const Payroll = () => {
       const { data, error } = await supabase
         .from("employees")
         .select("id, first_name, last_name, passport_number, hourly_wage, transportation, medical_insurance, food, other_expenses, rent_deduction, loan_deduction, equipment_deduction, other_deductions, status")
+        .eq("status", "active")
         .order("first_name");
       if (error) throw error;
       return data || [];

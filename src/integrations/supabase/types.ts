@@ -522,11 +522,48 @@ export type Database = {
         }
         Relationships: []
       }
+      employee_additional_items: {
+        Row: {
+          amount: number
+          created_at: string
+          employee_id: string
+          id: string
+          month: string | null
+          name: string
+          notes: string | null
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          amount?: number
+          created_at?: string
+          employee_id: string
+          id?: string
+          month?: string | null
+          name: string
+          notes?: string | null
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          employee_id?: string
+          id?: string
+          month?: string | null
+          name?: string
+          notes?: string | null
+          type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       employee_client_assignments: {
         Row: {
           client_id: string | null
           created_at: string
           custom_location: string | null
+          employee_hourly_wage: number | null
           employee_id: string
           end_date: string | null
           id: string
@@ -538,6 +575,7 @@ export type Database = {
           client_id?: string | null
           created_at?: string
           custom_location?: string | null
+          employee_hourly_wage?: number | null
           employee_id: string
           end_date?: string | null
           id?: string
@@ -549,6 +587,7 @@ export type Database = {
           client_id?: string | null
           created_at?: string
           custom_location?: string | null
+          employee_hourly_wage?: number | null
           employee_id?: string
           end_date?: string | null
           id?: string

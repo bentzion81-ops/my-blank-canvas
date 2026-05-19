@@ -312,7 +312,23 @@ const Payroll = () => {
                   <TableRow><TableCell colSpan={8} className="text-center py-8"><Loader2 className="h-5 w-5 animate-spin mx-auto text-muted-foreground" /></TableCell></TableRow>
                 ) : rows.length === 0 ? (
                   <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">No payroll data for this month</TableCell></TableRow>
-                ) : rows.map((r) => {
+                ) : (() => {
+                  let lastGroup: string | null = null;
+                  const out: JSX.Element[] = [];
+                  rows.forEach((r) => {
+                    const isInactive = r.emp.status === "inactive";
+                    const groupLabel = isInactive ? "Inactive" : (r.clientName || "Unassigned");
+                    if (groupLabel !== lastGroup) {
+                      out.push(
+                        <TableRow key={`grp-${groupLabel}`} className="bg-muted/40 hover:bg-muted/40">
+                          <TableCell colSpan={8} className="py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                            {groupLabel}
+                          </TableCell>
+                        </TableRow>
+                      );
+                      lastGroup = groupLabel;
+                    }
+                    out.push(((r) => {
                   const isOpen = expanded.has(r.emp.id);
                   return (
                     <Fragment key={r.emp.id}>

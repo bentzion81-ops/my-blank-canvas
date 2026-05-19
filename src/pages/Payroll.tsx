@@ -58,6 +58,30 @@ const Payroll = () => {
     },
   });
 
+  const { data: assignmentRates = [] } = useQuery({
+    queryKey: ["payroll-assignment-rates"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("employee_client_assignments")
+        .select("employee_id, client_id, employee_hourly_wage")
+        .not("employee_hourly_wage", "is", null);
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  const { data: additionalItems = [] } = useQuery({
+    queryKey: ["payroll-additional-items", fromStr],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("employee_additional_items" as any)
+        .select("*")
+        .or(`month.is.null,month.eq.${fromStr}`);
+      if (error) throw error;
+      return (data as any[]) || [];
+    },
+  });
+
   const { data: payments = [], refetch: refetchPayments } = useQuery({
     queryKey: ["payroll-payments", fromStr, toStr],
     queryFn: async () => {
@@ -70,6 +94,14 @@ const Payroll = () => {
       return data || [];
     },
   });
+
+  const rateMap = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const a of assignmentRates as any[]) {
+      m.set(`${a.employee_id}|${a.client_id}`, Number(a.employee_hourly_wage));
+    }
+    return m;
+  }, [assignmentRates]);
 
   const rows = useMemo(() => {
     return employees.map((emp: any) => {
@@ -86,8 +118,11 @@ const Payroll = () => {
         const h = Number(l.hours_worked) || 0;
         const pay = Number(l.payment_amount) || 0;
         totalHours += h;
-        // For attendance/manual sources payment_amount may be 0 — fall back to hourly_wage
-        const lineGross = pay > 0 ? pay : h * Number(emp.hourly_wage || 0);
+        // Rate precedence: per-assignment override > log payment_amount > employee default
+        const assignmentRate = l.client_id ? rateMap.get(`${emp.id}|${l.client_id}`) : undefined;
+        const lineGross = assignmentRate != null
+          ? h * assignmentRate
+          : (pay > 0 ? pay : h * Number(emp.hourly_wage || 0));
         grossFromLogs += lineGross;
         const cur = sites.get(key) || { name, hours: 0, gross: 0, sources: new Set() };
         cur.hours += h;
@@ -96,16 +131,22 @@ const Payroll = () => {
         sites.set(key, cur);
       }
 
+      const empItems = (additionalItems as any[]).filter((it) => it.employee_id === emp.id);
+      const itemsExpenses = empItems.filter((it) => it.type === "expense").reduce((s, it) => s + Number(it.amount || 0), 0);
+      const itemsDeductions = empItems.filter((it) => it.type === "deduction").reduce((s, it) => s + Number(it.amount || 0), 0);
+
       const expenses =
         Number(emp.transportation || 0) +
         Number(emp.medical_insurance || 0) +
         Number(emp.food || 0) +
-        Number(emp.other_expenses || 0);
+        Number(emp.other_expenses || 0) +
+        itemsExpenses;
       const deductions =
         Number(emp.rent_deduction || 0) +
         Number(emp.loan_deduction || 0) +
         Number(emp.equipment_deduction || 0) +
-        Number(emp.other_deductions || 0);
+        Number(emp.other_deductions || 0) +
+        itemsDeductions;
 
       const totalDue = grossFromLogs + expenses - deductions;
       const paid = payments
@@ -123,9 +164,10 @@ const Payroll = () => {
         totalDue,
         paid,
         balance,
+        items: empItems,
       };
     }).filter((r) => r.totalHours > 0 || r.paid > 0 || r.expenses > 0 || r.deductions > 0);
-  }, [employees, logs, payments]);
+  }, [employees, logs, payments, rateMap, additionalItems]);
 
   const totals = useMemo(() => ({
     hours: rows.reduce((s, r) => s + r.totalHours, 0),

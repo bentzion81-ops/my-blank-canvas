@@ -442,7 +442,7 @@ async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userI
     }
 
     // Map Meckano employees → internal UUIDs (only employees flagged as synced with Meckano)
-    const meckIds = Array.from(byEmpDay.keys());
+    const meckIds = Array.from(byEmp.keys());
     const { data: emps } = meckIds.length
       ? await admin
           .from("employees")

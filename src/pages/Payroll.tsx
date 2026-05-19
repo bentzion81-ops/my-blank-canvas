@@ -413,7 +413,10 @@ const Payroll = () => {
                       )}
                     </Fragment>
                   );
-                })}
+                    })(r));
+                  });
+                  return out;
+                })()}
               </TableBody>
             </Table>
           </CardContent>

@@ -204,12 +204,10 @@ const Payroll = () => {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-8"></TableHead>
                   <TableHead>Employee</TableHead>
-                  <TableHead>Work sites (hours)</TableHead>
-                  <TableHead className="text-right">Hours</TableHead>
-                  <TableHead className="text-right">Gross</TableHead>
-                  <TableHead className="text-right">Expenses</TableHead>
-                  <TableHead className="text-right">Deductions</TableHead>
+                  <TableHead>ID / Passport</TableHead>
+                  <TableHead className="text-right">Total Hours</TableHead>
                   <TableHead className="text-right">Total Due</TableHead>
                   <TableHead className="text-right">Paid</TableHead>
                   <TableHead className="text-right">Balance</TableHead>
@@ -218,41 +216,95 @@ const Payroll = () => {
               </TableHeader>
               <TableBody>
                 {isLoading ? (
-                  <TableRow><TableCell colSpan={10} className="text-center py-8"><Loader2 className="h-5 w-5 animate-spin mx-auto text-muted-foreground" /></TableCell></TableRow>
+                  <TableRow><TableCell colSpan={8} className="text-center py-8"><Loader2 className="h-5 w-5 animate-spin mx-auto text-muted-foreground" /></TableCell></TableRow>
                 ) : rows.length === 0 ? (
-                  <TableRow><TableCell colSpan={10} className="text-center py-8 text-muted-foreground">No payroll data for this month</TableCell></TableRow>
-                ) : rows.map((r) => (
-                  <TableRow key={r.emp.id}>
-                    <TableCell className="font-medium">{r.emp.first_name} {r.emp.last_name}</TableCell>
-                    <TableCell>
-                      <div className="flex flex-col gap-1">
-                        {r.sites.length === 0 ? <span className="text-muted-foreground text-xs">—</span> : r.sites.map((s, i) => (
-                          <div key={i} className="flex items-center gap-2 text-xs">
-                            <span>{s.name}</span>
-                            <span className="text-muted-foreground">({s.hours.toFixed(1)}h · {fmt(s.gross)})</span>
-                            {Array.from(s.sources).map((src) => (
-                              <Badge key={src} variant="outline" className="text-[10px] py-0 h-4">{src}</Badge>
-                            ))}
-                          </div>
-                        ))}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">{r.totalHours.toFixed(1)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{fmt(r.grossFromLogs)}</TableCell>
-                    <TableCell className="text-right tabular-nums text-success">+{fmt(r.expenses)}</TableCell>
-                    <TableCell className="text-right tabular-nums text-warning">-{fmt(r.deductions)}</TableCell>
-                    <TableCell className="text-right tabular-nums font-semibold">{fmt(r.totalDue)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{fmt(r.paid)}</TableCell>
-                    <TableCell className="text-right tabular-nums font-semibold">
-                      <span className={r.balance > 0 ? "text-destructive" : "text-success"}>{fmt(r.balance)}</span>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button size="sm" variant="outline" onClick={() => { setPayOpen({ employeeId: r.emp.id, employeeName: `${r.emp.first_name} ${r.emp.last_name}`, balance: r.balance }); setPayAmount(String(Math.max(0, Math.round(r.balance)))); }}>
-                        <Plus className="h-3 w-3 mr-1" /> Pay
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                  <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">No payroll data for this month</TableCell></TableRow>
+                ) : rows.map((r) => {
+                  const isOpen = expanded.has(r.emp.id);
+                  return (
+                    <>
+                      <TableRow key={r.emp.id} className="cursor-pointer" onClick={() => toggleRow(r.emp.id)}>
+                        <TableCell>
+                          {isOpen ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+                        </TableCell>
+                        <TableCell className="font-medium">{r.emp.first_name} {r.emp.last_name}</TableCell>
+                        <TableCell className="text-muted-foreground tabular-nums">{r.emp.passport_number || "—"}</TableCell>
+                        <TableCell className="text-right tabular-nums">{r.totalHours.toFixed(1)}h</TableCell>
+                        <TableCell className="text-right tabular-nums font-semibold">{fmt(r.totalDue)}</TableCell>
+                        <TableCell className="text-right tabular-nums">{fmt(r.paid)}</TableCell>
+                        <TableCell className="text-right tabular-nums font-semibold">
+                          <span className={r.balance > 0 ? "text-destructive" : "text-success"}>{fmt(r.balance)}</span>
+                        </TableCell>
+                        <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                          <Button size="sm" variant="outline" onClick={() => { setPayOpen({ employeeId: r.emp.id, employeeName: `${r.emp.first_name} ${r.emp.last_name}`, balance: r.balance }); setPayAmount(String(Math.max(0, Math.round(r.balance)))); }}>
+                            <Plus className="h-3 w-3 mr-1" /> Pay
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                      {isOpen && (
+                        <TableRow key={r.emp.id + "-detail"} className="bg-muted/30 hover:bg-muted/30">
+                          <TableCell></TableCell>
+                          <TableCell colSpan={7} className="py-3">
+                            <div className="space-y-2">
+                              <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Work sites breakdown</div>
+                              <Table>
+                                <TableHeader>
+                                  <TableRow>
+                                    <TableHead>Workplace</TableHead>
+                                    <TableHead>Source</TableHead>
+                                    <TableHead className="text-right">Hours</TableHead>
+                                    <TableHead className="text-right">Rate / hr</TableHead>
+                                    <TableHead className="text-right">Subtotal</TableHead>
+                                  </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                  {r.sites.length === 0 ? (
+                                    <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground text-xs">No work logs</TableCell></TableRow>
+                                  ) : r.sites.map((s, i) => {
+                                    const rate = s.hours > 0 ? s.gross / s.hours : 0;
+                                    return (
+                                      <TableRow key={i}>
+                                        <TableCell className="font-medium">{s.name}</TableCell>
+                                        <TableCell>
+                                          <div className="flex gap-1 flex-wrap">
+                                            {Array.from(s.sources).map((src) => (
+                                              <Badge key={src} variant="outline" className="text-[10px] py-0 h-4">{src}</Badge>
+                                            ))}
+                                          </div>
+                                        </TableCell>
+                                        <TableCell className="text-right tabular-nums">{s.hours.toFixed(1)}</TableCell>
+                                        <TableCell className="text-right tabular-nums">{fmt(rate)}</TableCell>
+                                        <TableCell className="text-right tabular-nums font-medium">{fmt(s.gross)}</TableCell>
+                                      </TableRow>
+                                    );
+                                  })}
+                                </TableBody>
+                              </Table>
+                              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-2 text-xs">
+                                <div className="rounded-md border p-2">
+                                  <div className="text-muted-foreground">Gross (hours)</div>
+                                  <div className="font-semibold tabular-nums">{fmt(r.grossFromLogs)}</div>
+                                </div>
+                                <div className="rounded-md border p-2">
+                                  <div className="text-muted-foreground">Expenses (+)</div>
+                                  <div className="font-semibold tabular-nums text-success">+{fmt(r.expenses)}</div>
+                                </div>
+                                <div className="rounded-md border p-2">
+                                  <div className="text-muted-foreground">Deductions (-)</div>
+                                  <div className="font-semibold tabular-nums text-warning">-{fmt(r.deductions)}</div>
+                                </div>
+                                <div className="rounded-md border p-2">
+                                  <div className="text-muted-foreground">Total Due</div>
+                                  <div className="font-semibold tabular-nums">{fmt(r.totalDue)}</div>
+                                </div>
+                              </div>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </>
+                  );
+                })}
               </TableBody>
             </Table>
           </CardContent>

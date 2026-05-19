@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Clock, Wallet, DollarSign, TrendingDown, Plus, Loader2, ChevronDown, ChevronRight } from "lucide-react";
+import { Clock, Wallet, DollarSign, TrendingDown, Plus, Loader2, ChevronDown, ChevronRight, Search } from "lucide-react";
 import { toast } from "sonner";
 
 const fmt = (n: number) => `₪${Math.round(n).toLocaleString()}`;
@@ -23,6 +23,7 @@ const Payroll = () => {
   const [payAmount, setPayAmount] = useState("");
   const [payNotes, setPayNotes] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [search, setSearch] = useState("");
   const toggleRow = (id: string) => setExpanded((p) => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
   const monthOptions = Array.from({ length: 12 }, (_, i) => {
@@ -38,7 +39,7 @@ const Payroll = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("employees")
-        .select("id, first_name, last_name, passport_number, hourly_wage, transportation, medical_insurance, food, other_expenses, rent_deduction, loan_deduction, equipment_deduction, other_deductions, status")
+        .select("id, first_name, last_name, passport_number, israeli_phone, foreign_phone, hourly_wage, transportation, medical_insurance, food, other_expenses, rent_deduction, loan_deduction, equipment_deduction, other_deductions, status, employee_client_assignments(is_primary, end_date, client_id, clients(name))")
         .order("first_name");
       if (error) throw error;
       return data || [];
@@ -116,8 +117,15 @@ const Payroll = () => {
     return m;
   }, [assignmentRates]);
 
+  const getClientName = (e: any): string => {
+    const assignments = e.employee_client_assignments ?? [];
+    const active = assignments.filter((a: any) => a.clients && !a.end_date);
+    const primary = active.find((a: any) => a.is_primary) ?? active[0] ?? assignments.find((a: any) => a.clients);
+    return primary?.clients?.name ?? "";
+  };
+
   const rows = useMemo(() => {
-    return employees.map((emp: any) => {
+    const computed = employees.map((emp: any) => {
       // Group hours/pay by site for this employee
       const empLogs = logs.filter(
         (l: any) => l.employee_id === emp.id && l.status !== "rejected" && l.status !== "no_show"
@@ -131,7 +139,6 @@ const Payroll = () => {
         const h = Number(l.hours_worked) || 0;
         const pay = Number(l.payment_amount) || 0;
         totalHours += h;
-        // Rate precedence: per-(employee,client) override > employee-level override (any assignment with a custom rate) > log payment_amount > employee default
         const directRate = l.client_id ? rateMap.get(`${emp.id}|${l.client_id}`) : undefined;
         const fallbackRate = employeeFallbackRate.get(emp.id);
         const overrideRate = directRate ?? fallbackRate;
@@ -169,8 +176,11 @@ const Payroll = () => {
         .reduce((s: number, p: any) => s + Number(p.amount || 0), 0);
       const balance = totalDue - paid;
 
+      const clientName = getClientName(emp);
+
       return {
         emp,
+        clientName,
         sites: Array.from(sites.values()),
         totalHours,
         grossFromLogs,
@@ -182,7 +192,24 @@ const Payroll = () => {
         items: empItems,
       };
     });
-  }, [employees, logs, payments, rateMap, employeeFallbackRate, additionalItems]);
+
+    const q = search.toLowerCase();
+    return computed
+      .filter((r) =>
+        `${r.emp.first_name} ${r.emp.last_name} ${r.emp.passport_number || ""} ${r.emp.israeli_phone || ""} ${r.clientName}`
+          .toLowerCase()
+          .includes(q),
+      )
+      .sort((a, b) => {
+        const aInactive = a.emp.status === "inactive" ? 1 : 0;
+        const bInactive = b.emp.status === "inactive" ? 1 : 0;
+        if (aInactive !== bInactive) return aInactive - bInactive;
+        const ca = a.clientName || "\uffff";
+        const cb = b.clientName || "\uffff";
+        if (ca !== cb) return ca.localeCompare(cb);
+        return `${a.emp.first_name} ${a.emp.last_name}`.localeCompare(`${b.emp.first_name} ${b.emp.last_name}`);
+      });
+  }, [employees, logs, payments, rateMap, employeeFallbackRate, additionalItems, search]);
 
   const totals = useMemo(() => ({
     hours: rows.reduce((s, r) => s + r.totalHours, 0),
@@ -246,6 +273,15 @@ const Payroll = () => {
               {monthOptions.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
             </SelectContent>
           </Select>
+          <div className="relative flex-1 max-w-sm">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search by name, phone, passport..."
+              className="pl-9 h-9"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
         </div>
 
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
@@ -276,7 +312,23 @@ const Payroll = () => {
                   <TableRow><TableCell colSpan={8} className="text-center py-8"><Loader2 className="h-5 w-5 animate-spin mx-auto text-muted-foreground" /></TableCell></TableRow>
                 ) : rows.length === 0 ? (
                   <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">No payroll data for this month</TableCell></TableRow>
-                ) : rows.map((r) => {
+                ) : (() => {
+                  let lastGroup: string | null = null;
+                  const out: JSX.Element[] = [];
+                  rows.forEach((r) => {
+                    const isInactive = r.emp.status === "inactive";
+                    const groupLabel = isInactive ? "Inactive" : (r.clientName || "Unassigned");
+                    if (groupLabel !== lastGroup) {
+                      out.push(
+                        <TableRow key={`grp-${groupLabel}`} className="bg-muted/40 hover:bg-muted/40">
+                          <TableCell colSpan={8} className="py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                            {groupLabel}
+                          </TableCell>
+                        </TableRow>
+                      );
+                      lastGroup = groupLabel;
+                    }
+                    out.push(((r) => {
                   const isOpen = expanded.has(r.emp.id);
                   return (
                     <Fragment key={r.emp.id}>
@@ -361,7 +413,10 @@ const Payroll = () => {
                       )}
                     </Fragment>
                   );
-                })}
+                    })(r));
+                  });
+                  return out;
+                })()}
               </TableBody>
             </Table>
           </CardContent>

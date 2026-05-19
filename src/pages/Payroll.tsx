@@ -182,7 +182,7 @@ const Payroll = () => {
         items: empItems,
       };
     }).filter((r) => r.totalHours > 0 || r.paid > 0 || r.expenses > 0 || r.deductions > 0);
-  }, [employees, logs, payments, rateMap, additionalItems]);
+  }, [employees, logs, payments, rateMap, employeeFallbackRate, additionalItems]);
 
   const totals = useMemo(() => ({
     hours: rows.reduce((s, r) => s + r.totalHours, 0),

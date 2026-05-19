@@ -63,7 +63,7 @@ const Payroll = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("employee_client_assignments")
-        .select("employee_id, client_id, employee_hourly_wage")
+        .select("employee_id, client_id, employee_hourly_wage, is_primary, start_date")
         .not("employee_hourly_wage", "is", null);
       if (error) throw error;
       return data || [];

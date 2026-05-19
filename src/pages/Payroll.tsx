@@ -222,7 +222,7 @@ const Payroll = () => {
                 ) : rows.map((r) => {
                   const isOpen = expanded.has(r.emp.id);
                   return (
-                    <>
+                    <Fragment key={r.emp.id}>
                       <TableRow key={r.emp.id} className="cursor-pointer" onClick={() => toggleRow(r.emp.id)}>
                         <TableCell>
                           {isOpen ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}

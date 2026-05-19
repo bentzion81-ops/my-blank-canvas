@@ -117,8 +117,15 @@ const Payroll = () => {
     return m;
   }, [assignmentRates]);
 
+  const getClientName = (e: any): string => {
+    const assignments = e.employee_client_assignments ?? [];
+    const active = assignments.filter((a: any) => a.clients && !a.end_date);
+    const primary = active.find((a: any) => a.is_primary) ?? active[0] ?? assignments.find((a: any) => a.clients);
+    return primary?.clients?.name ?? "";
+  };
+
   const rows = useMemo(() => {
-    return employees.map((emp: any) => {
+    const computed = employees.map((emp: any) => {
       // Group hours/pay by site for this employee
       const empLogs = logs.filter(
         (l: any) => l.employee_id === emp.id && l.status !== "rejected" && l.status !== "no_show"
@@ -132,7 +139,6 @@ const Payroll = () => {
         const h = Number(l.hours_worked) || 0;
         const pay = Number(l.payment_amount) || 0;
         totalHours += h;
-        // Rate precedence: per-(employee,client) override > employee-level override (any assignment with a custom rate) > log payment_amount > employee default
         const directRate = l.client_id ? rateMap.get(`${emp.id}|${l.client_id}`) : undefined;
         const fallbackRate = employeeFallbackRate.get(emp.id);
         const overrideRate = directRate ?? fallbackRate;
@@ -170,8 +176,11 @@ const Payroll = () => {
         .reduce((s: number, p: any) => s + Number(p.amount || 0), 0);
       const balance = totalDue - paid;
 
+      const clientName = getClientName(emp);
+
       return {
         emp,
+        clientName,
         sites: Array.from(sites.values()),
         totalHours,
         grossFromLogs,
@@ -183,7 +192,24 @@ const Payroll = () => {
         items: empItems,
       };
     });
-  }, [employees, logs, payments, rateMap, employeeFallbackRate, additionalItems]);
+
+    const q = search.toLowerCase();
+    return computed
+      .filter((r) =>
+        `${r.emp.first_name} ${r.emp.last_name} ${r.emp.passport_number || ""} ${r.emp.israeli_phone || ""} ${r.clientName}`
+          .toLowerCase()
+          .includes(q),
+      )
+      .sort((a, b) => {
+        const aInactive = a.emp.status === "inactive" ? 1 : 0;
+        const bInactive = b.emp.status === "inactive" ? 1 : 0;
+        if (aInactive !== bInactive) return aInactive - bInactive;
+        const ca = a.clientName || "\uffff";
+        const cb = b.clientName || "\uffff";
+        if (ca !== cb) return ca.localeCompare(cb);
+        return `${a.emp.first_name} ${a.emp.last_name}`.localeCompare(`${b.emp.first_name} ${b.emp.last_name}`);
+      });
+  }, [employees, logs, payments, rateMap, employeeFallbackRate, additionalItems, search]);
 
   const totals = useMemo(() => ({
     hours: rows.reduce((s, r) => s + r.totalHours, 0),

@@ -423,9 +423,11 @@ async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userI
           openIn = p;
         } else {
           if (openIn !== null) {
-            const hours = (p.ts - openIn.ts) / 3600;
+            const checkIn = new Date(meckanoToUtcMs(openIn.raw));
+            const checkOut = new Date(meckanoToUtcMs(p.raw));
+            const hours = (checkOut.getTime() - checkIn.getTime()) / 3600000;
             if (hours <= MAX_SHIFT_HOURS) {
-              shifts.push({ meckEmp, date: openIn.date, checkIn: new Date(meckanoToUtcMs(openIn.raw)), checkOut: new Date(meckanoToUtcMs(p.raw)), hours });
+              shifts.push({ meckEmp, date: openIn.date, checkIn, checkOut, hours });
               openIn = null;
             } else {
               // Gap too large — treat the in as unpaired and drop the stray out

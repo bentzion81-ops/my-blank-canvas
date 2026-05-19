@@ -11,6 +11,7 @@ import { EmployeeAssignments } from "@/components/employees/EmployeeAssignments"
 import { EmployeeMonthlyHours } from "@/components/employees/EmployeeMonthlyHours";
 import { EmployeeAttendanceReport } from "@/components/employees/EmployeeAttendanceReport";
 import { EmployeeExpectedHours } from "@/components/employees/EmployeeExpectedHours";
+import { EmployeeAdditionalItems } from "@/components/employees/EmployeeAdditionalItems";
 import { WorkLogsTable } from "@/components/work-logs/WorkLogsTable";
 
 const EmployeeProfile = () => {
@@ -158,11 +159,7 @@ const EmployeeProfile = () => {
           </TabsContent>
 
           <TabsContent value="expenses">
-            <Card className="border-0 shadow-sm">
-              <CardContent className="py-12 text-center text-muted-foreground">
-                Expense & deduction history will appear here.
-              </CardContent>
-            </Card>
+            <EmployeeAdditionalItems employeeId={id!} />
           </TabsContent>
 
           <TabsContent value="documents">

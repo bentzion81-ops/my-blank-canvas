@@ -58,6 +58,30 @@ const Payroll = () => {
     },
   });
 
+  const { data: assignmentRates = [] } = useQuery({
+    queryKey: ["payroll-assignment-rates"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("employee_client_assignments")
+        .select("employee_id, client_id, employee_hourly_wage")
+        .not("employee_hourly_wage", "is", null);
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  const { data: additionalItems = [] } = useQuery({
+    queryKey: ["payroll-additional-items", fromStr],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("employee_additional_items" as any)
+        .select("*")
+        .or(`month.is.null,month.eq.${fromStr}`);
+      if (error) throw error;
+      return (data as any[]) || [];
+    },
+  });
+
   const { data: payments = [], refetch: refetchPayments } = useQuery({
     queryKey: ["payroll-payments", fromStr, toStr],
     queryFn: async () => {
@@ -70,6 +94,14 @@ const Payroll = () => {
       return data || [];
     },
   });
+
+  const rateMap = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const a of assignmentRates as any[]) {
+      m.set(`${a.employee_id}|${a.client_id}`, Number(a.employee_hourly_wage));
+    }
+    return m;
+  }, [assignmentRates]);
 
   const rows = useMemo(() => {
     return employees.map((emp: any) => {

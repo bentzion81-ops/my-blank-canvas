@@ -63,7 +63,7 @@ const Payroll = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("employee_client_assignments")
-        .select("employee_id, client_id, employee_hourly_wage")
+        .select("employee_id, client_id, employee_hourly_wage, is_primary, start_date")
         .not("employee_hourly_wage", "is", null);
       if (error) throw error;
       return data || [];
@@ -103,6 +103,19 @@ const Payroll = () => {
     return m;
   }, [assignmentRates]);
 
+  // Fallback rate per employee (primary assignment, else any assignment with a rate)
+  const employeeFallbackRate = useMemo(() => {
+    const m = new Map<string, number>();
+    const sorted = [...(assignmentRates as any[])].sort((a, b) => {
+      if (a.is_primary !== b.is_primary) return a.is_primary ? -1 : 1;
+      return (b.start_date || "").localeCompare(a.start_date || "");
+    });
+    for (const a of sorted) {
+      if (!m.has(a.employee_id)) m.set(a.employee_id, Number(a.employee_hourly_wage));
+    }
+    return m;
+  }, [assignmentRates]);
+
   const rows = useMemo(() => {
     return employees.map((emp: any) => {
       // Group hours/pay by site for this employee
@@ -118,10 +131,12 @@ const Payroll = () => {
         const h = Number(l.hours_worked) || 0;
         const pay = Number(l.payment_amount) || 0;
         totalHours += h;
-        // Rate precedence: per-assignment override > log payment_amount > employee default
-        const assignmentRate = l.client_id ? rateMap.get(`${emp.id}|${l.client_id}`) : undefined;
-        const lineGross = assignmentRate != null
-          ? h * assignmentRate
+        // Rate precedence: per-(employee,client) override > employee-level override (any assignment with a custom rate) > log payment_amount > employee default
+        const directRate = l.client_id ? rateMap.get(`${emp.id}|${l.client_id}`) : undefined;
+        const fallbackRate = employeeFallbackRate.get(emp.id);
+        const overrideRate = directRate ?? fallbackRate;
+        const lineGross = overrideRate != null
+          ? h * overrideRate
           : (pay > 0 ? pay : h * Number(emp.hourly_wage || 0));
         grossFromLogs += lineGross;
         const cur = sites.get(key) || { name, hours: 0, gross: 0, sources: new Set() };
@@ -167,7 +182,7 @@ const Payroll = () => {
         items: empItems,
       };
     }).filter((r) => r.totalHours > 0 || r.paid > 0 || r.expenses > 0 || r.deductions > 0);
-  }, [employees, logs, payments, rateMap, additionalItems]);
+  }, [employees, logs, payments, rateMap, employeeFallbackRate, additionalItems]);
 
   const totals = useMemo(() => ({
     hours: rows.reduce((s, r) => s + r.totalHours, 0),

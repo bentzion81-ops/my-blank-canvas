@@ -38,7 +38,7 @@ const Payroll = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("employees")
-        .select("id, first_name, last_name, hourly_wage, transportation, medical_insurance, food, other_expenses, rent_deduction, loan_deduction, equipment_deduction, other_deductions, status")
+        .select("id, first_name, last_name, passport_number, hourly_wage, transportation, medical_insurance, food, other_expenses, rent_deduction, loan_deduction, equipment_deduction, other_deductions, status")
         .order("first_name");
       if (error) throw error;
       return data || [];

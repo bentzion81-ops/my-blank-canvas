@@ -131,10 +131,12 @@ const Payroll = () => {
         const h = Number(l.hours_worked) || 0;
         const pay = Number(l.payment_amount) || 0;
         totalHours += h;
-        // Rate precedence: per-assignment override > log payment_amount > employee default
-        const assignmentRate = l.client_id ? rateMap.get(`${emp.id}|${l.client_id}`) : undefined;
-        const lineGross = assignmentRate != null
-          ? h * assignmentRate
+        // Rate precedence: per-(employee,client) override > employee-level override (any assignment with a custom rate) > log payment_amount > employee default
+        const directRate = l.client_id ? rateMap.get(`${emp.id}|${l.client_id}`) : undefined;
+        const fallbackRate = employeeFallbackRate.get(emp.id);
+        const overrideRate = directRate ?? fallbackRate;
+        const lineGross = overrideRate != null
+          ? h * overrideRate
           : (pay > 0 ? pay : h * Number(emp.hourly_wage || 0));
         grossFromLogs += lineGross;
         const cur = sites.get(key) || { name, hours: 0, gross: 0, sources: new Set() };

@@ -103,6 +103,19 @@ const Payroll = () => {
     return m;
   }, [assignmentRates]);
 
+  // Fallback rate per employee (primary assignment, else any assignment with a rate)
+  const employeeFallbackRate = useMemo(() => {
+    const m = new Map<string, number>();
+    const sorted = [...(assignmentRates as any[])].sort((a, b) => {
+      if (a.is_primary !== b.is_primary) return a.is_primary ? -1 : 1;
+      return (b.start_date || "").localeCompare(a.start_date || "");
+    });
+    for (const a of sorted) {
+      if (!m.has(a.employee_id)) m.set(a.employee_id, Number(a.employee_hourly_wage));
+    }
+    return m;
+  }, [assignmentRates]);
+
   const rows = useMemo(() => {
     return employees.map((emp: any) => {
       // Group hours/pay by site for this employee

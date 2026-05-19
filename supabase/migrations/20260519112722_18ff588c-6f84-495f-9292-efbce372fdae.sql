@@ -1,0 +1,1 @@
+DELETE FROM attendance_records WHERE employee_id='c6467df9-dc78-43ae-847a-1d2b56d25fa3' AND date BETWEEN '2026-04-01' AND '2026-04-30';

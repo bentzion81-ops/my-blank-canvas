@@ -1841,7 +1841,7 @@ export type Database = {
       }
       ensure_employee_from_replacement: {
         Args: { _report_id: string }
-        Returns: string
+        Returns: undefined
       }
       has_permission: {
         Args: { _permission: string; _user_id: string }

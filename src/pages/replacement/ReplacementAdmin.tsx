@@ -398,47 +398,11 @@ function useClients() {
   return clients;
 }
 
-function BulkBar({ reports, selectedIds, setSelectedIds, onChanged }: { reports: Report[]; selectedIds: Set<string>; setSelectedIds: (s: Set<string>) => void; onChanged: () => void }) {
-  const { user } = useAuth();
-  const [busy, setBusy] = useState(false);
-  const [rejectOpen, setRejectOpen] = useState(false);
-  const [reason, setReason] = useState("");
+function BulkBar({ reports, selectedIds, setSelectedIds, onChanged, clients }: { reports: Report[]; selectedIds: Set<string>; setSelectedIds: (s: Set<string>) => void; onChanged: () => void; clients: Client[] }) {
+  const [open, setOpen] = useState(false);
   const count = selectedIds.size;
   if (count === 0) return null;
-
   const selectedReports = reports.filter((r) => selectedIds.has(r.id));
-
-  const approveAll = async () => {
-    const missing = selectedReports.filter((r) => !r.assigned_client_id);
-    if (missing.length > 0) {
-      return toast.error(`${missing.length} דיווחים ללא לקוח משויך - יש לפתוח ולשייך לקוח לפני אישור קבוצתי`);
-    }
-    setBusy(true);
-    const { error } = await supabase
-      .from("replacement_reports")
-      .update({ status: "approved", approved_at: new Date().toISOString(), approved_by: user?.id, rejection_reason: null })
-      .in("id", Array.from(selectedIds));
-    setBusy(false);
-    if (error) return toast.error(error.message);
-    toast.success(`${count} דיווחים אושרו`);
-    setSelectedIds(new Set());
-    onChanged();
-  };
-
-  const rejectAll = async () => {
-    setBusy(true);
-    const { error } = await supabase
-      .from("replacement_reports")
-      .update({ status: "rejected", rejection_reason: reason.trim() || null })
-      .in("id", Array.from(selectedIds));
-    setBusy(false);
-    if (error) return toast.error(error.message);
-    toast.success(`${count} דיווחים נדחו`);
-    setSelectedIds(new Set());
-    setRejectOpen(false);
-    setReason("");
-    onChanged();
-  };
 
   return (
     <>
@@ -446,28 +410,236 @@ function BulkBar({ reports, selectedIds, setSelectedIds, onChanged }: { reports:
         <span className="text-sm font-medium">{count} נבחרו</span>
         <div className="ml-auto flex gap-2">
           <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())}>נקה</Button>
-          <Button size="sm" variant="destructive" onClick={() => setRejectOpen(true)} disabled={busy}>דחה הכל</Button>
-          <Button size="sm" onClick={approveAll} disabled={busy}>
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "אשר הכל"}
-          </Button>
+          <Button size="sm" onClick={() => setOpen(true)}>פתח לעריכה ואישור / דחייה</Button>
         </div>
       </div>
-      <Dialog open={rejectOpen} onOpenChange={setRejectOpen}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>דחיית {count} דיווחים</DialogTitle></DialogHeader>
-          <div className="space-y-2">
-            <Label>סיבת דחייה (אופציונלי)</Label>
-            <Textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} />
-          </div>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setRejectOpen(false)}>ביטול</Button>
-            <Button variant="destructive" onClick={rejectAll} disabled={busy}>
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "דחה"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {open && (
+        <BulkEditDialog
+          reports={selectedReports}
+          clients={clients}
+          open={open}
+          onClose={() => setOpen(false)}
+          onDone={() => { setOpen(false); setSelectedIds(new Set()); onChanged(); }}
+        />
+      )}
     </>
+  );
+}
+
+function BulkEditDialog({ reports, clients, open, onClose, onDone }: { reports: Report[]; clients: Client[]; open: boolean; onClose: () => void; onDone: () => void }) {
+  const { user } = useAuth();
+  const count = reports.length;
+  const [busy, setBusy] = useState(false);
+
+  // Fields + per-section apply toggles
+  const [applyDate, setApplyDate] = useState(false);
+  const [workDate, setWorkDate] = useState(reports[0]?.work_date || "");
+  const [applyHours, setApplyHours] = useState(false);
+  const [checkIn, setCheckIn] = useState(reports[0]?.check_in || "08:00");
+  const [checkOut, setCheckOut] = useState(reports[0]?.check_out || "17:00");
+  const [applyWage, setApplyWage] = useState(false);
+  const [wage, setWage] = useState(String(reports[0]?.hourly_wage ?? ""));
+  const [applyWorkplace, setApplyWorkplace] = useState(false);
+  const [workplaceDesc, setWorkplaceDesc] = useState(reports[0]?.workplace_description || "");
+  const [workplaceAddress, setWorkplaceAddress] = useState(reports[0]?.workplace_address || "");
+  const [mapsLink, setMapsLink] = useState(reports[0]?.maps_link || "");
+  const [applyNotes, setApplyNotes] = useState(false);
+  const [notes, setNotes] = useState("");
+  const [applyClient, setApplyClient] = useState(false);
+  const [clientId, setClientId] = useState("");
+  const [customName, setCustomName] = useState("");
+  const [reason, setReason] = useState("");
+
+  const computeHours = (ci: string, co: string) => {
+    const [h1, m1] = ci.split(":").map(Number);
+    const [h2, m2] = co.split(":").map(Number);
+    if ([h1, m1, h2, m2].some((n) => isNaN(n))) return 0;
+    let diff = (h2 * 60 + m2) - (h1 * 60 + m1);
+    if (diff < 0) diff += 24 * 60;
+    return diff / 60;
+  };
+
+  const buildPatchFor = (r: Report) => {
+    const patch: any = {};
+    if (applyDate) patch.work_date = workDate;
+    const finalCheckIn = applyHours ? checkIn : r.check_in;
+    const finalCheckOut = applyHours ? checkOut : r.check_out;
+    const finalWage = applyWage ? (parseFloat(wage) || 0) : Number(r.hourly_wage) || 0;
+    if (applyHours) {
+      patch.check_in = checkIn;
+      patch.check_out = checkOut;
+    }
+    if (applyWage) patch.hourly_wage = finalWage;
+    if (applyHours || applyWage) {
+      const hrs = computeHours(finalCheckIn, finalCheckOut);
+      patch.total_hours = hrs;
+      patch.total_payment = hrs * finalWage;
+    }
+    if (applyWorkplace) {
+      patch.workplace_description = workplaceDesc.trim();
+      patch.workplace_address = workplaceAddress.trim() || null;
+      patch.maps_link = mapsLink.trim() || null;
+    }
+    if (applyNotes) patch.notes = notes.trim() || null;
+    return patch;
+  };
+
+  const resolveClientId = async (): Promise<string | null | "skip"> => {
+    if (!applyClient) return "skip";
+    if (clientId) return clientId;
+    if (customName.trim()) {
+      const { data, error } = await supabase
+        .from("clients")
+        .insert({
+          name: customName.trim(),
+          address: applyWorkplace ? (workplaceAddress.trim() || null) : null,
+          google_maps_link: applyWorkplace ? (mapsLink.trim() || null) : null,
+          billing_type: "hourly",
+          hourly_rate: 0,
+          status: "active",
+          client_type: "business",
+        })
+        .select("id")
+        .single();
+      if (error) { toast.error("שגיאה ביצירת לקוח: " + error.message); return null; }
+      toast.success(`נוצר לקוח חדש: ${customName.trim()}`);
+      return data.id;
+    }
+    return "skip";
+  };
+
+  const apply = async (status?: "approved" | "rejected" | "needs_clarification") => {
+    setBusy(true);
+    const resolvedClient = await resolveClientId();
+    if (resolvedClient === null) { setBusy(false); return; }
+
+    if (status === "approved") {
+      // Need a client on every row: either applied via bulk or pre-existing
+      const willHaveClient = (r: Report) =>
+        (resolvedClient && resolvedClient !== "skip") || !!r.assigned_client_id;
+      const missing = reports.filter((r) => !willHaveClient(r));
+      if (missing.length > 0) {
+        setBusy(false);
+        return toast.error(`${missing.length} דיווחים ללא לקוח - סמן "שייך ללקוח" ובחר לקוח כדי לאשר את כולם`);
+      }
+    }
+
+    // Apply per-row (each may differ in calc baselines)
+    for (const r of reports) {
+      const patch = buildPatchFor(r);
+      if (resolvedClient && resolvedClient !== "skip") {
+        patch.assigned_client_id = resolvedClient;
+        patch.assigned_custom_workplace = null;
+      }
+      if (status === "approved") {
+        patch.status = "approved";
+        patch.approved_at = new Date().toISOString();
+        patch.approved_by = user?.id;
+        patch.rejection_reason = null;
+      } else if (status === "rejected") {
+        patch.status = "rejected";
+        patch.rejection_reason = reason.trim() || null;
+      } else if (status === "needs_clarification") {
+        patch.status = "needs_clarification";
+      }
+      if (Object.keys(patch).length === 0) continue;
+      const { error } = await supabase.from("replacement_reports").update(patch).eq("id", r.id);
+      if (error) { setBusy(false); return toast.error(error.message); }
+    }
+    setBusy(false);
+    toast.success(
+      status === "approved" ? `${count} אושרו`
+      : status === "rejected" ? `${count} נדחו`
+      : status === "needs_clarification" ? `${count} סומנו לבירור`
+      : `${count} עודכנו`
+    );
+    onDone();
+  };
+
+  const Toggle = ({ checked, onCheckedChange, label }: { checked: boolean; onCheckedChange: (v: boolean) => void; label: string }) => (
+    <label className="flex items-center gap-2 text-xs font-medium cursor-pointer">
+      <Checkbox checked={checked} onCheckedChange={(v) => onCheckedChange(!!v)} />
+      <span>{label}</span>
+    </label>
+  );
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>עריכה ואישור קבוצתי — {count} דיווחים</DialogTitle>
+          <p className="text-xs text-muted-foreground">סמן רק שדות שברצונך להחיל על כל הדיווחים הנבחרים. שדות שלא מסומנים יישארו כפי שהיו בכל שורה.</p>
+        </DialogHeader>
+
+        <div className="grid gap-4 text-sm">
+          <section className="space-y-2 border rounded-lg p-3">
+            <Toggle checked={applyDate} onCheckedChange={setApplyDate} label="החל תאריך אחיד" />
+            {applyDate && <Input type="date" value={workDate} onChange={(e) => setWorkDate(e.target.value)} />}
+          </section>
+
+          <section className="space-y-2 border rounded-lg p-3">
+            <Toggle checked={applyHours} onCheckedChange={setApplyHours} label="החל שעות כניסה/יציאה אחידות" />
+            {applyHours && (
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1"><Label>כניסה</Label><Input type="time" value={checkIn} onChange={(e) => setCheckIn(e.target.value)} /></div>
+                <div className="space-y-1"><Label>יציאה</Label><Input type="time" value={checkOut} onChange={(e) => setCheckOut(e.target.value)} /></div>
+              </div>
+            )}
+            <Toggle checked={applyWage} onCheckedChange={setApplyWage} label="החל שכר/שעה אחיד" />
+            {applyWage && <Input type="number" step="0.01" value={wage} onChange={(e) => setWage(e.target.value)} placeholder="שכר לשעה" />}
+          </section>
+
+          <section className="space-y-2 border rounded-lg p-3">
+            <Toggle checked={applyWorkplace} onCheckedChange={setApplyWorkplace} label="החל פרטי מקום עבודה" />
+            {applyWorkplace && (
+              <div className="space-y-2">
+                <Input value={workplaceDesc} onChange={(e) => setWorkplaceDesc(e.target.value)} placeholder="תיאור" />
+                <Input value={workplaceAddress} onChange={(e) => setWorkplaceAddress(e.target.value)} placeholder="כתובת" />
+                <Input value={mapsLink} onChange={(e) => setMapsLink(e.target.value)} placeholder="קישור למפה" />
+              </div>
+            )}
+          </section>
+
+          <section className="space-y-2 border rounded-lg p-3">
+            <Toggle checked={applyNotes} onCheckedChange={setApplyNotes} label="החל הערות אחידות" />
+            {applyNotes && <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />}
+          </section>
+
+          <section className="space-y-2 border rounded-lg p-3">
+            <Toggle checked={applyClient} onCheckedChange={setApplyClient} label="שייך את כולם ללקוח" />
+            {applyClient && (
+              <div className="space-y-2">
+                <Select value={clientId} onValueChange={(v) => { setClientId(v); setCustomName(""); }}>
+                  <SelectTrigger><SelectValue placeholder="בחר לקוח קיים..." /></SelectTrigger>
+                  <SelectContent>
+                    {clients.map((c) => (<SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>))}
+                  </SelectContent>
+                </Select>
+                <div className="text-xs text-center text-muted-foreground">— או —</div>
+                <Input value={customName} onChange={(e) => { setCustomName(e.target.value); setClientId(""); }} placeholder="שם לקוח חדש (ייווצר אוטומטית)" />
+              </div>
+            )}
+          </section>
+
+          <section className="space-y-2 border rounded-lg p-3">
+            <Label className="text-xs">סיבת דחייה (אם דוחה)</Label>
+            <Textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={2} />
+          </section>
+        </div>
+
+        <DialogFooter className="gap-2 flex-wrap">
+          <Button variant="ghost" onClick={onClose} disabled={busy}>סגור</Button>
+          <Button variant="secondary" onClick={() => apply()} disabled={busy}>
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "שמור שינויים בלבד"}
+          </Button>
+          <Button variant="outline" onClick={() => apply("needs_clarification")} disabled={busy}>סמן לבירור</Button>
+          <Button variant="destructive" onClick={() => apply("rejected")} disabled={busy}>דחה הכל</Button>
+          <Button onClick={() => apply("approved")} disabled={busy}>
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "אשר הכל"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

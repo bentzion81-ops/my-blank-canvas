@@ -690,7 +690,7 @@ function PendingTab() {
         {loading ? <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin" /></div> :
           reports.length === 0 ? <p className="text-muted-foreground text-center py-6">אין דיווחים ממתינים</p> :
             <>
-              <BulkBar reports={reports} selectedIds={selectedIds} setSelectedIds={setSelectedIds} onChanged={load} />
+              <BulkBar reports={reports} selectedIds={selectedIds} setSelectedIds={setSelectedIds} onChanged={load} clients={clients} />
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -778,7 +778,7 @@ function AllReportsTab() {
       <CardContent>
         {loading ? <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin" /></div> :
           <>
-            <BulkBar reports={filtered} selectedIds={selectedIds} setSelectedIds={setSelectedIds} onChanged={load} />
+            <BulkBar reports={filtered} selectedIds={selectedIds} setSelectedIds={setSelectedIds} onChanged={load} clients={clients} />
             <Table>
               <TableHeader>
                 <TableRow>

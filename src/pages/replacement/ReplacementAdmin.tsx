@@ -546,6 +546,7 @@ function AllReportsTab() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [sortBy, setSortBy] = useState<"created_desc" | "created_asc" | "work_desc" | "work_asc">("created_desc");
   const clients = useClients();
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const load = async () => {
     setLoading(true);
@@ -555,9 +556,16 @@ function AllReportsTab() {
     if (statusFilter !== "all") q = q.eq("status", statusFilter as any);
     const { data } = await q;
     setReports((data as Report[]) || []);
+    setSelectedIds(new Set());
     setLoading(false);
   };
   useEffect(() => { load(); }, [statusFilter, sortBy]);
+
+  const toggle = (id: string) => {
+    const n = new Set(selectedIds);
+    if (n.has(id)) n.delete(id); else n.add(id);
+    setSelectedIds(n);
+  };
 
   const filtered = reports.filter((r) =>
     !search.trim() ||

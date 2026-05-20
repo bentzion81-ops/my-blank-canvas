@@ -489,6 +489,7 @@ function SelectAllHeader({ reports, selectedIds, setSelectedIds }: { reports: Re
 function PendingTab() {
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const clients = useClients();
 
   const load = async () => {
@@ -499,9 +500,16 @@ function PendingTab() {
       .in("status", ["pending", "needs_clarification"])
       .order("created_at", { ascending: false });
     setReports((data as Report[]) || []);
+    setSelectedIds(new Set());
     setLoading(false);
   };
   useEffect(() => { load(); }, []);
+
+  const toggle = (id: string) => {
+    const n = new Set(selectedIds);
+    if (n.has(id)) n.delete(id); else n.add(id);
+    setSelectedIds(n);
+  };
 
   return (
     <Card>
@@ -509,18 +517,22 @@ function PendingTab() {
       <CardContent>
         {loading ? <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin" /></div> :
           reports.length === 0 ? <p className="text-muted-foreground text-center py-6">אין דיווחים ממתינים</p> :
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>תאריך</TableHead><TableHead>עובד</TableHead><TableHead>דרכון</TableHead>
-                  <TableHead>שעות</TableHead><TableHead>סה"כ</TableHead><TableHead>מקום</TableHead>
-                  <TableHead>תשלום</TableHead><TableHead>סטטוס</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {reports.map((r) => <ReportRow key={r.id} r={r} clients={clients} onChanged={load} />)}
-              </TableBody>
-            </Table>
+            <>
+              <BulkBar reports={reports} selectedIds={selectedIds} setSelectedIds={setSelectedIds} onChanged={load} />
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <SelectAllHeader reports={reports} selectedIds={selectedIds} setSelectedIds={setSelectedIds} />
+                    <TableHead>תאריך</TableHead><TableHead>עובד</TableHead><TableHead>דרכון</TableHead>
+                    <TableHead>שעות</TableHead><TableHead>סה"כ</TableHead><TableHead>מקום</TableHead>
+                    <TableHead>תשלום</TableHead><TableHead>סטטוס</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {reports.map((r) => <ReportRow key={r.id} r={r} clients={clients} onChanged={load} selectable selected={selectedIds.has(r.id)} onToggleSelect={toggle} />)}
+                </TableBody>
+              </Table>
+            </>
         }
       </CardContent>
     </Card>

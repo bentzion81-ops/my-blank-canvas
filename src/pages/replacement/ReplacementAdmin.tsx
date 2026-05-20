@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { Loader2, MapPin, ChevronLeft, ChevronRight, ExternalLink, Copy, FileDown } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -118,7 +119,7 @@ export default function ReplacementAdmin() {
   );
 }
 
-function ReportRow({ r, clients, onChanged }: { r: Report; clients: Client[]; onChanged: () => void }) {
+function ReportRow({ r, clients, onChanged, selectable, selected, onToggleSelect }: { r: Report; clients: Client[]; onChanged: () => void; selectable?: boolean; selected?: boolean; onToggleSelect?: (id: string) => void }) {
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const [clientId, setClientId] = useState<string>(r.assigned_client_id || "");
@@ -265,6 +266,11 @@ function ReportRow({ r, clients, onChanged }: { r: Report; clients: Client[]; on
   return (
     <>
       <TableRow className="cursor-pointer" onClick={() => setOpen(true)}>
+        {selectable && (
+          <TableCell onClick={(e) => e.stopPropagation()} className="w-8">
+            <Checkbox checked={!!selected} onCheckedChange={() => onToggleSelect?.(r.id)} />
+          </TableCell>
+        )}
         <TableCell>{r.work_date}</TableCell>
         <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
           {new Date(r.created_at).toLocaleString("he-IL", { dateStyle: "short", timeStyle: "short" })}
@@ -392,9 +398,98 @@ function useClients() {
   return clients;
 }
 
+function BulkBar({ reports, selectedIds, setSelectedIds, onChanged }: { reports: Report[]; selectedIds: Set<string>; setSelectedIds: (s: Set<string>) => void; onChanged: () => void }) {
+  const { user } = useAuth();
+  const [busy, setBusy] = useState(false);
+  const [rejectOpen, setRejectOpen] = useState(false);
+  const [reason, setReason] = useState("");
+  const count = selectedIds.size;
+  if (count === 0) return null;
+
+  const selectedReports = reports.filter((r) => selectedIds.has(r.id));
+
+  const approveAll = async () => {
+    const missing = selectedReports.filter((r) => !r.assigned_client_id);
+    if (missing.length > 0) {
+      return toast.error(`${missing.length} דיווחים ללא לקוח משויך - יש לפתוח ולשייך לקוח לפני אישור קבוצתי`);
+    }
+    setBusy(true);
+    const { error } = await supabase
+      .from("replacement_reports")
+      .update({ status: "approved", approved_at: new Date().toISOString(), approved_by: user?.id, rejection_reason: null })
+      .in("id", Array.from(selectedIds));
+    setBusy(false);
+    if (error) return toast.error(error.message);
+    toast.success(`${count} דיווחים אושרו`);
+    setSelectedIds(new Set());
+    onChanged();
+  };
+
+  const rejectAll = async () => {
+    setBusy(true);
+    const { error } = await supabase
+      .from("replacement_reports")
+      .update({ status: "rejected", rejection_reason: reason.trim() || null })
+      .in("id", Array.from(selectedIds));
+    setBusy(false);
+    if (error) return toast.error(error.message);
+    toast.success(`${count} דיווחים נדחו`);
+    setSelectedIds(new Set());
+    setRejectOpen(false);
+    setReason("");
+    onChanged();
+  };
+
+  return (
+    <>
+      <div className="flex items-center gap-2 px-3 py-2 mb-3 rounded-lg bg-muted/60 border">
+        <span className="text-sm font-medium">{count} נבחרו</span>
+        <div className="ml-auto flex gap-2">
+          <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())}>נקה</Button>
+          <Button size="sm" variant="destructive" onClick={() => setRejectOpen(true)} disabled={busy}>דחה הכל</Button>
+          <Button size="sm" onClick={approveAll} disabled={busy}>
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "אשר הכל"}
+          </Button>
+        </div>
+      </div>
+      <Dialog open={rejectOpen} onOpenChange={setRejectOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>דחיית {count} דיווחים</DialogTitle></DialogHeader>
+          <div className="space-y-2">
+            <Label>סיבת דחייה (אופציונלי)</Label>
+            <Textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} />
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setRejectOpen(false)}>ביטול</Button>
+            <Button variant="destructive" onClick={rejectAll} disabled={busy}>
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "דחה"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+function SelectAllHeader({ reports, selectedIds, setSelectedIds }: { reports: Report[]; selectedIds: Set<string>; setSelectedIds: (s: Set<string>) => void }) {
+  const allSelected = reports.length > 0 && reports.every((r) => selectedIds.has(r.id));
+  return (
+    <TableHead className="w-8">
+      <Checkbox
+        checked={allSelected}
+        onCheckedChange={(v) => {
+          if (v) setSelectedIds(new Set(reports.map((r) => r.id)));
+          else setSelectedIds(new Set());
+        }}
+      />
+    </TableHead>
+  );
+}
+
 function PendingTab() {
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const clients = useClients();
 
   const load = async () => {
@@ -405,9 +500,16 @@ function PendingTab() {
       .in("status", ["pending", "needs_clarification"])
       .order("created_at", { ascending: false });
     setReports((data as Report[]) || []);
+    setSelectedIds(new Set());
     setLoading(false);
   };
   useEffect(() => { load(); }, []);
+
+  const toggle = (id: string) => {
+    const n = new Set(selectedIds);
+    if (n.has(id)) n.delete(id); else n.add(id);
+    setSelectedIds(n);
+  };
 
   return (
     <Card>
@@ -415,18 +517,22 @@ function PendingTab() {
       <CardContent>
         {loading ? <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin" /></div> :
           reports.length === 0 ? <p className="text-muted-foreground text-center py-6">אין דיווחים ממתינים</p> :
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>תאריך</TableHead><TableHead>עובד</TableHead><TableHead>דרכון</TableHead>
-                  <TableHead>שעות</TableHead><TableHead>סה"כ</TableHead><TableHead>מקום</TableHead>
-                  <TableHead>תשלום</TableHead><TableHead>סטטוס</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {reports.map((r) => <ReportRow key={r.id} r={r} clients={clients} onChanged={load} />)}
-              </TableBody>
-            </Table>
+            <>
+              <BulkBar reports={reports} selectedIds={selectedIds} setSelectedIds={setSelectedIds} onChanged={load} />
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <SelectAllHeader reports={reports} selectedIds={selectedIds} setSelectedIds={setSelectedIds} />
+                    <TableHead>תאריך</TableHead><TableHead>עובד</TableHead><TableHead>דרכון</TableHead>
+                    <TableHead>שעות</TableHead><TableHead>סה"כ</TableHead><TableHead>מקום</TableHead>
+                    <TableHead>תשלום</TableHead><TableHead>סטטוס</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {reports.map((r) => <ReportRow key={r.id} r={r} clients={clients} onChanged={load} selectable selected={selectedIds.has(r.id)} onToggleSelect={toggle} />)}
+                </TableBody>
+              </Table>
+            </>
         }
       </CardContent>
     </Card>
@@ -440,6 +546,7 @@ function AllReportsTab() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [sortBy, setSortBy] = useState<"created_desc" | "created_asc" | "work_desc" | "work_asc">("created_desc");
   const clients = useClients();
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const load = async () => {
     setLoading(true);
@@ -449,9 +556,16 @@ function AllReportsTab() {
     if (statusFilter !== "all") q = q.eq("status", statusFilter as any);
     const { data } = await q;
     setReports((data as Report[]) || []);
+    setSelectedIds(new Set());
     setLoading(false);
   };
   useEffect(() => { load(); }, [statusFilter, sortBy]);
+
+  const toggle = (id: string) => {
+    const n = new Set(selectedIds);
+    if (n.has(id)) n.delete(id); else n.add(id);
+    setSelectedIds(n);
+  };
 
   const filtered = reports.filter((r) =>
     !search.trim() ||
@@ -491,18 +605,22 @@ function AllReportsTab() {
       </CardHeader>
       <CardContent>
         {loading ? <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin" /></div> :
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>תאריך עבודה</TableHead><TableHead>דווח בתאריך</TableHead><TableHead>עובד</TableHead><TableHead>דרכון</TableHead>
-                <TableHead>שעות</TableHead><TableHead>סה"כ</TableHead><TableHead>מקום</TableHead>
-                <TableHead>תשלום</TableHead><TableHead>סטטוס</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.map((r) => <ReportRow key={r.id} r={r} clients={clients} onChanged={load} />)}
-            </TableBody>
-          </Table>}
+          <>
+            <BulkBar reports={filtered} selectedIds={selectedIds} setSelectedIds={setSelectedIds} onChanged={load} />
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <SelectAllHeader reports={filtered} selectedIds={selectedIds} setSelectedIds={setSelectedIds} />
+                  <TableHead>תאריך עבודה</TableHead><TableHead>דווח בתאריך</TableHead><TableHead>עובד</TableHead><TableHead>דרכון</TableHead>
+                  <TableHead>שעות</TableHead><TableHead>סה"כ</TableHead><TableHead>מקום</TableHead>
+                  <TableHead>תשלום</TableHead><TableHead>סטטוס</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filtered.map((r) => <ReportRow key={r.id} r={r} clients={clients} onChanged={load} selectable selected={selectedIds.has(r.id)} onToggleSelect={toggle} />)}
+              </TableBody>
+            </Table>
+          </>}
       </CardContent>
     </Card>
   );

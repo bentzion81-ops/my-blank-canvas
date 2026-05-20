@@ -119,7 +119,7 @@ export default function ReplacementAdmin() {
   );
 }
 
-function ReportRow({ r, clients, onChanged }: { r: Report; clients: Client[]; onChanged: () => void }) {
+function ReportRow({ r, clients, onChanged, selectable, selected, onToggleSelect }: { r: Report; clients: Client[]; onChanged: () => void; selectable?: boolean; selected?: boolean; onToggleSelect?: (id: string) => void }) {
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const [clientId, setClientId] = useState<string>(r.assigned_client_id || "");

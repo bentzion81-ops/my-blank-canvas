@@ -271,7 +271,7 @@ const Payroll = () => {
         if (ca !== cb) return ca.localeCompare(cb);
         return `${a.emp.first_name} ${a.emp.last_name}`.localeCompare(`${b.emp.first_name} ${b.emp.last_name}`);
       });
-  }, [employees, logs, payments, rateMap, employeeFallbackRate, additionalItems, search]);
+  }, [employees, extEmployees, logs, extLogs, payments, rateMap, employeeFallbackRate, additionalItems, search]);
 
   const totals = useMemo(() => ({
     hours: rows.reduce((s, r) => s + r.totalHours, 0),

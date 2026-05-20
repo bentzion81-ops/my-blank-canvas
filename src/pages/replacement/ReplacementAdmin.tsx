@@ -605,18 +605,22 @@ function AllReportsTab() {
       </CardHeader>
       <CardContent>
         {loading ? <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin" /></div> :
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>תאריך עבודה</TableHead><TableHead>דווח בתאריך</TableHead><TableHead>עובד</TableHead><TableHead>דרכון</TableHead>
-                <TableHead>שעות</TableHead><TableHead>סה"כ</TableHead><TableHead>מקום</TableHead>
-                <TableHead>תשלום</TableHead><TableHead>סטטוס</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.map((r) => <ReportRow key={r.id} r={r} clients={clients} onChanged={load} />)}
-            </TableBody>
-          </Table>}
+          <>
+            <BulkBar reports={filtered} selectedIds={selectedIds} setSelectedIds={setSelectedIds} onChanged={load} />
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <SelectAllHeader reports={filtered} selectedIds={selectedIds} setSelectedIds={setSelectedIds} />
+                  <TableHead>תאריך עבודה</TableHead><TableHead>דווח בתאריך</TableHead><TableHead>עובד</TableHead><TableHead>דרכון</TableHead>
+                  <TableHead>שעות</TableHead><TableHead>סה"כ</TableHead><TableHead>מקום</TableHead>
+                  <TableHead>תשלום</TableHead><TableHead>סטטוס</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filtered.map((r) => <ReportRow key={r.id} r={r} clients={clients} onChanged={load} selectable selected={selectedIds.has(r.id)} onToggleSelect={toggle} />)}
+              </TableBody>
+            </Table>
+          </>}
       </CardContent>
     </Card>
   );

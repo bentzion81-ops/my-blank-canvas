@@ -139,8 +139,55 @@ const Payroll = () => {
     return primary?.clients?.name ?? "";
   };
 
+  // Build synthetic employees + logs for external workers (link reports) not in employees
+  const { extEmployees, extLogs } = useMemo(() => {
+    const passportToEmp = new Map<string, any>();
+    for (const e of employees as any[]) {
+      if (e.passport_number) passportToEmp.set(String(e.passport_number).trim(), e);
+    }
+    const synth = new Map<string, any>();
+    const synthLogs: any[] = [];
+    for (const r of extReports as any[]) {
+      const passport = String(r.passport_number || "").trim();
+      if (passport && passportToEmp.has(passport)) continue; // already covered
+      const key = r.worker_id || passport || r.worker_name;
+      if (!synth.has(key)) {
+        const parts = String(r.worker_name || "").trim().split(/\s+/);
+        synth.set(key, {
+          id: r.worker_id || `ext-${key}`,
+          first_name: parts[0] || r.worker_name || "External",
+          last_name: parts.slice(1).join(" "),
+          passport_number: r.passport_number,
+          israeli_phone: null,
+          foreign_phone: null,
+          hourly_wage: Number(r.hourly_wage || 0),
+          transportation: 0, medical_insurance: 0, food: 0, other_expenses: 0,
+          rent_deduction: 0, loan_deduction: 0, equipment_deduction: 0, other_deductions: 0,
+          status: "active",
+          employee_client_assignments: [],
+          __external: true,
+        });
+      }
+      const emp = synth.get(key);
+      synthLogs.push({
+        employee_id: emp.id,
+        client_id: r.assigned_client_id,
+        client_name: r.clients?.name || null,
+        custom_workplace: r.assigned_custom_workplace,
+        source: "worker_form",
+        hours_worked: Number(r.total_hours || 0),
+        payment_amount: Number(r.total_payment || 0),
+        status: "approved",
+        work_date: r.work_date,
+      });
+    }
+    return { extEmployees: Array.from(synth.values()), extLogs: synthLogs };
+  }, [employees, extReports]);
+
   const rows = useMemo(() => {
-    const computed = employees.map((emp: any) => {
+    const allEmployees = [...employees, ...extEmployees];
+    const allLogs = [...logs, ...extLogs];
+    const computed = allEmployees.map((emp: any) => {
       // Group hours/pay by site for this employee
       const empLogs = logs.filter(
         (l: any) => l.employee_id === emp.id && l.status !== "rejected" && l.status !== "no_show"

@@ -266,6 +266,11 @@ function ReportRow({ r, clients, onChanged, selectable, selected, onToggleSelect
   return (
     <>
       <TableRow className="cursor-pointer" onClick={() => setOpen(true)}>
+        {selectable && (
+          <TableCell onClick={(e) => e.stopPropagation()} className="w-8">
+            <Checkbox checked={!!selected} onCheckedChange={() => onToggleSelect?.(r.id)} />
+          </TableCell>
+        )}
         <TableCell>{r.work_date}</TableCell>
         <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
           {new Date(r.created_at).toLocaleString("he-IL", { dateStyle: "short", timeStyle: "short" })}

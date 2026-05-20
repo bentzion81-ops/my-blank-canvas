@@ -59,6 +59,21 @@ const Payroll = () => {
     },
   });
 
+  // External workers from replacement reports who don't have a matching employee record
+  const { data: extReports = [] } = useQuery({
+    queryKey: ["payroll-ext-reports", fromStr, toStr],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("replacement_reports")
+        .select("worker_id, worker_name, passport_number, work_date, total_hours, total_payment, hourly_wage, assigned_client_id, assigned_custom_workplace, status, clients:assigned_client_id(name)")
+        .gte("work_date", fromStr)
+        .lte("work_date", toStr)
+        .eq("status", "approved");
+      if (error) throw error;
+      return (data as any[]) || [];
+    },
+  });
+
   const { data: assignmentRates = [] } = useQuery({
     queryKey: ["payroll-assignment-rates"],
     queryFn: async () => {

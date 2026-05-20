@@ -398,6 +398,94 @@ function useClients() {
   return clients;
 }
 
+function BulkBar({ reports, selectedIds, setSelectedIds, onChanged }: { reports: Report[]; selectedIds: Set<string>; setSelectedIds: (s: Set<string>) => void; onChanged: () => void }) {
+  const { user } = useAuth();
+  const [busy, setBusy] = useState(false);
+  const [rejectOpen, setRejectOpen] = useState(false);
+  const [reason, setReason] = useState("");
+  const count = selectedIds.size;
+  if (count === 0) return null;
+
+  const selectedReports = reports.filter((r) => selectedIds.has(r.id));
+
+  const approveAll = async () => {
+    const missing = selectedReports.filter((r) => !r.assigned_client_id);
+    if (missing.length > 0) {
+      return toast.error(`${missing.length} דיווחים ללא לקוח משויך - יש לפתוח ולשייך לקוח לפני אישור קבוצתי`);
+    }
+    setBusy(true);
+    const { error } = await supabase
+      .from("replacement_reports")
+      .update({ status: "approved", approved_at: new Date().toISOString(), approved_by: user?.id, rejection_reason: null })
+      .in("id", Array.from(selectedIds));
+    setBusy(false);
+    if (error) return toast.error(error.message);
+    toast.success(`${count} דיווחים אושרו`);
+    setSelectedIds(new Set());
+    onChanged();
+  };
+
+  const rejectAll = async () => {
+    setBusy(true);
+    const { error } = await supabase
+      .from("replacement_reports")
+      .update({ status: "rejected", rejection_reason: reason.trim() || null })
+      .in("id", Array.from(selectedIds));
+    setBusy(false);
+    if (error) return toast.error(error.message);
+    toast.success(`${count} דיווחים נדחו`);
+    setSelectedIds(new Set());
+    setRejectOpen(false);
+    setReason("");
+    onChanged();
+  };
+
+  return (
+    <>
+      <div className="flex items-center gap-2 px-3 py-2 mb-3 rounded-lg bg-muted/60 border">
+        <span className="text-sm font-medium">{count} נבחרו</span>
+        <div className="ml-auto flex gap-2">
+          <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())}>נקה</Button>
+          <Button size="sm" variant="destructive" onClick={() => setRejectOpen(true)} disabled={busy}>דחה הכל</Button>
+          <Button size="sm" onClick={approveAll} disabled={busy}>
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "אשר הכל"}
+          </Button>
+        </div>
+      </div>
+      <Dialog open={rejectOpen} onOpenChange={setRejectOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>דחיית {count} דיווחים</DialogTitle></DialogHeader>
+          <div className="space-y-2">
+            <Label>סיבת דחייה (אופציונלי)</Label>
+            <Textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} />
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setRejectOpen(false)}>ביטול</Button>
+            <Button variant="destructive" onClick={rejectAll} disabled={busy}>
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "דחה"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+function SelectAllHeader({ reports, selectedIds, setSelectedIds }: { reports: Report[]; selectedIds: Set<string>; setSelectedIds: (s: Set<string>) => void }) {
+  const allSelected = reports.length > 0 && reports.every((r) => selectedIds.has(r.id));
+  return (
+    <TableHead className="w-8">
+      <Checkbox
+        checked={allSelected}
+        onCheckedChange={(v) => {
+          if (v) setSelectedIds(new Set(reports.map((r) => r.id)));
+          else setSelectedIds(new Set());
+        }}
+      />
+    </TableHead>
+  );
+}
+
 function PendingTab() {
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);

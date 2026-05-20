@@ -190,7 +190,7 @@ const Payroll = () => {
     const computed = allEmployees.map((emp: any) => {
       // Group hours/pay by site for this employee
       const empLogs = allLogs.filter(
-        (l: any) => l.employee_id === emp.id && l.status !== "rejected" && l.status !== "no_show"
+        (l: any) => l.employee_id === emp.id && l.status === "approved"
       );
       const sites = new Map<string, { name: string; hours: number; gross: number; sources: Set<string> }>();
       let totalHours = 0;

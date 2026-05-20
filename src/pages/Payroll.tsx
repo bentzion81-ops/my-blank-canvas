@@ -407,9 +407,13 @@ const Payroll = () => {
                           <span className={r.balance > 0 ? "text-destructive" : "text-success"}>{fmt(r.balance)}</span>
                         </TableCell>
                         <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                          <Button size="sm" variant="outline" onClick={() => { setPayOpen({ employeeId: r.emp.id, employeeName: `${r.emp.first_name} ${r.emp.last_name}`, balance: r.balance }); setPayAmount(String(Math.max(0, Math.round(r.balance)))); }}>
-                            <Plus className="h-3 w-3 mr-1" /> Pay
-                          </Button>
+                          {r.emp.__external ? (
+                            <Badge variant="outline" className="text-[10px]">External — add to Employees to pay</Badge>
+                          ) : (
+                            <Button size="sm" variant="outline" onClick={() => { setPayOpen({ employeeId: r.emp.id, employeeName: `${r.emp.first_name} ${r.emp.last_name}`, balance: r.balance }); setPayAmount(String(Math.max(0, Math.round(r.balance)))); }}>
+                              <Plus className="h-3 w-3 mr-1" /> Pay
+                            </Button>
+                          )}
                         </TableCell>
                       </TableRow>
                       {isOpen && (

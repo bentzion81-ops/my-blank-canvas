@@ -404,8 +404,8 @@ const Payroll = () => {
                   <TableHead className="w-8"></TableHead>
                   <TableHead>Employee</TableHead>
                   <TableHead>ID / Passport</TableHead>
-                  <TableHead className="text-right">Total Hours</TableHead>
-                  <TableHead className="text-right">Total Due</TableHead>
+                  <TableHead className="text-right">Hours</TableHead>
+                  <TableHead className="text-right">Total Due / Site Gross</TableHead>
                   <TableHead className="text-right">Paid</TableHead>
                   <TableHead className="text-right">Balance</TableHead>
                   <TableHead></TableHead>

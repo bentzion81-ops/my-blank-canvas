@@ -187,12 +187,12 @@ const Payroll = () => {
   const rows = useMemo(() => {
     const allEmployees = [...employees, ...extEmployees];
     const allLogs = [...logs, ...extLogs];
+
     const computed = allEmployees.map((emp: any) => {
-      // Group hours/pay by site for this employee
       const empLogs = allLogs.filter(
         (l: any) => l.employee_id === emp.id && l.status === "approved"
       );
-      const sites = new Map<string, { name: string; hours: number; gross: number; sources: Set<string> }>();
+      const sites = new Map<string, { key: string; name: string; clientId: string | null; hours: number; gross: number; sources: Set<string> }>();
       let totalHours = 0;
       let grossFromLogs = 0;
       for (const l of empLogs) {
@@ -208,7 +208,7 @@ const Payroll = () => {
           ? h * overrideRate
           : (pay > 0 ? pay : h * Number(emp.hourly_wage || 0));
         grossFromLogs += lineGross;
-        const cur = sites.get(key) || { name, hours: 0, gross: 0, sources: new Set() };
+        const cur = sites.get(key) || { key, name, clientId: l.client_id || null, hours: 0, gross: 0, sources: new Set() };
         cur.hours += h;
         cur.gross += lineGross;
         cur.sources.add(l.source);
@@ -238,12 +238,17 @@ const Payroll = () => {
         .reduce((s: number, p: any) => s + Number(p.amount || 0), 0);
       const balance = totalDue - paid;
 
-      const clientName = getClientName(emp);
+      const sitesArr = Array.from(sites.values());
+      const primarySite = sitesArr.length
+        ? [...sitesArr].sort((a, b) => b.hours - a.hours)[0]
+        : null;
+      const fallbackName = getClientName(emp);
 
       return {
         emp,
-        clientName,
-        sites: Array.from(sites.values()),
+        sites: sitesArr,
+        primarySiteKey: primarySite?.key ?? `noop-${emp.id}`,
+        primarySiteName: primarySite?.name ?? (fallbackName || "Unassigned"),
         totalHours,
         grossFromLogs,
         expenses,
@@ -255,10 +260,46 @@ const Payroll = () => {
       };
     });
 
+    type SiteRow = {
+      emp: any;
+      siteKey: string;
+      siteName: string;
+      hoursAtSite: number;
+      grossAtSite: number;
+      isPrimary: boolean;
+      base: typeof computed[number];
+    };
+    const siteRows: SiteRow[] = [];
+    for (const r of computed) {
+      if (r.sites.length === 0) {
+        siteRows.push({
+          emp: r.emp,
+          siteKey: r.primarySiteKey,
+          siteName: r.primarySiteName,
+          hoursAtSite: 0,
+          grossAtSite: 0,
+          isPrimary: true,
+          base: r,
+        });
+        continue;
+      }
+      for (const s of r.sites) {
+        siteRows.push({
+          emp: r.emp,
+          siteKey: s.key,
+          siteName: s.name,
+          hoursAtSite: s.hours,
+          grossAtSite: s.gross,
+          isPrimary: s.key === r.primarySiteKey,
+          base: r,
+        });
+      }
+    }
+
     const q = search.toLowerCase();
-    return computed
+    return siteRows
       .filter((r) =>
-        `${r.emp.first_name} ${r.emp.last_name} ${r.emp.passport_number || ""} ${r.emp.israeli_phone || ""} ${r.clientName}`
+        `${r.emp.first_name} ${r.emp.last_name} ${r.emp.passport_number || ""} ${r.emp.israeli_phone || ""} ${r.siteName}`
           .toLowerCase()
           .includes(q),
       )
@@ -266,9 +307,10 @@ const Payroll = () => {
         const aInactive = a.emp.status === "inactive" ? 1 : 0;
         const bInactive = b.emp.status === "inactive" ? 1 : 0;
         if (aInactive !== bInactive) return aInactive - bInactive;
-        const ca = a.clientName || "\uffff";
-        const cb = b.clientName || "\uffff";
+        const ca = a.siteName || "\uffff";
+        const cb = b.siteName || "\uffff";
         if (ca !== cb) return ca.localeCompare(cb);
+        if (a.isPrimary !== b.isPrimary) return a.isPrimary ? -1 : 1;
         return `${a.emp.first_name} ${a.emp.last_name}`.localeCompare(`${b.emp.first_name} ${b.emp.last_name}`);
       });
   }, [employees, extEmployees, logs, extLogs, payments, rateMap, employeeFallbackRate, additionalItems, search]);

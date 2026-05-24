@@ -88,6 +88,7 @@ const ClientForm = () => {
         ...form,
         monthly_payment: Number(form.monthly_payment) || 0,
         hourly_rate: Number(form.hourly_rate) || 0,
+        payment_terms_days: Number(form.payment_terms_days) || 30,
         daily_planned_hours: Number(form.daily_planned_hours) || 0,
         friday_hours: Number(form.friday_hours) || 0,
         saturday_hours: Number(form.saturday_hours) || 0,

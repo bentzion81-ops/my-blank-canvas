@@ -234,8 +234,18 @@ const ClientForm = () => {
                 <Input type="number" value={form.hourly_rate} onChange={(e) => update("hourly_rate", e.target.value)} />
               </div>
             )}
+            <div className="space-y-1.5">
+              <Label>Payment Terms (days)</Label>
+              <Input type="number" value={form.payment_terms_days} onChange={(e) => update("payment_terms_days", e.target.value)} />
+            </div>
+            <div className="space-y-1.5 md:col-span-2">
+              <Label>Billing Notes</Label>
+              <Textarea value={form.billing_notes} onChange={(e) => update("billing_notes", e.target.value)} rows={2} />
+            </div>
           </CardContent>
         </Card>
+
+
 
         <Card className="border-0 shadow-sm">
           <CardHeader><CardTitle className="text-sm">Notes</CardTitle></CardHeader>

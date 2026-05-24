@@ -89,6 +89,11 @@ const dict: Dict = {
   phone: e("טלפון", "Phone", "දුරකථන", {
     hi: "फ़ोन", ta: "தொலைபேசி", bn: "ফোন", te: "ఫోన్", ml: "ഫോൺ", pa: "ਫ਼ੋਨ",
   }),
+  israeliPhone: e("טלפון ישראלי", "Israeli phone", "ඊශ්‍රායල දුරකථන"),
+  foreignPhone: e("טלפון זר", "Foreign phone", "විදේශ දුරකථන"),
+  phoneAtLeastOne: e("יש להזין לפחות מספר טלפון אחד (ישראלי או זר)", "Enter at least one phone number (Israeli or foreign)", "අවම වශයෙන් එක් දුරකථන අංකයක් ඇතුළත් කරන්න"),
+  invalidIsraeliPhone: e("מספר ישראלי חייב להתחיל ב-05 ולכלול 10 ספרות", "Israeli number must start with 05 and have 10 digits", "ඊශ්‍රායල අංකය 05 වලින් ආරම්භ විය යුතු අතර අංක 10ක් තිබිය යුතුය"),
+  invalidForeignPhone: e("מספר זר חייב להתחיל ב-+", "Foreign number must start with +", "විදේශ අංකය + වලින් ආරම්භ විය යුතුය"),
   language: e("שפה מועדפת", "Preferred language", "භාෂාව", {
     hi: "पसंदीदा भाषा", ta: "விருப்ப மொழி", bn: "পছন্দের ভাষা",
     te: "ఇష్టమైన భాష", ml: "ഇഷ്ടഭാഷ", pa: "ਪਸੰਦੀਦਾ ਭਾਸ਼ਾ",

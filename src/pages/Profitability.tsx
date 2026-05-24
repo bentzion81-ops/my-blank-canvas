@@ -65,7 +65,7 @@ const Profitability = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("work_logs_unified" as any)
-        .select("client_id, employee_id, hours_worked, status")
+        .select("client_id, employee_id, hours_worked, payment_amount, status")
         .gte("work_date", fromStr)
         .lte("work_date", toStr);
       if (error) throw error;

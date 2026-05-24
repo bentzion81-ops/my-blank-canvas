@@ -365,17 +365,31 @@ function RegisterStep({
         </div>
         <p className="text-xs text-muted-foreground">{t("englishOnly", lang)}</p>
         <div className="space-y-2">
-          <Label>{t("phone", lang)} *</Label>
+          <Label>{t("israeliPhone", lang)}</Label>
+          <Input
+            className="h-12 text-lg"
+            type="tel"
+            inputMode="numeric"
+            dir="ltr"
+            placeholder="05XXXXXXXX"
+            maxLength={10}
+            value={israeliPhone}
+            onChange={(e) => setIsraeliPhone(e.target.value.replace(/[^\d]/g, ""))}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>{t("foreignPhone", lang)}</Label>
           <Input
             className="h-12 text-lg"
             type="tel"
             inputMode="tel"
             dir="ltr"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            required
+            placeholder="+..."
+            value={foreignPhone}
+            onChange={(e) => setForeignPhone(e.target.value)}
           />
         </div>
+        <p className="text-xs text-muted-foreground">{t("phoneAtLeastOne", lang)}</p>
         <div className="space-y-2">
           <Label>{t("language", lang)}</Label>
           <Select value={pref} onValueChange={(v) => setPref(v as Lang)}>
@@ -390,7 +404,7 @@ function RegisterStep({
         <Button
           className="w-full h-12"
           onClick={submit}
-          disabled={loading || !firstName.trim() || !lastName.trim() || !phone.trim()}
+          disabled={loading || !firstName.trim() || !lastName.trim() || (!israeliPhone.trim() && !foreignPhone.trim())}
         >
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : t("register", lang)}
         </Button>

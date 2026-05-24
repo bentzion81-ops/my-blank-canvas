@@ -11,6 +11,7 @@ import { ClientEmployeesTab, ClientHoursAndBilling } from "@/components/clients/
 import { ClientWorkPlanningCard } from "@/components/clients/ClientWorkPlanningCard";
 import { WorkLogsTable } from "@/components/work-logs/WorkLogsTable";
 import { ClientApprovedReplacements } from "@/components/clients/ClientApprovedReplacements";
+import { ClientBillingHistory } from "@/components/clients/ClientBillingHistory";
 
 const ClientProfile = () => {
   const { id } = useParams();
@@ -137,11 +138,7 @@ const ClientProfile = () => {
           </TabsContent>
 
           <TabsContent value="billing">
-            <Card className="border-0 shadow-sm">
-              <CardContent className="py-12 text-center text-muted-foreground">
-                Billing and invoice data will appear here.
-              </CardContent>
-            </Card>
+            <ClientBillingHistory clientId={id!} />
           </TabsContent>
 
           <TabsContent value="documents">

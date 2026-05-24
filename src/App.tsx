@@ -17,6 +17,7 @@ import ClientForm from "./pages/ClientForm";
 import ClientProfile from "./pages/ClientProfile";
 import Billing from "./pages/Billing";
 import Payroll from "./pages/Payroll";
+import Profitability from "./pages/Profitability";
 import Reports from "./pages/Reports";
 import Documents from "./pages/Documents";
 import UserManagement from "./pages/UserManagement";
@@ -74,6 +75,7 @@ const App = () => (
               <Route path="/clients/:id/edit" element={<ClientForm />} />
               <Route path="/billing" element={<Billing />} />
               <Route path="/payroll" element={<Payroll />} />
+              <Route path="/profitability" element={<Profitability />} />
               <Route path="/reports" element={<Reports />} />
               <Route path="/documents" element={<Documents />} />
               <Route path="/replacement-hours" element={<ReplacementAdmin />} />

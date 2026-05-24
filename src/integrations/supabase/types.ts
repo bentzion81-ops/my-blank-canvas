@@ -411,6 +411,7 @@ export type Database = {
       clients: {
         Row: {
           address: string | null
+          billing_notes: string | null
           billing_type: Database["public"]["Enums"]["billing_type"]
           city: string | null
           client_type: Database["public"]["Enums"]["client_type"]
@@ -426,12 +427,14 @@ export type Database = {
           monthly_payment: number | null
           name: string
           notes: string | null
+          payment_terms_days: number
           saturday_hours: number | null
           status: Database["public"]["Enums"]["client_status"]
           updated_at: string
         }
         Insert: {
           address?: string | null
+          billing_notes?: string | null
           billing_type?: Database["public"]["Enums"]["billing_type"]
           city?: string | null
           client_type?: Database["public"]["Enums"]["client_type"]
@@ -447,12 +450,14 @@ export type Database = {
           monthly_payment?: number | null
           name: string
           notes?: string | null
+          payment_terms_days?: number
           saturday_hours?: number | null
           status?: Database["public"]["Enums"]["client_status"]
           updated_at?: string
         }
         Update: {
           address?: string | null
+          billing_notes?: string | null
           billing_type?: Database["public"]["Enums"]["billing_type"]
           city?: string | null
           client_type?: Database["public"]["Enums"]["client_type"]
@@ -468,6 +473,7 @@ export type Database = {
           monthly_payment?: number | null
           name?: string
           notes?: string | null
+          payment_terms_days?: number
           saturday_hours?: number | null
           status?: Database["public"]["Enums"]["client_status"]
           updated_at?: string
@@ -1862,6 +1868,10 @@ export type Database = {
       recheck_all_lateness: {
         Args: { _from_date: string; _to_date: string }
         Returns: number
+      }
+      refresh_client_monthly_metrics: {
+        Args: { _month: string }
+        Returns: undefined
       }
     }
     Enums: {

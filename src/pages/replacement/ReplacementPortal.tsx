@@ -261,7 +261,8 @@ function RegisterStep({
 }) {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
-  const [phone, setPhone] = useState("");
+  const [israeliPhone, setIsraeliPhone] = useState("");
+  const [foreignPhone, setForeignPhone] = useState("");
   const [pref, setPref] = useState<Lang>(lang);
   const [loading, setLoading] = useState(false);
 
@@ -269,23 +270,30 @@ function RegisterStep({
   const englishOnlyRegex = /^[A-Za-z\s'-]+$/;
   const sanitizeEnglish = (v: string) => v.replace(/[^A-Za-z\s'-]/g, "");
 
+  const israeliValid = (v: string) => /^05\d{8}$/.test(v);
+  const foreignValid = (v: string) => /^\+[0-9\s-]{6,}$/.test(v);
+
   const submit = async () => {
     const fn = firstName.trim();
     const ln = lastName.trim();
-    const ph = phone.trim();
+    const ilPh = israeliPhone.trim().replace(/[\s-]/g, "");
+    const frPh = foreignPhone.trim();
     if (!fn || !ln) return toast.error(t("required", lang));
     if (!englishOnlyRegex.test(fn) || !englishOnlyRegex.test(ln)) {
       return toast.error(t("englishOnly", lang));
     }
-    if (!ph) return toast.error(t("phoneRequired", lang));
+    if (!ilPh && !frPh) return toast.error(t("phoneAtLeastOne", lang));
+    if (ilPh && !israeliValid(ilPh)) return toast.error(t("invalidIsraeliPhone", lang));
+    if (frPh && !foreignValid(frPh)) return toast.error(t("invalidForeignPhone", lang));
     if (passport.trim().length < 8) return toast.error(t("passportMinLen", lang));
     setLoading(true);
+    const primaryPhone = ilPh || frPh;
     const { data, error } = await supabase
       .from("replacement_workers")
       .insert({
         full_name: `${fn} ${ln}`,
         passport_number: passport.trim(),
-        phone: ph,
+        phone: primaryPhone,
         preferred_language: pref,
       })
       .select()
@@ -307,7 +315,8 @@ function RegisterStep({
         first_name: fn,
         last_name: ln,
         passport_number: passport.trim(),
-        foreign_phone: ph,
+        israeli_phone: ilPh || null,
+        foreign_phone: frPh || null,
         employee_type: "temporary",
         status: "active",
         meckano_synced: false,
@@ -356,17 +365,31 @@ function RegisterStep({
         </div>
         <p className="text-xs text-muted-foreground">{t("englishOnly", lang)}</p>
         <div className="space-y-2">
-          <Label>{t("phone", lang)} *</Label>
+          <Label>{t("israeliPhone", lang)}</Label>
+          <Input
+            className="h-12 text-lg"
+            type="tel"
+            inputMode="numeric"
+            dir="ltr"
+            placeholder="05XXXXXXXX"
+            maxLength={10}
+            value={israeliPhone}
+            onChange={(e) => setIsraeliPhone(e.target.value.replace(/[^\d]/g, ""))}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>{t("foreignPhone", lang)}</Label>
           <Input
             className="h-12 text-lg"
             type="tel"
             inputMode="tel"
             dir="ltr"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            required
+            placeholder="+..."
+            value={foreignPhone}
+            onChange={(e) => setForeignPhone(e.target.value)}
           />
         </div>
+        <p className="text-xs text-muted-foreground">{t("phoneAtLeastOne", lang)}</p>
         <div className="space-y-2">
           <Label>{t("language", lang)}</Label>
           <Select value={pref} onValueChange={(v) => setPref(v as Lang)}>
@@ -381,7 +404,7 @@ function RegisterStep({
         <Button
           className="w-full h-12"
           onClick={submit}
-          disabled={loading || !firstName.trim() || !lastName.trim() || !phone.trim()}
+          disabled={loading || !firstName.trim() || !lastName.trim() || (!israeliPhone.trim() && !foreignPhone.trim())}
         >
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : t("register", lang)}
         </Button>

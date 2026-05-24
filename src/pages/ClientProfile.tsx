@@ -11,6 +11,7 @@ import { ClientEmployeesTab, ClientHoursAndBilling } from "@/components/clients/
 import { ClientWorkPlanningCard } from "@/components/clients/ClientWorkPlanningCard";
 import { WorkLogsTable } from "@/components/work-logs/WorkLogsTable";
 import { ClientApprovedReplacements } from "@/components/clients/ClientApprovedReplacements";
+import { ClientBillingHistory } from "@/components/clients/ClientBillingHistory";
 
 const ClientProfile = () => {
   const { id } = useParams();

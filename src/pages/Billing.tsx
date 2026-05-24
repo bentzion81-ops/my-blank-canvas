@@ -88,12 +88,13 @@ const Billing = () => {
   const rows = useMemo(() => {
     return clients.map((c: any) => {
       const hours = workLogs
-        .filter((l) => l.client_id === c.id && (l.status === "approved" || !l.status))
+        .filter((l) => l.client_id === c.id && l.status === "approved")
         .reduce((s, l) => s + Number(l.hours_worked || 0), 0);
 
-      const baseRevenue = c.billing_type === "fixed"
-        ? Number(c.monthly_payment || 0)
-        : hours * Number(c.hourly_rate || 0);
+      const rate = Number(c.hourly_rate || 0);
+      const baseRevenue = rate > 0
+        ? hours * rate
+        : Number(c.monthly_payment || 0);
 
       const additional = charges
         .filter((ch) => ch.client_id === c.id)

@@ -215,7 +215,7 @@ const Billing = () => {
     if (inv) {
       const newPaid = Number(inv.paid_amount || 0) + amount;
       const newBalance = Number(inv.amount || 0) - newPaid;
-      const newStatus = newBalance <= 0 ? "paid" : newPaid > 0 ? "partially_paid" : inv.status;
+      const newStatus = newBalance <= 0 ? "paid" : newPaid > 0 ? "partial" : inv.status;
       await supabase.from("invoices").update({
         paid_amount: newPaid,
         balance: newBalance,

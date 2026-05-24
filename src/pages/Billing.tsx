@@ -53,13 +53,39 @@ const Billing = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("work_logs_unified" as any)
-        .select("client_id, hours_worked, status")
+        .select("employee_id, client_id, hours_worked, status")
         .gte("work_date", fromStr)
         .lte("work_date", toStr);
       if (error) throw error;
       return (data as any[]) || [];
     },
   });
+
+  const { data: assignments = [] } = useQuery({
+    queryKey: ["billing-assignments"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("employee_client_assignments")
+        .select("employee_id, client_id, is_primary, start_date, end_date")
+        .not("client_id", "is", null);
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  const employeeAssignedClient = useMemo(() => {
+    const map = new Map<string, string>();
+    const sorted = [...(assignments as any[])].sort((a, b) => {
+      if (!!a.end_date !== !!b.end_date) return a.end_date ? 1 : -1;
+      if (a.is_primary !== b.is_primary) return a.is_primary ? -1 : 1;
+      return (b.start_date || "").localeCompare(a.start_date || "");
+    });
+    for (const a of sorted) {
+      if (!a.employee_id || !a.client_id || a.end_date || map.has(a.employee_id)) continue;
+      map.set(a.employee_id, a.client_id);
+    }
+    return map;
+  }, [assignments]);
 
   const { data: charges = [] } = useQuery({
     queryKey: ["billing-charges", fromStr],
@@ -88,7 +114,11 @@ const Billing = () => {
   const rows = useMemo(() => {
     return clients.map((c: any) => {
       const hours = workLogs
-        .filter((l) => l.client_id === c.id && l.status === "approved")
+        .filter((l) => {
+          if (l.status !== "approved") return false;
+          const resolvedClientId = l.client_id || employeeAssignedClient.get(l.employee_id);
+          return resolvedClientId === c.id;
+        })
         .reduce((s, l) => s + Number(l.hours_worked || 0), 0);
 
       const rate = Number(c.hourly_rate || 0);
@@ -130,7 +160,7 @@ const Billing = () => {
         invoice: clientInvoices[0],
       };
     }).filter((r) => r.totalDue > 0 || r.hours > 0);
-  }, [clients, workLogs, charges, invoices]);
+  }, [clients, workLogs, employeeAssignedClient, charges, invoices]);
 
   const totals = useMemo(() => ({
     due: rows.reduce((s, r) => s + r.totalDue, 0),

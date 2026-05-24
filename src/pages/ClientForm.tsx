@@ -64,6 +64,8 @@ const ClientForm = () => {
         billing_type: existing.billing_type || "fixed",
         monthly_payment: existing.monthly_payment || 0,
         hourly_rate: existing.hourly_rate || 0,
+        payment_terms_days: (existing as any).payment_terms_days ?? 30,
+        billing_notes: (existing as any).billing_notes || "",
         daily_planned_hours: existing.daily_planned_hours || 0,
         friday_hours: (existing as any).friday_hours || 0,
         saturday_hours: (existing as any).saturday_hours || 0,

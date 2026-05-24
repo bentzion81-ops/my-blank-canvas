@@ -23,6 +23,8 @@ const defaultForm = {
   billing_type: "fixed" as "fixed" | "hourly",
   monthly_payment: 0,
   hourly_rate: 0,
+  payment_terms_days: 30,
+  billing_notes: "",
   daily_planned_hours: 0,
   friday_hours: 0,
   saturday_hours: 0,

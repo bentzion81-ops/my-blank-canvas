@@ -187,12 +187,12 @@ const Payroll = () => {
   const rows = useMemo(() => {
     const allEmployees = [...employees, ...extEmployees];
     const allLogs = [...logs, ...extLogs];
+
     const computed = allEmployees.map((emp: any) => {
-      // Group hours/pay by site for this employee
       const empLogs = allLogs.filter(
         (l: any) => l.employee_id === emp.id && l.status === "approved"
       );
-      const sites = new Map<string, { name: string; hours: number; gross: number; sources: Set<string> }>();
+      const sites = new Map<string, { key: string; name: string; clientId: string | null; hours: number; gross: number; sources: Set<string> }>();
       let totalHours = 0;
       let grossFromLogs = 0;
       for (const l of empLogs) {
@@ -208,7 +208,7 @@ const Payroll = () => {
           ? h * overrideRate
           : (pay > 0 ? pay : h * Number(emp.hourly_wage || 0));
         grossFromLogs += lineGross;
-        const cur = sites.get(key) || { name, hours: 0, gross: 0, sources: new Set() };
+        const cur = sites.get(key) || { key, name, clientId: l.client_id || null, hours: 0, gross: 0, sources: new Set() };
         cur.hours += h;
         cur.gross += lineGross;
         cur.sources.add(l.source);
@@ -238,12 +238,17 @@ const Payroll = () => {
         .reduce((s: number, p: any) => s + Number(p.amount || 0), 0);
       const balance = totalDue - paid;
 
-      const clientName = getClientName(emp);
+      const sitesArr = Array.from(sites.values());
+      const primarySite = sitesArr.length
+        ? [...sitesArr].sort((a, b) => b.hours - a.hours)[0]
+        : null;
+      const fallbackName = getClientName(emp);
 
       return {
         emp,
-        clientName,
-        sites: Array.from(sites.values()),
+        sites: sitesArr,
+        primarySiteKey: primarySite?.key ?? `noop-${emp.id}`,
+        primarySiteName: primarySite?.name ?? (fallbackName || "Unassigned"),
         totalHours,
         grossFromLogs,
         expenses,
@@ -255,10 +260,46 @@ const Payroll = () => {
       };
     });
 
+    type SiteRow = {
+      emp: any;
+      siteKey: string;
+      siteName: string;
+      hoursAtSite: number;
+      grossAtSite: number;
+      isPrimary: boolean;
+      base: typeof computed[number];
+    };
+    const siteRows: SiteRow[] = [];
+    for (const r of computed) {
+      if (r.sites.length === 0) {
+        siteRows.push({
+          emp: r.emp,
+          siteKey: r.primarySiteKey,
+          siteName: r.primarySiteName,
+          hoursAtSite: 0,
+          grossAtSite: 0,
+          isPrimary: true,
+          base: r,
+        });
+        continue;
+      }
+      for (const s of r.sites) {
+        siteRows.push({
+          emp: r.emp,
+          siteKey: s.key,
+          siteName: s.name,
+          hoursAtSite: s.hours,
+          grossAtSite: s.gross,
+          isPrimary: s.key === r.primarySiteKey,
+          base: r,
+        });
+      }
+    }
+
     const q = search.toLowerCase();
-    return computed
+    return siteRows
       .filter((r) =>
-        `${r.emp.first_name} ${r.emp.last_name} ${r.emp.passport_number || ""} ${r.emp.israeli_phone || ""} ${r.clientName}`
+        `${r.emp.first_name} ${r.emp.last_name} ${r.emp.passport_number || ""} ${r.emp.israeli_phone || ""} ${r.siteName}`
           .toLowerCase()
           .includes(q),
       )
@@ -266,19 +307,20 @@ const Payroll = () => {
         const aInactive = a.emp.status === "inactive" ? 1 : 0;
         const bInactive = b.emp.status === "inactive" ? 1 : 0;
         if (aInactive !== bInactive) return aInactive - bInactive;
-        const ca = a.clientName || "\uffff";
-        const cb = b.clientName || "\uffff";
+        const ca = a.siteName || "\uffff";
+        const cb = b.siteName || "\uffff";
         if (ca !== cb) return ca.localeCompare(cb);
+        if (a.isPrimary !== b.isPrimary) return a.isPrimary ? -1 : 1;
         return `${a.emp.first_name} ${a.emp.last_name}`.localeCompare(`${b.emp.first_name} ${b.emp.last_name}`);
       });
   }, [employees, extEmployees, logs, extLogs, payments, rateMap, employeeFallbackRate, additionalItems, search]);
 
   const totals = useMemo(() => ({
-    hours: rows.reduce((s, r) => s + r.totalHours, 0),
-    gross: rows.reduce((s, r) => s + r.grossFromLogs, 0),
-    deductions: rows.reduce((s, r) => s + r.deductions, 0),
-    paid: rows.reduce((s, r) => s + r.paid, 0),
-    balance: rows.reduce((s, r) => s + r.balance, 0),
+    hours: rows.reduce((s, r) => s + r.hoursAtSite, 0),
+    gross: rows.reduce((s, r) => s + r.grossAtSite, 0),
+    deductions: rows.reduce((s, r) => s + (r.isPrimary ? r.base.deductions : 0), 0),
+    paid: rows.reduce((s, r) => s + (r.isPrimary ? r.base.paid : 0), 0),
+    balance: rows.reduce((s, r) => s + (r.isPrimary ? r.base.balance : 0), 0),
   }), [rows]);
 
   async function recordPayment() {
@@ -362,8 +404,8 @@ const Payroll = () => {
                   <TableHead className="w-8"></TableHead>
                   <TableHead>Employee</TableHead>
                   <TableHead>ID / Passport</TableHead>
-                  <TableHead className="text-right">Total Hours</TableHead>
-                  <TableHead className="text-right">Total Due</TableHead>
+                  <TableHead className="text-right">Hours</TableHead>
+                  <TableHead className="text-right">Total Due / Site Gross</TableHead>
                   <TableHead className="text-right">Paid</TableHead>
                   <TableHead className="text-right">Balance</TableHead>
                   <TableHead></TableHead>
@@ -379,7 +421,7 @@ const Payroll = () => {
                   const out: JSX.Element[] = [];
                   rows.forEach((r) => {
                     const isInactive = r.emp.status === "inactive";
-                    const groupLabel = isInactive ? "Inactive" : (r.clientName || "Unassigned");
+                    const groupLabel = isInactive ? "Inactive" : (r.siteName || "Unassigned");
                     if (groupLabel !== lastGroup) {
                       out.push(
                         <TableRow key={`grp-${groupLabel}`} className="bg-muted/40 hover:bg-muted/40">
@@ -391,37 +433,50 @@ const Payroll = () => {
                       lastGroup = groupLabel;
                     }
                     out.push(((r) => {
-                  const isOpen = expanded.has(r.emp.id);
+                  const rowKey = `${r.emp.id}|${r.siteKey}`;
+                  const isOpen = expanded.has(rowKey);
+                  const base = r.base;
                   return (
-                    <Fragment key={r.emp.id}>
-                      <TableRow key={r.emp.id} className="cursor-pointer" onClick={() => toggleRow(r.emp.id)}>
+                    <Fragment key={rowKey}>
+                      <TableRow key={rowKey} className="cursor-pointer" onClick={() => toggleRow(rowKey)}>
                         <TableCell>
                           {isOpen ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
                         </TableCell>
-                        <TableCell className="font-medium">{r.emp.first_name} {r.emp.last_name}</TableCell>
+                        <TableCell className="font-medium">
+                          {r.emp.first_name} {r.emp.last_name}
+                          {!r.isPrimary && <span className="ml-2 text-[10px] text-muted-foreground">(also at {base.primarySiteName})</span>}
+                        </TableCell>
                         <TableCell className="text-muted-foreground tabular-nums">{r.emp.passport_number || "—"}</TableCell>
-                        <TableCell className="text-right tabular-nums">{r.totalHours.toFixed(1)}h</TableCell>
-                        <TableCell className="text-right tabular-nums font-semibold">{fmt(r.totalDue)}</TableCell>
-                        <TableCell className="text-right tabular-nums">{fmt(r.paid)}</TableCell>
+                        <TableCell className="text-right tabular-nums">{r.hoursAtSite.toFixed(1)}h</TableCell>
                         <TableCell className="text-right tabular-nums font-semibold">
-                          <span className={r.balance > 0 ? "text-destructive" : "text-success"}>{fmt(r.balance)}</span>
+                          {r.isPrimary ? fmt(base.totalDue) : <span className="text-muted-foreground">{fmt(r.grossAtSite)}</span>}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">{r.isPrimary ? fmt(base.paid) : <span className="text-muted-foreground">—</span>}</TableCell>
+                        <TableCell className="text-right tabular-nums font-semibold">
+                          {r.isPrimary ? (
+                            <span className={base.balance > 0 ? "text-destructive" : "text-success"}>{fmt(base.balance)}</span>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
                         </TableCell>
                         <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                          {r.emp.__external ? (
-                            <Badge variant="outline" className="text-[10px]">External — add to Employees to pay</Badge>
-                          ) : (
-                            <Button size="sm" variant="outline" onClick={() => { setPayOpen({ employeeId: r.emp.id, employeeName: `${r.emp.first_name} ${r.emp.last_name}`, balance: r.balance }); setPayAmount(String(Math.max(0, Math.round(r.balance)))); }}>
-                              <Plus className="h-3 w-3 mr-1" /> Pay
-                            </Button>
+                          {r.isPrimary && (
+                            r.emp.__external ? (
+                              <Badge variant="outline" className="text-[10px]">External — add to Employees to pay</Badge>
+                            ) : (
+                              <Button size="sm" variant="outline" onClick={() => { setPayOpen({ employeeId: r.emp.id, employeeName: `${r.emp.first_name} ${r.emp.last_name}`, balance: base.balance }); setPayAmount(String(Math.max(0, Math.round(base.balance)))); }}>
+                                <Plus className="h-3 w-3 mr-1" /> Pay
+                              </Button>
+                            )
                           )}
                         </TableCell>
                       </TableRow>
                       {isOpen && (
-                        <TableRow key={r.emp.id + "-detail"} className="bg-muted/30 hover:bg-muted/30">
+                        <TableRow key={rowKey + "-detail"} className="bg-muted/30 hover:bg-muted/30">
                           <TableCell></TableCell>
                           <TableCell colSpan={7} className="py-3">
                             <div className="space-y-2">
-                              <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Work sites breakdown</div>
+                              <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Work sites breakdown (full month)</div>
                               <Table>
                                 <TableHeader>
                                   <TableRow>
@@ -433,9 +488,9 @@ const Payroll = () => {
                                   </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                  {r.sites.length === 0 ? (
+                                  {base.sites.length === 0 ? (
                                     <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground text-xs">No work logs</TableCell></TableRow>
-                                  ) : r.sites.map((s, i) => {
+                                  ) : base.sites.map((s, i) => {
                                     const rate = s.hours > 0 ? s.gross / s.hours : 0;
                                     return (
                                       <TableRow key={i}>
@@ -443,7 +498,7 @@ const Payroll = () => {
                                         <TableCell>
                                           <div className="flex gap-1 flex-wrap">
                                             {Array.from(s.sources).map((src) => (
-                                              <Badge key={src} variant="outline" className="text-[10px] py-0 h-4">{src}</Badge>
+                                              <Badge key={String(src)} variant="outline" className="text-[10px] py-0 h-4">{String(src)}</Badge>
                                             ))}
                                           </div>
                                         </TableCell>
@@ -458,19 +513,19 @@ const Payroll = () => {
                               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-2 text-xs">
                                 <div className="rounded-md border p-2">
                                   <div className="text-muted-foreground">Gross (hours)</div>
-                                  <div className="font-semibold tabular-nums">{fmt(r.grossFromLogs)}</div>
+                                  <div className="font-semibold tabular-nums">{fmt(base.grossFromLogs)}</div>
                                 </div>
                                 <div className="rounded-md border p-2">
                                   <div className="text-muted-foreground">Expenses (+)</div>
-                                  <div className="font-semibold tabular-nums text-success">+{fmt(r.expenses)}</div>
+                                  <div className="font-semibold tabular-nums text-success">+{fmt(base.expenses)}</div>
                                 </div>
                                 <div className="rounded-md border p-2">
                                   <div className="text-muted-foreground">Deductions (-)</div>
-                                  <div className="font-semibold tabular-nums text-warning">-{fmt(r.deductions)}</div>
+                                  <div className="font-semibold tabular-nums text-warning">-{fmt(base.deductions)}</div>
                                 </div>
                                 <div className="rounded-md border p-2">
                                   <div className="text-muted-foreground">Total Due</div>
-                                  <div className="font-semibold tabular-nums">{fmt(r.totalDue)}</div>
+                                  <div className="font-semibold tabular-nums">{fmt(base.totalDue)}</div>
                                 </div>
                               </div>
                             </div>

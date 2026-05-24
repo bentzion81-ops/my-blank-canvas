@@ -101,18 +101,39 @@ const Profitability = () => {
     return m;
   }, [employees]);
 
-  const rows = useMemo(() => {
-    const approved = workLogs.filter((l) => l.status === "approved" || !l.status);
+  const employeeAssignedClient = useMemo(() => {
+    const m = new Map<string, string>();
+    const sorted = [...(assignments as any[])].sort((a, b) => {
+      const ae = a.end_date ? 1 : 0;
+      const be = b.end_date ? 1 : 0;
+      if (ae !== be) return ae - be;
+      return (b.is_primary ? 1 : 0) - (a.is_primary ? 1 : 0);
+    });
+    for (const a of sorted) {
+      if (a.employee_id && a.client_id && !m.has(a.employee_id)) {
+        m.set(a.employee_id, a.client_id);
+      }
+    }
+    return m;
+  }, [assignments]);
 
-    // total hours per employee in this month, used to pro-rate overhead
+  const rows = useMemo(() => {
+    const approved = workLogs.filter((l) => l.status === "approved");
+
+    // Resolve client_id for unassigned logs via employee's active assignment
+    const resolvedLogs = approved.map((l) => ({
+      ...l,
+      client_id: l.client_id || (l.employee_id ? employeeAssignedClient.get(l.employee_id) : null),
+    }));
+
     const empTotalHours = new Map<string, number>();
-    for (const l of approved) {
+    for (const l of resolvedLogs) {
       if (!l.employee_id) continue;
       empTotalHours.set(l.employee_id, (empTotalHours.get(l.employee_id) || 0) + Number(l.hours_worked || 0));
     }
 
     return clients.map((c: any) => {
-      const cLogs = approved.filter((l) => l.client_id === c.id);
+      const cLogs = resolvedLogs.filter((l) => l.client_id === c.id);
       const hours = cLogs.reduce((s, l) => s + Number(l.hours_worked || 0), 0);
 
       let employeeCost = 0;
@@ -154,9 +175,8 @@ const Profitability = () => {
         0,
       );
 
-      const baseRevenue = c.billing_type === "fixed"
-        ? Number(c.monthly_payment || 0)
-        : hours * Number(c.hourly_rate || 0);
+      const rate = Number(c.hourly_rate || 0);
+      const baseRevenue = rate > 0 ? hours * rate : Number(c.monthly_payment || 0);
 
       const revenue = baseRevenue + additionalRevenue;
       const totalCost = employeeCost + overheadCost + additionalCost;
@@ -167,8 +187,8 @@ const Profitability = () => {
         client: c, hours, revenue, employeeCost, overheadCost: overheadCost + additionalCost,
         totalCost, profit, margin,
       };
-    }).filter((r) => r.revenue > 0 || r.totalCost > 0);
-  }, [clients, workLogs, charges, rateMap, empMap]);
+    });
+  }, [clients, workLogs, charges, rateMap, empMap, employeeAssignedClient]);
 
   const totals = useMemo(() => {
     const revenue = rows.reduce((s, r) => s + r.revenue, 0);

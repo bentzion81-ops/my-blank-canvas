@@ -261,7 +261,8 @@ function RegisterStep({
 }) {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
-  const [phone, setPhone] = useState("");
+  const [israeliPhone, setIsraeliPhone] = useState("");
+  const [foreignPhone, setForeignPhone] = useState("");
   const [pref, setPref] = useState<Lang>(lang);
   const [loading, setLoading] = useState(false);
 
@@ -269,23 +270,30 @@ function RegisterStep({
   const englishOnlyRegex = /^[A-Za-z\s'-]+$/;
   const sanitizeEnglish = (v: string) => v.replace(/[^A-Za-z\s'-]/g, "");
 
+  const israeliValid = (v: string) => /^05\d{8}$/.test(v);
+  const foreignValid = (v: string) => /^\+[0-9\s-]{6,}$/.test(v);
+
   const submit = async () => {
     const fn = firstName.trim();
     const ln = lastName.trim();
-    const ph = phone.trim();
+    const ilPh = israeliPhone.trim().replace(/[\s-]/g, "");
+    const frPh = foreignPhone.trim();
     if (!fn || !ln) return toast.error(t("required", lang));
     if (!englishOnlyRegex.test(fn) || !englishOnlyRegex.test(ln)) {
       return toast.error(t("englishOnly", lang));
     }
-    if (!ph) return toast.error(t("phoneRequired", lang));
+    if (!ilPh && !frPh) return toast.error(t("phoneAtLeastOne", lang));
+    if (ilPh && !israeliValid(ilPh)) return toast.error(t("invalidIsraeliPhone", lang));
+    if (frPh && !foreignValid(frPh)) return toast.error(t("invalidForeignPhone", lang));
     if (passport.trim().length < 8) return toast.error(t("passportMinLen", lang));
     setLoading(true);
+    const primaryPhone = ilPh || frPh;
     const { data, error } = await supabase
       .from("replacement_workers")
       .insert({
         full_name: `${fn} ${ln}`,
         passport_number: passport.trim(),
-        phone: ph,
+        phone: primaryPhone,
         preferred_language: pref,
       })
       .select()
@@ -307,7 +315,8 @@ function RegisterStep({
         first_name: fn,
         last_name: ln,
         passport_number: passport.trim(),
-        foreign_phone: ph,
+        israeli_phone: ilPh || null,
+        foreign_phone: frPh || null,
         employee_type: "temporary",
         status: "active",
         meckano_synced: false,

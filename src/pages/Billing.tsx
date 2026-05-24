@@ -97,7 +97,7 @@ const Billing = () => {
 
       const additional = charges
         .filter((ch) => ch.client_id === c.id)
-        .reduce((s, ch) => s + Number(ch.total_charge ?? (Number(ch.quantity) * Number(ch.unit_charge)) ?? 0), 0);
+        .reduce((s, ch) => s + (Number(ch.total_charge) || (Number(ch.quantity) * Number(ch.unit_charge)) || 0), 0);
 
       const totalDue = baseRevenue + additional;
 

@@ -138,11 +138,7 @@ const ClientProfile = () => {
           </TabsContent>
 
           <TabsContent value="billing">
-            <Card className="border-0 shadow-sm">
-              <CardContent className="py-12 text-center text-muted-foreground">
-                Billing and invoice data will appear here.
-              </CardContent>
-            </Card>
+            <ClientBillingHistory clientId={id!} />
           </TabsContent>
 
           <TabsContent value="documents">

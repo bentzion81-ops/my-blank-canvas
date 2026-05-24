@@ -42,6 +42,7 @@ const mainItems = [
   { title: "Clients", url: "/clients", icon: Building2 },
   { title: "Billing", url: "/billing", icon: Receipt },
   { title: "Payroll", url: "/payroll", icon: Wallet },
+  { title: "Profitability", url: "/profitability", icon: TrendingUp },
   { title: "Reports", url: "/reports", icon: BarChart3 },
   { title: "Documents", url: "/documents", icon: FileText },
   { title: "Notifications", url: "/notifications", icon: Bell },

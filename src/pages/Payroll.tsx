@@ -316,11 +316,11 @@ const Payroll = () => {
   }, [employees, extEmployees, logs, extLogs, payments, rateMap, employeeFallbackRate, additionalItems, search]);
 
   const totals = useMemo(() => ({
-    hours: rows.reduce((s, r) => s + r.totalHours, 0),
-    gross: rows.reduce((s, r) => s + r.grossFromLogs, 0),
-    deductions: rows.reduce((s, r) => s + r.deductions, 0),
-    paid: rows.reduce((s, r) => s + r.paid, 0),
-    balance: rows.reduce((s, r) => s + r.balance, 0),
+    hours: rows.reduce((s, r) => s + r.hoursAtSite, 0),
+    gross: rows.reduce((s, r) => s + r.grossAtSite, 0),
+    deductions: rows.reduce((s, r) => s + (r.isPrimary ? r.base.deductions : 0), 0),
+    paid: rows.reduce((s, r) => s + (r.isPrimary ? r.base.paid : 0), 0),
+    balance: rows.reduce((s, r) => s + (r.isPrimary ? r.base.balance : 0), 0),
   }), [rows]);
 
   async function recordPayment() {

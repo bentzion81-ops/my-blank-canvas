@@ -65,7 +65,7 @@ const Profitability = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("work_logs_unified" as any)
-        .select("client_id, employee_id, hours_worked, status")
+        .select("client_id, employee_id, hours_worked, payment_amount, status")
         .gte("work_date", fromStr)
         .lte("work_date", toStr);
       if (error) throw error;
@@ -143,9 +143,14 @@ const Profitability = () => {
       for (const l of cLogs) {
         const h = Number(l.hours_worked || 0);
         const emp = l.employee_id ? empMap.get(l.employee_id) : null;
-        const rate = (l.employee_id && l.client_id ? rateMap.get(`${l.employee_id}|${l.client_id}`) : undefined)
-          ?? Number(emp?.hourly_wage || 0);
-        employeeCost += h * rate;
+        const reportedPay = Number(l.payment_amount || 0);
+        if (reportedPay > 0) {
+          employeeCost += reportedPay;
+        } else {
+          const rate = (l.employee_id && l.client_id ? rateMap.get(`${l.employee_id}|${l.client_id}`) : undefined)
+            ?? Number(emp?.hourly_wage || 0);
+          employeeCost += h * rate;
+        }
         if (l.employee_id) {
           empHoursAtClient.set(l.employee_id, (empHoursAtClient.get(l.employee_id) || 0) + h);
         }

@@ -6,6 +6,7 @@ import {
   Building2,
   Receipt,
   Wallet,
+  TrendingUp,
   BarChart3,
   FileText,
   Shield,

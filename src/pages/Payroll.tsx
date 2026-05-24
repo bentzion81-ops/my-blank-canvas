@@ -421,7 +421,7 @@ const Payroll = () => {
                   const out: JSX.Element[] = [];
                   rows.forEach((r) => {
                     const isInactive = r.emp.status === "inactive";
-                    const groupLabel = isInactive ? "Inactive" : (r.clientName || "Unassigned");
+                    const groupLabel = isInactive ? "Inactive" : (r.siteName || "Unassigned");
                     if (groupLabel !== lastGroup) {
                       out.push(
                         <TableRow key={`grp-${groupLabel}`} className="bg-muted/40 hover:bg-muted/40">
@@ -433,37 +433,50 @@ const Payroll = () => {
                       lastGroup = groupLabel;
                     }
                     out.push(((r) => {
-                  const isOpen = expanded.has(r.emp.id);
+                  const rowKey = `${r.emp.id}|${r.siteKey}`;
+                  const isOpen = expanded.has(rowKey);
+                  const base = r.base;
                   return (
-                    <Fragment key={r.emp.id}>
-                      <TableRow key={r.emp.id} className="cursor-pointer" onClick={() => toggleRow(r.emp.id)}>
+                    <Fragment key={rowKey}>
+                      <TableRow key={rowKey} className="cursor-pointer" onClick={() => toggleRow(rowKey)}>
                         <TableCell>
                           {isOpen ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
                         </TableCell>
-                        <TableCell className="font-medium">{r.emp.first_name} {r.emp.last_name}</TableCell>
+                        <TableCell className="font-medium">
+                          {r.emp.first_name} {r.emp.last_name}
+                          {!r.isPrimary && <span className="ml-2 text-[10px] text-muted-foreground">(also at {base.primarySiteName})</span>}
+                        </TableCell>
                         <TableCell className="text-muted-foreground tabular-nums">{r.emp.passport_number || "—"}</TableCell>
-                        <TableCell className="text-right tabular-nums">{r.totalHours.toFixed(1)}h</TableCell>
-                        <TableCell className="text-right tabular-nums font-semibold">{fmt(r.totalDue)}</TableCell>
-                        <TableCell className="text-right tabular-nums">{fmt(r.paid)}</TableCell>
+                        <TableCell className="text-right tabular-nums">{r.hoursAtSite.toFixed(1)}h</TableCell>
                         <TableCell className="text-right tabular-nums font-semibold">
-                          <span className={r.balance > 0 ? "text-destructive" : "text-success"}>{fmt(r.balance)}</span>
+                          {r.isPrimary ? fmt(base.totalDue) : <span className="text-muted-foreground">{fmt(r.grossAtSite)}</span>}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">{r.isPrimary ? fmt(base.paid) : <span className="text-muted-foreground">—</span>}</TableCell>
+                        <TableCell className="text-right tabular-nums font-semibold">
+                          {r.isPrimary ? (
+                            <span className={base.balance > 0 ? "text-destructive" : "text-success"}>{fmt(base.balance)}</span>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
                         </TableCell>
                         <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                          {r.emp.__external ? (
-                            <Badge variant="outline" className="text-[10px]">External — add to Employees to pay</Badge>
-                          ) : (
-                            <Button size="sm" variant="outline" onClick={() => { setPayOpen({ employeeId: r.emp.id, employeeName: `${r.emp.first_name} ${r.emp.last_name}`, balance: r.balance }); setPayAmount(String(Math.max(0, Math.round(r.balance)))); }}>
-                              <Plus className="h-3 w-3 mr-1" /> Pay
-                            </Button>
+                          {r.isPrimary && (
+                            r.emp.__external ? (
+                              <Badge variant="outline" className="text-[10px]">External — add to Employees to pay</Badge>
+                            ) : (
+                              <Button size="sm" variant="outline" onClick={() => { setPayOpen({ employeeId: r.emp.id, employeeName: `${r.emp.first_name} ${r.emp.last_name}`, balance: base.balance }); setPayAmount(String(Math.max(0, Math.round(base.balance)))); }}>
+                                <Plus className="h-3 w-3 mr-1" /> Pay
+                              </Button>
+                            )
                           )}
                         </TableCell>
                       </TableRow>
                       {isOpen && (
-                        <TableRow key={r.emp.id + "-detail"} className="bg-muted/30 hover:bg-muted/30">
+                        <TableRow key={rowKey + "-detail"} className="bg-muted/30 hover:bg-muted/30">
                           <TableCell></TableCell>
                           <TableCell colSpan={7} className="py-3">
                             <div className="space-y-2">
-                              <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Work sites breakdown</div>
+                              <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Work sites breakdown (full month)</div>
                               <Table>
                                 <TableHeader>
                                   <TableRow>
@@ -475,9 +488,9 @@ const Payroll = () => {
                                   </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                  {r.sites.length === 0 ? (
+                                  {base.sites.length === 0 ? (
                                     <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground text-xs">No work logs</TableCell></TableRow>
-                                  ) : r.sites.map((s, i) => {
+                                  ) : base.sites.map((s, i) => {
                                     const rate = s.hours > 0 ? s.gross / s.hours : 0;
                                     return (
                                       <TableRow key={i}>
@@ -485,7 +498,7 @@ const Payroll = () => {
                                         <TableCell>
                                           <div className="flex gap-1 flex-wrap">
                                             {Array.from(s.sources).map((src) => (
-                                              <Badge key={src} variant="outline" className="text-[10px] py-0 h-4">{src}</Badge>
+                                              <Badge key={String(src)} variant="outline" className="text-[10px] py-0 h-4">{String(src)}</Badge>
                                             ))}
                                           </div>
                                         </TableCell>
@@ -500,19 +513,19 @@ const Payroll = () => {
                               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-2 text-xs">
                                 <div className="rounded-md border p-2">
                                   <div className="text-muted-foreground">Gross (hours)</div>
-                                  <div className="font-semibold tabular-nums">{fmt(r.grossFromLogs)}</div>
+                                  <div className="font-semibold tabular-nums">{fmt(base.grossFromLogs)}</div>
                                 </div>
                                 <div className="rounded-md border p-2">
                                   <div className="text-muted-foreground">Expenses (+)</div>
-                                  <div className="font-semibold tabular-nums text-success">+{fmt(r.expenses)}</div>
+                                  <div className="font-semibold tabular-nums text-success">+{fmt(base.expenses)}</div>
                                 </div>
                                 <div className="rounded-md border p-2">
                                   <div className="text-muted-foreground">Deductions (-)</div>
-                                  <div className="font-semibold tabular-nums text-warning">-{fmt(r.deductions)}</div>
+                                  <div className="font-semibold tabular-nums text-warning">-{fmt(base.deductions)}</div>
                                 </div>
                                 <div className="rounded-md border p-2">
                                   <div className="text-muted-foreground">Total Due</div>
-                                  <div className="font-semibold tabular-nums">{fmt(r.totalDue)}</div>
+                                  <div className="font-semibold tabular-nums">{fmt(base.totalDue)}</div>
                                 </div>
                               </div>
                             </div>

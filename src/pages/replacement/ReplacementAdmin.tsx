@@ -400,16 +400,26 @@ function useClients() {
 }
 
 type PhonePair = { israeli: string | null; foreign: string | null };
+let _phonesCache: Map<string, PhonePair> | null = null;
+let _phonesPromise: Promise<Map<string, PhonePair>> | null = null;
+const _phonesListeners = new Set<(m: Map<string, PhonePair>) => void>();
 function useEmployeePhones() {
-  const [map, setMap] = useState<Map<string, PhonePair>>(new Map());
+  const [map, setMap] = useState<Map<string, PhonePair>>(_phonesCache || new Map());
   useEffect(() => {
-    supabase.from("employees").select("passport_number, israeli_phone, foreign_phone").then(({ data }) => {
-      const m = new Map<string, PhonePair>();
-      (data || []).forEach((e: any) => {
-        if (e.passport_number) m.set(String(e.passport_number).trim(), { israeli: e.israeli_phone, foreign: e.foreign_phone });
+    if (_phonesCache) { setMap(_phonesCache); return; }
+    _phonesListeners.add(setMap);
+    if (!_phonesPromise) {
+      _phonesPromise = supabase.from("employees").select("passport_number, israeli_phone, foreign_phone").then(({ data }) => {
+        const m = new Map<string, PhonePair>();
+        (data || []).forEach((e: any) => {
+          if (e.passport_number) m.set(String(e.passport_number).trim(), { israeli: e.israeli_phone, foreign: e.foreign_phone });
+        });
+        _phonesCache = m;
+        _phonesListeners.forEach((fn) => fn(m));
+        return m;
       });
-      setMap(m);
-    });
+    }
+    return () => { _phonesListeners.delete(setMap); };
   }, []);
   return map;
 }

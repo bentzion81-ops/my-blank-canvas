@@ -299,6 +299,12 @@ function ReportRow({ r, clients, onChanged, selectable, selected, onToggleSelect
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>דיווח של {r.worker_name} — {r.work_date}</DialogTitle>
+            {(phones?.israeli || phones?.foreign) && (
+              <div className="text-xs text-muted-foreground leading-tight" dir="ltr">
+                {phones?.israeli && <div>📱 {phones.israeli}</div>}
+                {phones?.foreign && <div>🌍 {phones.foreign}</div>}
+              </div>
+            )}
           </DialogHeader>
           <div className="grid gap-3 text-sm">
             <div className="grid grid-cols-2 gap-3">

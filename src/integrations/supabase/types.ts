@@ -1593,9 +1593,11 @@ export type Database = {
       replacement_workers: {
         Row: {
           created_at: string
+          foreign_phone: string | null
           full_name: string
           id: string
           is_active: boolean
+          israeli_phone: string | null
           notes: string | null
           passport_number: string
           phone: string | null
@@ -1604,9 +1606,11 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          foreign_phone?: string | null
           full_name: string
           id?: string
           is_active?: boolean
+          israeli_phone?: string | null
           notes?: string | null
           passport_number: string
           phone?: string | null
@@ -1615,9 +1619,11 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          foreign_phone?: string | null
           full_name?: string
           id?: string
           is_active?: boolean
+          israeli_phone?: string | null
           notes?: string | null
           passport_number?: string
           phone?: string | null

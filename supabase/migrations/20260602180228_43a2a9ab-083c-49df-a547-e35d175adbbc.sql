@@ -1,0 +1,1 @@
+ALTER TABLE public.replacement_workers ADD COLUMN IF NOT EXISTS israeli_phone text, ADD COLUMN IF NOT EXISTS foreign_phone text;

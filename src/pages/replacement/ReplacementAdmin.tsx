@@ -398,6 +398,21 @@ function useClients() {
   return clients;
 }
 
+type PhonePair = { israeli: string | null; foreign: string | null };
+function useEmployeePhones() {
+  const [map, setMap] = useState<Map<string, PhonePair>>(new Map());
+  useEffect(() => {
+    supabase.from("employees").select("passport_number, israeli_phone, foreign_phone").then(({ data }) => {
+      const m = new Map<string, PhonePair>();
+      (data || []).forEach((e: any) => {
+        if (e.passport_number) m.set(String(e.passport_number).trim(), { israeli: e.israeli_phone, foreign: e.foreign_phone });
+      });
+      setMap(m);
+    });
+  }, []);
+  return map;
+}
+
 function BulkBar({ reports, selectedIds, setSelectedIds, onChanged, clients }: { reports: Report[]; selectedIds: Set<string>; setSelectedIds: (s: Set<string>) => void; onChanged: () => void; clients: Client[] }) {
   const [open, setOpen] = useState(false);
   const count = selectedIds.size;

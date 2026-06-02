@@ -294,8 +294,10 @@ function RegisterStep({
         full_name: `${fn} ${ln}`,
         passport_number: passport.trim(),
         phone: primaryPhone,
+        israeli_phone: ilPh || null,
+        foreign_phone: frPh || null,
         preferred_language: pref,
-      })
+      } as any)
       .select()
       .single();
     if (error) {

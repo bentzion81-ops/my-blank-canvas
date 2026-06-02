@@ -120,7 +120,7 @@ export default function ReplacementAdmin() {
 }
 
 function ReportRow({ r, clients, onChanged, selectable, selected, onToggleSelect }: { r: Report; clients: Client[]; onChanged: () => void; selectable?: boolean; selected?: boolean; onToggleSelect?: (id: string) => void }) {
-  const phones = useEmployeePhones().get(String(r.passport_number).trim());
+  const phones = useWorkerPhones().get(r.worker_id);
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const [clientId, setClientId] = useState<string>(r.assigned_client_id || "");
@@ -299,6 +299,12 @@ function ReportRow({ r, clients, onChanged, selectable, selected, onToggleSelect
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>דיווח של {r.worker_name} — {r.work_date}</DialogTitle>
+            {(phones?.israeli || phones?.foreign) && (
+              <div className="text-xs text-muted-foreground leading-tight" dir="ltr">
+                {phones?.israeli && <div>📱 {phones.israeli}</div>}
+                {phones?.foreign && <div>🌍 {phones.foreign}</div>}
+              </div>
+            )}
           </DialogHeader>
           <div className="grid gap-3 text-sm">
             <div className="grid grid-cols-2 gap-3">
@@ -411,17 +417,26 @@ type PhonePair = { israeli: string | null; foreign: string | null };
 let _phonesCache: Map<string, PhonePair> | null = null;
 let _phonesPromise: Promise<Map<string, PhonePair>> | null = null;
 const _phonesListeners = new Set<(m: Map<string, PhonePair>) => void>();
-function useEmployeePhones() {
+function useWorkerPhones() {
   const [map, setMap] = useState<Map<string, PhonePair>>(_phonesCache || new Map());
   useEffect(() => {
     if (_phonesCache) { setMap(_phonesCache); return; }
     _phonesListeners.add(setMap);
     if (!_phonesPromise) {
       _phonesPromise = (async () => {
-        const { data } = await supabase.from("employees").select("passport_number, israeli_phone, foreign_phone");
+        const { data } = await supabase.from("replacement_workers").select("id, phone, israeli_phone, foreign_phone" as any);
         const m = new Map<string, PhonePair>();
-        (data || []).forEach((e: any) => {
-          if (e.passport_number) m.set(String(e.passport_number).trim(), { israeli: e.israeli_phone, foreign: e.foreign_phone });
+        (data || []).forEach((w: any) => {
+          // Fallback: if israeli/foreign empty, infer from `phone`
+          let il = w.israeli_phone as string | null;
+          let fr = w.foreign_phone as string | null;
+          if (!il && !fr && w.phone) {
+            const p = String(w.phone).replace(/[\s-]/g, "");
+            if (/^05\d{8}$/.test(p)) il = p;
+            else if (/^\+/.test(p)) fr = p;
+            else il = p;
+          }
+          m.set(w.id, { israeli: il, foreign: fr });
         });
         _phonesCache = m;
         _phonesListeners.forEach((fn) => fn(m));

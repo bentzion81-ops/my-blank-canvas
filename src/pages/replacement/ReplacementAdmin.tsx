@@ -409,7 +409,8 @@ function useEmployeePhones() {
     if (_phonesCache) { setMap(_phonesCache); return; }
     _phonesListeners.add(setMap);
     if (!_phonesPromise) {
-      _phonesPromise = supabase.from("employees").select("passport_number, israeli_phone, foreign_phone").then(({ data }) => {
+      _phonesPromise = (async () => {
+        const { data } = await supabase.from("employees").select("passport_number, israeli_phone, foreign_phone");
         const m = new Map<string, PhonePair>();
         (data || []).forEach((e: any) => {
           if (e.passport_number) m.set(String(e.passport_number).trim(), { israeli: e.israeli_phone, foreign: e.foreign_phone });
@@ -417,7 +418,7 @@ function useEmployeePhones() {
         _phonesCache = m;
         _phonesListeners.forEach((fn) => fn(m));
         return m;
-      });
+      })();
     }
     return () => { _phonesListeners.delete(setMap); };
   }, []);

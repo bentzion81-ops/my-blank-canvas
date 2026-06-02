@@ -276,7 +276,15 @@ function ReportRow({ r, clients, onChanged, selectable, selected, onToggleSelect
         <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
           {new Date(r.created_at).toLocaleString("he-IL", { dateStyle: "short", timeStyle: "short" })}
         </TableCell>
-        <TableCell className="font-medium">{r.worker_name}</TableCell>
+        <TableCell className="font-medium">
+          <div>{r.worker_name}</div>
+          {(phones?.israeli || phones?.foreign) && (
+            <div className="text-[11px] text-muted-foreground leading-tight mt-0.5 font-normal" dir="ltr">
+              {phones?.israeli && <div>{phones.israeli}</div>}
+              {phones?.foreign && <div>{phones.foreign}</div>}
+            </div>
+          )}
+        </TableCell>
         <TableCell className="text-xs text-muted-foreground">{r.passport_number}</TableCell>
         <TableCell>{r.check_in}–{r.check_out}</TableCell>
         <TableCell>{Number(r.total_hours).toFixed(2)}</TableCell>

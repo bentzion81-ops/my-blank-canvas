@@ -450,10 +450,14 @@ function ManualEntryDialog({
       };
       if (mode === "detailed") {
         const ci = new Date(`${date}T${checkIn}`);
-        const co = new Date(`${date}T${checkOut}`);
+        let co = new Date(`${date}T${checkOut}`);
+        // Handle overnight shifts (e.g., 20:00 → 00:00 next day)
+        if (co.getTime() <= ci.getTime()) {
+          co = new Date(co.getTime() + 24 * 3600000);
+        }
         payload.check_in = ci.toISOString();
         payload.check_out = co.toISOString();
-        payload.hours_worked = Math.max(0, (co.getTime() - ci.getTime()) / 3600000);
+        payload.hours_worked = (co.getTime() - ci.getTime()) / 3600000;
       } else {
         payload.hours_worked = Number(hours) || 0;
       }

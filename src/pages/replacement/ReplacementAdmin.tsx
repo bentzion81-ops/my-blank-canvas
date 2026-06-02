@@ -120,6 +120,7 @@ export default function ReplacementAdmin() {
 }
 
 function ReportRow({ r, clients, onChanged, selectable, selected, onToggleSelect }: { r: Report; clients: Client[]; onChanged: () => void; selectable?: boolean; selected?: boolean; onToggleSelect?: (id: string) => void }) {
+  const phones = useEmployeePhones().get(String(r.passport_number).trim());
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const [clientId, setClientId] = useState<string>(r.assigned_client_id || "");
@@ -275,7 +276,15 @@ function ReportRow({ r, clients, onChanged, selectable, selected, onToggleSelect
         <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
           {new Date(r.created_at).toLocaleString("he-IL", { dateStyle: "short", timeStyle: "short" })}
         </TableCell>
-        <TableCell className="font-medium">{r.worker_name}</TableCell>
+        <TableCell className="font-medium">
+          <div>{r.worker_name}</div>
+          {(phones?.israeli || phones?.foreign) && (
+            <div className="text-[11px] text-muted-foreground leading-tight mt-0.5 font-normal" dir="ltr">
+              {phones?.israeli && <div>{phones.israeli}</div>}
+              {phones?.foreign && <div>{phones.foreign}</div>}
+            </div>
+          )}
+        </TableCell>
         <TableCell className="text-xs text-muted-foreground">{r.passport_number}</TableCell>
         <TableCell>{r.check_in}–{r.check_out}</TableCell>
         <TableCell>{Number(r.total_hours).toFixed(2)}</TableCell>
@@ -396,6 +405,32 @@ function useClients() {
     });
   }, []);
   return clients;
+}
+
+type PhonePair = { israeli: string | null; foreign: string | null };
+let _phonesCache: Map<string, PhonePair> | null = null;
+let _phonesPromise: Promise<Map<string, PhonePair>> | null = null;
+const _phonesListeners = new Set<(m: Map<string, PhonePair>) => void>();
+function useEmployeePhones() {
+  const [map, setMap] = useState<Map<string, PhonePair>>(_phonesCache || new Map());
+  useEffect(() => {
+    if (_phonesCache) { setMap(_phonesCache); return; }
+    _phonesListeners.add(setMap);
+    if (!_phonesPromise) {
+      _phonesPromise = (async () => {
+        const { data } = await supabase.from("employees").select("passport_number, israeli_phone, foreign_phone");
+        const m = new Map<string, PhonePair>();
+        (data || []).forEach((e: any) => {
+          if (e.passport_number) m.set(String(e.passport_number).trim(), { israeli: e.israeli_phone, foreign: e.foreign_phone });
+        });
+        _phonesCache = m;
+        _phonesListeners.forEach((fn) => fn(m));
+        return m;
+      })();
+    }
+    return () => { _phonesListeners.delete(setMap); };
+  }, []);
+  return map;
 }
 
 function BulkBar({ reports, selectedIds, setSelectedIds, onChanged, clients }: { reports: Report[]; selectedIds: Set<string>; setSelectedIds: (s: Set<string>) => void; onChanged: () => void; clients: Client[] }) {

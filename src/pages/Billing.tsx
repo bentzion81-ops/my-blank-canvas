@@ -112,6 +112,18 @@ const Billing = () => {
     },
   });
 
+  const { data: invoiceMarks = [], refetch: refetchMarks } = useQuery({
+    queryKey: ["billing-invoice-marks", fromStr],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("client_invoice_marks" as any)
+        .select("id, client_id, issued")
+        .eq("month", fromStr);
+      if (error) throw error;
+      return (data as any[]) || [];
+    },
+  });
+
   const rows = useMemo(() => {
     return clients.map((c: any) => {
       const hours = workLogs

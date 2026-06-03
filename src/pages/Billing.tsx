@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Receipt, DollarSign, AlertTriangle, Users, RefreshCw, Plus, Loader2, FileDown, Eye } from "lucide-react";
 import { toast } from "sonner";
 
@@ -185,6 +186,21 @@ const Billing = () => {
     }
   };
 
+  const toggleInvoiceIssued = async (row: typeof rows[number]) => {
+    if (row.invoice) {
+      // Unmark: delete the invoice (only if no payments)
+      if (Number(row.invoice.paid_amount) > 0) {
+        return toast.error("Cannot unmark — payments already recorded");
+      }
+      const { error } = await supabase.from("invoices").delete().eq("id", row.invoice.id);
+      if (error) return toast.error(error.message);
+      toast.success("Invoice unmarked");
+      refetchInvoices();
+      return;
+    }
+    await createInvoice(row);
+  };
+
   const createInvoice = async (row: typeof rows[number]) => {
     if (row.totalDue <= 0) return toast.error("Nothing to invoice");
     const c = row.client;
@@ -319,14 +335,15 @@ const Billing = () => {
                   <TableHead className="text-right hidden md:table-cell">Paid</TableHead>
                   <TableHead className="text-right">Balance</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead className="text-center">Invoice issued</TableHead>
                   <TableHead></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading ? (
-                  <TableRow><TableCell colSpan={9} className="text-center py-8"><Loader2 className="h-5 w-5 animate-spin mx-auto text-muted-foreground" /></TableCell></TableRow>
+                  <TableRow><TableCell colSpan={10} className="text-center py-8"><Loader2 className="h-5 w-5 animate-spin mx-auto text-muted-foreground" /></TableCell></TableRow>
                 ) : rows.length === 0 ? (
-                  <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">No billing data for this month</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={10} className="text-center py-8 text-muted-foreground">No billing data for this month</TableCell></TableRow>
                 ) : rows.map((r) => (
                   <TableRow key={r.client.id}>
                     <TableCell className="font-medium">{r.client.name}</TableCell>
@@ -337,13 +354,16 @@ const Billing = () => {
                     <TableCell className="text-right tabular-nums hidden md:table-cell text-success">{fmt(r.paid)}</TableCell>
                     <TableCell className={`text-right tabular-nums font-medium ${r.balance > 0 ? "text-destructive" : "text-success"}`}>{fmt(r.balance)}</TableCell>
                     <TableCell><StatusBadge status={r.status} /></TableCell>
+                    <TableCell className="text-center">
+                      <Checkbox
+                        checked={!!r.invoice}
+                        disabled={r.totalDue <= 0}
+                        onCheckedChange={() => toggleInvoiceIssued(r)}
+                        aria-label="Invoice issued"
+                      />
+                    </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1 justify-end">
-                        {!r.invoice && r.totalDue > 0 && (
-                          <Button size="sm" variant="ghost" onClick={() => createInvoice(r)}>
-                            <Plus className="h-3.5 w-3.5 mr-1" /> Invoice
-                          </Button>
-                        )}
                         {r.balance > 0 && (
                           <Button size="sm" variant="ghost" onClick={() => setPayOpen({ clientId: r.client.id, clientName: r.client.name, balance: r.balance, invoiceId: r.invoice?.id })}>
                             <DollarSign className="h-3.5 w-3.5 mr-1" /> Pay

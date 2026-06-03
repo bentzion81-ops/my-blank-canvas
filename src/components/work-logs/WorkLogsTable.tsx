@@ -215,15 +215,70 @@ export function WorkLogsTable({ scope = "global", employeeId, clientId, defaultR
     qc.invalidateQueries({ queryKey: ["work-logs-unified"] });
   }
 
+  function handlePrint() {
+    const title = scope === "client"
+      ? `Work Logs - ${clients.find((c: any) => c.id === clientId)?.name || ""}`
+      : "Work Logs";
+    const rangeStr = `${range?.from ? format(range.from, "dd MMM yyyy") : ""} – ${range?.to ? format(range.to, "dd MMM yyyy") : ""}`;
+    const totalHours = filtered.reduce((s, l) => s + Number(l.hours_worked || 0), 0);
+    const rows = filtered.map((l) => `
+      <tr>
+        <td>${l.employee_name || "—"}</td>
+        ${scope !== "client" ? `<td>${l.client_name || l.custom_workplace || "—"}</td>` : ""}
+        <td>${format(parseISO(l.work_date), "dd/MM/yyyy")}</td>
+        <td>${l.check_in ? format(new Date(l.check_in), "HH:mm") : "—"} – ${l.check_out ? format(new Date(l.check_out), "HH:mm") : "—"}</td>
+        <td style="text-align:right">${Number(l.hours_worked).toFixed(2)}</td>
+        <td>${sourceLabel[l.source] || l.source}</td>
+        <td>${l.status}</td>
+      </tr>`).join("");
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>${title}</title>
+      <style>
+        body{font-family:Arial,sans-serif;padding:24px;color:#111}
+        h1{font-size:18px;margin:0 0 4px}
+        .sub{color:#555;font-size:12px;margin-bottom:16px}
+        table{width:100%;border-collapse:collapse;font-size:12px}
+        th,td{border:1px solid #ddd;padding:6px 8px;text-align:left}
+        th{background:#f3f4f6}
+        tfoot td{font-weight:bold;background:#f9fafb}
+        @media print{button{display:none}}
+      </style></head><body>
+      <h1>${title}</h1>
+      <div class="sub">${rangeStr} • ${filtered.length} entries</div>
+      <table>
+        <thead><tr>
+          <th>Employee</th>
+          ${scope !== "client" ? "<th>Work site</th>" : ""}
+          <th>Date</th><th>Time</th><th style="text-align:right">Hours</th><th>Source</th><th>Status</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+        <tfoot><tr>
+          <td colspan="${scope !== "client" ? 4 : 3}" style="text-align:right">Total</td>
+          <td style="text-align:right">${totalHours.toFixed(2)}</td>
+          <td colspan="2"></td>
+        </tr></tfoot>
+      </table>
+      <script>window.onload=()=>{window.print();}</script>
+      </body></html>`;
+    const w = window.open("", "_blank");
+    if (!w) return toast.error("Popup blocked");
+    w.document.write(html);
+    w.document.close();
+  }
+
   return (
     <div className="space-y-4">
       <Card className="border-0 shadow-sm">
         <CardHeader className="pb-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <CardTitle className="text-base">Work Logs</CardTitle>
-            <Button size="sm" onClick={() => setManualOpen(true)}>
-              <Plus className="h-4 w-4 mr-1" /> Manual entry
-            </Button>
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" onClick={handlePrint}>
+                <Printer className="h-4 w-4 mr-1" /> Print
+              </Button>
+              <Button size="sm" onClick={() => setManualOpen(true)}>
+                <Plus className="h-4 w-4 mr-1" /> Manual entry
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-3">

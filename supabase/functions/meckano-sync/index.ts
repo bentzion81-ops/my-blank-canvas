@@ -479,24 +479,33 @@ async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userI
         .eq("source", "meckano");
     }
 
-    // Resolve a default client_id per employee from their active assignment
-    // (prefer primary, ignore start_date so historical punches still get tagged).
-    const clientByEmp = new Map<string, string>();
+    // Resolve client_id per (employee, date) from the assignment active on that date.
+    // Prefer primary, then latest start_date. Respects start_date / end_date so historical
+    // punches are attributed to the workplace the employee actually had on that day.
+    const assignsByEmp = new Map<string, any[]>();
     if (matchedEmpIds.length) {
       const { data: assigns } = await admin
         .from("employee_client_assignments")
         .select("employee_id, client_id, is_primary, start_date, end_date")
         .in("employee_id", matchedEmpIds)
-        .is("end_date", null)
         .not("client_id", "is", null);
-      const sorted = (assigns ?? []).slice().sort((a: any, b: any) => {
+      for (const a of assigns ?? []) {
+        if (!assignsByEmp.has(a.employee_id)) assignsByEmp.set(a.employee_id, []);
+        assignsByEmp.get(a.employee_id)!.push(a);
+      }
+    }
+    const clientForShift = (empId: string, date: string): string | null => {
+      const list = assignsByEmp.get(empId) ?? [];
+      const active = list.filter(
+        (a) => (!a.start_date || a.start_date <= date) && (!a.end_date || a.end_date >= date),
+      );
+      if (active.length === 0) return null;
+      active.sort((a, b) => {
         if (a.is_primary !== b.is_primary) return a.is_primary ? -1 : 1;
         return String(b.start_date ?? "").localeCompare(String(a.start_date ?? ""));
       });
-      for (const a of sorted) {
-        if (!clientByEmp.has(a.employee_id)) clientByEmp.set(a.employee_id, a.client_id);
-      }
-    }
+      return active[0].client_id;
+    };
 
     let stored = 0;
     let unmatched = 0;
@@ -506,7 +515,7 @@ async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userI
       if (!empId) { unmatched++; continue; }
       toInsert.push({
         employee_id: empId,
-        client_id: clientByEmp.get(empId) ?? null,
+        client_id: clientForShift(empId, s.date),
         date: s.date,
         check_in: s.checkIn.toISOString(),
         check_out: s.checkOut ? s.checkOut.toISOString() : null,

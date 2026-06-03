@@ -99,13 +99,13 @@ const Payroll = () => {
   });
 
   const { data: payments = [], refetch: refetchPayments } = useQuery({
-    queryKey: ["payroll-payments", fromStr, toStr],
+    queryKey: ["payroll-payments", fromStr],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("payroll_payments")
-        .select("amount, payment_date, payroll_item_id, payroll_items!inner(employee_id, payroll_runs!inner(month))")
-        .gte("payment_date", fromStr)
-        .lte("payment_date", toStr);
+        .select("id, amount, payment_date, notes, payroll_item_id, payroll_items!inner(employee_id, payroll_runs!inner(month))")
+        .eq("payroll_items.payroll_runs.month", fromStr)
+        .order("payment_date", { ascending: false });
       if (error) throw error;
       return data || [];
     },

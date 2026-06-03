@@ -233,9 +233,8 @@ const Payroll = () => {
         itemsDeductions;
 
       const totalDue = grossFromLogs + expenses - deductions;
-      const paid = payments
-        .filter((p: any) => p.payroll_items?.employee_id === emp.id)
-        .reduce((s: number, p: any) => s + Number(p.amount || 0), 0);
+      const empPayments = payments.filter((p: any) => p.payroll_items?.employee_id === emp.id);
+      const paid = empPayments.reduce((s: number, p: any) => s + Number(p.amount || 0), 0);
       const balance = totalDue - paid;
 
       const sitesArr = Array.from(sites.values());
@@ -257,6 +256,7 @@ const Payroll = () => {
         paid,
         balance,
         items: empItems,
+        payments: empPayments,
       };
     });
 

@@ -161,6 +161,7 @@ const Billing = () => {
       else if (overdue) status = "overdue";
       else status = "due";
 
+      const mark = invoiceMarks.find((m: any) => m.client_id === c.id);
       return {
         client: c,
         hours,
@@ -171,9 +172,11 @@ const Billing = () => {
         balance,
         status,
         invoice: clientInvoices[0],
+        invoiceIssued: mark ? !!mark.issued : !!clientInvoices[0],
+        invoiceMarkId: mark?.id as string | undefined,
       };
     }).filter((r) => r.totalDue > 0 || r.hours > 0);
-  }, [clients, workLogs, employeeAssignedClient, charges, invoices]);
+  }, [clients, workLogs, employeeAssignedClient, charges, invoices, invoiceMarks]);
 
   const totals = useMemo(() => ({
     due: rows.reduce((s, r) => s + r.totalDue, 0),

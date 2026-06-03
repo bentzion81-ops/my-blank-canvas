@@ -185,6 +185,21 @@ const Billing = () => {
     }
   };
 
+  const toggleInvoiceIssued = async (row: typeof rows[number]) => {
+    if (row.invoice) {
+      // Unmark: delete the invoice (only if no payments)
+      if (Number(row.invoice.paid_amount) > 0) {
+        return toast.error("Cannot unmark — payments already recorded");
+      }
+      const { error } = await supabase.from("invoices").delete().eq("id", row.invoice.id);
+      if (error) return toast.error(error.message);
+      toast.success("Invoice unmarked");
+      refetchInvoices();
+      return;
+    }
+    await createInvoice(row);
+  };
+
   const createInvoice = async (row: typeof rows[number]) => {
     if (row.totalDue <= 0) return toast.error("Nothing to invoice");
     const c = row.client;

@@ -494,16 +494,21 @@ async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userI
         assignsByEmp.get(a.employee_id)!.push(a);
       }
     }
+    // Only consider PRIMARY assignments active on that date. Non-primary assignments
+    // (e.g. those auto-created from replacement reports) must not hijack Meckano hours
+    // away from the employee's regular workplace.
     const clientForShift = (empId: string, date: string): string | null => {
       const list = assignsByEmp.get(empId) ?? [];
       const active = list.filter(
-        (a) => (!a.start_date || a.start_date <= date) && (!a.end_date || a.end_date >= date),
+        (a) =>
+          a.is_primary === true &&
+          (!a.start_date || a.start_date <= date) &&
+          (!a.end_date || a.end_date >= date),
       );
       if (active.length === 0) return null;
-      active.sort((a, b) => {
-        if (a.is_primary !== b.is_primary) return a.is_primary ? -1 : 1;
-        return String(b.start_date ?? "").localeCompare(String(a.start_date ?? ""));
-      });
+      active.sort((a, b) =>
+        String(b.start_date ?? "").localeCompare(String(a.start_date ?? "")),
+      );
       return active[0].client_id;
     };
 

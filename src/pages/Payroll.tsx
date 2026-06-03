@@ -328,37 +328,20 @@ const Payroll = () => {
     const amount = Number(payAmount);
     if (!amount || amount <= 0) return toast.error("Enter a valid amount");
 
-    // Ensure a payroll_run for this month + payroll_item for this employee
-    const { data: run } = await supabase.from("payroll_runs").select("id").eq("month", month).maybeSingle();
-    let runId = run?.id;
-    if (!runId) {
-      const { data: newRun, error } = await supabase
-        .from("payroll_runs").insert({ month }).select("id").single();
-      if (error) return toast.error(error.message);
-      runId = newRun.id;
+    // Ensure we have a fresh user session before calling the protected RPC
+    const { data: sess } = await supabase.auth.getSession();
+    if (!sess.session) {
+      return toast.error("Session expired — please sign in again");
     }
-    const { data: item } = await supabase
-      .from("payroll_items")
-      .select("id")
-      .eq("payroll_run_id", runId)
-      .eq("employee_id", payOpen.employeeId)
-      .maybeSingle();
-    let itemId = item?.id;
-    if (!itemId) {
-      const { data: newItem, error } = await supabase
-        .from("payroll_items")
-        .insert({ payroll_run_id: runId, employee_id: payOpen.employeeId })
-        .select("id").single();
-      if (error) return toast.error(error.message);
-      itemId = newItem.id;
-    }
-    const { error: payErr } = await supabase.from("payroll_payments").insert({
-      payroll_item_id: itemId,
-      amount,
-      payment_date: format(new Date(), "yyyy-MM-dd"),
-      notes: payNotes || null,
+
+    const { error } = await supabase.rpc("record_payroll_payment" as any, {
+      _month: month,
+      _employee_id: payOpen.employeeId,
+      _amount: amount,
+      _notes: payNotes || null,
     });
-    if (payErr) return toast.error(payErr.message);
+    if (error) return toast.error(error.message);
+
     toast.success("Payment recorded");
     setPayOpen(null);
     setPayAmount("");

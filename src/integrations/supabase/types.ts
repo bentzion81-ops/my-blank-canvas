@@ -1919,6 +1919,15 @@ export type Database = {
         Args: { _from_date: string; _to_date: string }
         Returns: number
       }
+      record_payroll_payment: {
+        Args: {
+          _amount: number
+          _employee_id: string
+          _month: string
+          _notes: string
+        }
+        Returns: string
+      }
       refresh_client_monthly_metrics: {
         Args: { _month: string }
         Returns: undefined

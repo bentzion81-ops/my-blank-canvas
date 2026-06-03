@@ -335,6 +335,7 @@ const Billing = () => {
                   <TableHead className="text-right hidden md:table-cell">Paid</TableHead>
                   <TableHead className="text-right">Balance</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead className="text-center">Invoice issued</TableHead>
                   <TableHead></TableHead>
                 </TableRow>
               </TableHeader>

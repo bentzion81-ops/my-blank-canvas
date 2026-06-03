@@ -112,6 +112,18 @@ const Billing = () => {
     },
   });
 
+  const { data: invoiceMarks = [], refetch: refetchMarks } = useQuery({
+    queryKey: ["billing-invoice-marks", fromStr],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("client_invoice_marks" as any)
+        .select("id, client_id, issued")
+        .eq("month", fromStr);
+      if (error) throw error;
+      return (data as any[]) || [];
+    },
+  });
+
   const rows = useMemo(() => {
     return clients.map((c: any) => {
       const hours = workLogs
@@ -149,6 +161,7 @@ const Billing = () => {
       else if (overdue) status = "overdue";
       else status = "due";
 
+      const mark = invoiceMarks.find((m: any) => m.client_id === c.id);
       return {
         client: c,
         hours,
@@ -159,9 +172,11 @@ const Billing = () => {
         balance,
         status,
         invoice: clientInvoices[0],
+        invoiceIssued: mark ? !!mark.issued : !!clientInvoices[0],
+        invoiceMarkId: mark?.id as string | undefined,
       };
     }).filter((r) => r.totalDue > 0 || r.hours > 0);
-  }, [clients, workLogs, employeeAssignedClient, charges, invoices]);
+  }, [clients, workLogs, employeeAssignedClient, charges, invoices, invoiceMarks]);
 
   const totals = useMemo(() => ({
     due: rows.reduce((s, r) => s + r.totalDue, 0),
@@ -187,18 +202,16 @@ const Billing = () => {
   };
 
   const toggleInvoiceIssued = async (row: typeof rows[number]) => {
-    if (row.invoice) {
-      // Unmark: delete the invoice (only if no payments)
-      if (Number(row.invoice.paid_amount) > 0) {
-        return toast.error("Cannot unmark — payments already recorded");
-      }
-      const { error } = await supabase.from("invoices").delete().eq("id", row.invoice.id);
-      if (error) return toast.error(error.message);
-      toast.success("Invoice unmarked");
-      refetchInvoices();
-      return;
-    }
-    await createInvoice(row);
+    const nextIssued = !row.invoiceIssued;
+    const { error } = await supabase
+      .from("client_invoice_marks" as any)
+      .upsert(
+        { client_id: row.client.id, month: fromStr, issued: nextIssued },
+        { onConflict: "client_id,month" },
+      );
+    if (error) return toast.error(error.message);
+    toast.success(nextIssued ? "Marked as issued" : "Unmarked");
+    refetchMarks();
   };
 
   const createInvoice = async (row: typeof rows[number]) => {
@@ -356,7 +369,7 @@ const Billing = () => {
                     <TableCell><StatusBadge status={r.status} /></TableCell>
                     <TableCell className="text-center">
                       <Checkbox
-                        checked={!!r.invoice}
+                        checked={r.invoiceIssued}
                         disabled={r.totalDue <= 0}
                         onCheckedChange={() => toggleInvoiceIssued(r)}
                         aria-label="Invoice issued"

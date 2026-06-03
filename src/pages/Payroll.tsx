@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Clock, Wallet, DollarSign, TrendingDown, Plus, Loader2, ChevronDown, ChevronRight, Search } from "lucide-react";
+import { Clock, Wallet, DollarSign, TrendingDown, Plus, Loader2, ChevronDown, ChevronRight, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 const fmt = (n: number) => `₪${Math.round(n).toLocaleString()}`;
@@ -99,13 +99,13 @@ const Payroll = () => {
   });
 
   const { data: payments = [], refetch: refetchPayments } = useQuery({
-    queryKey: ["payroll-payments", fromStr, toStr],
+    queryKey: ["payroll-payments", fromStr],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("payroll_payments")
-        .select("amount, payment_date, payroll_item_id, payroll_items!inner(employee_id, payroll_runs!inner(month))")
-        .gte("payment_date", fromStr)
-        .lte("payment_date", toStr);
+        .select("id, amount, payment_date, notes, payroll_item_id, payroll_items!inner(employee_id, payroll_runs!inner(month))")
+        .eq("payroll_items.payroll_runs.month", fromStr)
+        .order("payment_date", { ascending: false });
       if (error) throw error;
       return data || [];
     },
@@ -233,9 +233,8 @@ const Payroll = () => {
         itemsDeductions;
 
       const totalDue = grossFromLogs + expenses - deductions;
-      const paid = payments
-        .filter((p: any) => p.payroll_items?.employee_id === emp.id)
-        .reduce((s: number, p: any) => s + Number(p.amount || 0), 0);
+      const empPayments = payments.filter((p: any) => p.payroll_items?.employee_id === emp.id);
+      const paid = empPayments.reduce((s: number, p: any) => s + Number(p.amount || 0), 0);
       const balance = totalDue - paid;
 
       const sitesArr = Array.from(sites.values());
@@ -257,6 +256,7 @@ const Payroll = () => {
         paid,
         balance,
         items: empItems,
+        payments: empPayments,
       };
     });
 
@@ -346,6 +346,14 @@ const Payroll = () => {
     setPayOpen(null);
     setPayAmount("");
     setPayNotes("");
+    refetchPayments();
+  }
+
+  async function deletePayment(paymentId: string) {
+    if (!confirm("Delete this payment? This cannot be undone.")) return;
+    const { error } = await supabase.from("payroll_payments").delete().eq("id", paymentId);
+    if (error) return toast.error(error.message);
+    toast.success("Payment removed");
     refetchPayments();
   }
 
@@ -511,6 +519,39 @@ const Payroll = () => {
                                   <div className="font-semibold tabular-nums">{fmt(base.totalDue)}</div>
                                 </div>
                               </div>
+                              {r.isPrimary && (
+                                <div className="space-y-1 pt-2">
+                                  <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Payments this month</div>
+                                  {((base as any).payments || []).length === 0 ? (
+                                    <div className="text-xs text-muted-foreground">No payments recorded</div>
+                                  ) : (
+                                    <Table>
+                                      <TableHeader>
+                                        <TableRow>
+                                          <TableHead>Date</TableHead>
+                                          <TableHead>Notes</TableHead>
+                                          <TableHead className="text-right">Amount</TableHead>
+                                          <TableHead className="w-10"></TableHead>
+                                        </TableRow>
+                                      </TableHeader>
+                                      <TableBody>
+                                        {((base as any).payments as any[]).map((p) => (
+                                          <TableRow key={p.id}>
+                                            <TableCell className="tabular-nums">{p.payment_date ? format(new Date(p.payment_date), "dd/MM/yyyy") : "—"}</TableCell>
+                                            <TableCell className="text-muted-foreground">{p.notes || "—"}</TableCell>
+                                            <TableCell className="text-right tabular-nums font-medium">{fmt(Number(p.amount))}</TableCell>
+                                            <TableCell className="text-right">
+                                              <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => deletePayment(p.id)} aria-label="Delete payment">
+                                                <Trash2 className="h-3.5 w-3.5" />
+                                              </Button>
+                                            </TableCell>
+                                          </TableRow>
+                                        ))}
+                                      </TableBody>
+                                    </Table>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           </TableCell>
                         </TableRow>

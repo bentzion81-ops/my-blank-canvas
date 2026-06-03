@@ -84,6 +84,17 @@ function rowToneClass(exceptions: string[], status: string) {
   return "border-l-4 border-l-muted";
 }
 
+function formatLogTime(log: Pick<WorkLog, "source_table" | "check_in" | "check_out">, field: "check_in" | "check_out") {
+  const value = log[field];
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value.slice(0, 5);
+  if (log.source_table === "replacement_report") {
+    return `${String(date.getUTCHours()).padStart(2, "0")}:${String(date.getUTCMinutes()).padStart(2, "0")}`;
+  }
+  return format(date, "HH:mm");
+}
+
 interface Props {
   scope?: "global" | "employee" | "client";
   employeeId?: string;
@@ -226,7 +237,7 @@ export function WorkLogsTable({ scope = "global", employeeId, clientId, defaultR
         <td>${l.employee_name || "—"}</td>
         ${scope !== "client" ? `<td>${l.client_name || l.custom_workplace || "—"}</td>` : ""}
         <td>${format(parseISO(l.work_date), "dd/MM/yyyy")}</td>
-        <td>${l.check_in ? format(new Date(l.check_in), "HH:mm") : "—"} – ${l.check_out ? format(new Date(l.check_out), "HH:mm") : "—"}</td>
+        <td>${formatLogTime(l, "check_in")} – ${formatLogTime(l, "check_out")}</td>
         <td style="text-align:right">${Number(l.hours_worked).toFixed(2)}</td>
         <td>${sourceLabel[l.source] || l.source}</td>
         <td>${l.status}</td>
@@ -372,9 +383,9 @@ export function WorkLogsTable({ scope = "global", employeeId, clientId, defaultR
                         {!compact && <TableCell>{log.client_name || log.custom_workplace || "—"}</TableCell>}
                         <TableCell>{format(parseISO(log.work_date), "dd MMM yyyy")}</TableCell>
                         <TableCell className="tabular-nums">
-                          {log.check_in ? format(new Date(log.check_in), "HH:mm") : "—"}
+                          {formatLogTime(log, "check_in")}
                           {" – "}
-                          {log.check_out ? format(new Date(log.check_out), "HH:mm") : "—"}
+                          {formatLogTime(log, "check_out")}
                           <span className="text-muted-foreground ml-2">({Number(log.hours_worked).toFixed(1)}h)</span>
                         </TableCell>
                         <TableCell>
@@ -439,8 +450,8 @@ function DetailDialog({ log, onClose, expected }: { log: WorkLog | null; onClose
             <div><span className="text-muted-foreground">Status: </span><span className="capitalize">{log.status}</span></div>
             <div><span className="text-muted-foreground">Work site: </span>{log.client_name || log.custom_workplace || "—"}</div>
             <div><span className="text-muted-foreground">Hours: </span>{Number(log.hours_worked).toFixed(2)}h</div>
-            <div><span className="text-muted-foreground">Check in: </span>{log.check_in ? format(new Date(log.check_in), "HH:mm") : "—"}</div>
-            <div><span className="text-muted-foreground">Check out: </span>{log.check_out ? format(new Date(log.check_out), "HH:mm") : "—"}</div>
+            <div><span className="text-muted-foreground">Check in: </span>{formatLogTime(log, "check_in")}</div>
+            <div><span className="text-muted-foreground">Check out: </span>{formatLogTime(log, "check_out")}</div>
           </div>
 
           {exp && exp.is_working_day && (
@@ -449,7 +460,7 @@ function DetailDialog({ log, onClose, expected }: { log: WorkLog | null; onClose
               <div className="grid grid-cols-2 gap-2 text-xs">
                 <div><span className="text-muted-foreground">Planned: </span>{exp.expected_check_in || "—"} – {exp.expected_check_out || "—"}</div>
                 <div><span className="text-muted-foreground">Actual: </span>
-                  {log.check_in ? format(new Date(log.check_in), "HH:mm") : "—"} – {log.check_out ? format(new Date(log.check_out), "HH:mm") : "—"}
+                  {formatLogTime(log, "check_in")} – {formatLogTime(log, "check_out")}
                 </div>
               </div>
             </div>

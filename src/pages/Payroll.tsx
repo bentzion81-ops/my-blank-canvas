@@ -349,6 +349,14 @@ const Payroll = () => {
     refetchPayments();
   }
 
+  async function deletePayment(paymentId: string) {
+    if (!confirm("Delete this payment? This cannot be undone.")) return;
+    const { error } = await supabase.from("payroll_payments").delete().eq("id", paymentId);
+    if (error) return toast.error(error.message);
+    toast.success("Payment removed");
+    refetchPayments();
+  }
+
   return (
     <div className="flex flex-col">
       <AppHeader title="Payroll" subtitle={format(new Date(month), "MMMM yyyy")} />

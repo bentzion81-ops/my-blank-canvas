@@ -332,6 +332,50 @@ export type Database = {
           },
         ]
       }
+      client_invoice_marks: {
+        Row: {
+          client_id: string
+          created_at: string
+          id: string
+          issued: boolean
+          marked_at: string
+          marked_by: string | null
+          month: string
+          notes: string | null
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          id?: string
+          issued?: boolean
+          marked_at?: string
+          marked_by?: string | null
+          month: string
+          notes?: string | null
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          id?: string
+          issued?: boolean
+          marked_at?: string
+          marked_by?: string | null
+          month?: string
+          notes?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_invoice_marks_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       client_monthly_metrics: {
         Row: {
           actual_hours: number | null

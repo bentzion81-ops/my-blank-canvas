@@ -479,6 +479,25 @@ async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userI
         .eq("source", "meckano");
     }
 
+    // Resolve a default client_id per employee from their active assignment
+    // (prefer primary, ignore start_date so historical punches still get tagged).
+    const clientByEmp = new Map<string, string>();
+    if (matchedEmpIds.length) {
+      const { data: assigns } = await admin
+        .from("employee_client_assignments")
+        .select("employee_id, client_id, is_primary, start_date, end_date")
+        .in("employee_id", matchedEmpIds)
+        .is("end_date", null)
+        .not("client_id", "is", null);
+      const sorted = (assigns ?? []).slice().sort((a: any, b: any) => {
+        if (a.is_primary !== b.is_primary) return a.is_primary ? -1 : 1;
+        return String(b.start_date ?? "").localeCompare(String(a.start_date ?? ""));
+      });
+      for (const a of sorted) {
+        if (!clientByEmp.has(a.employee_id)) clientByEmp.set(a.employee_id, a.client_id);
+      }
+    }
+
     let stored = 0;
     let unmatched = 0;
     const toInsert: any[] = [];
@@ -487,6 +506,7 @@ async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userI
       if (!empId) { unmatched++; continue; }
       toInsert.push({
         employee_id: empId,
+        client_id: clientByEmp.get(empId) ?? null,
         date: s.date,
         check_in: s.checkIn.toISOString(),
         check_out: s.checkOut ? s.checkOut.toISOString() : null,

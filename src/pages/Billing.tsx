@@ -369,7 +369,7 @@ const Billing = () => {
                     <TableCell><StatusBadge status={r.status} /></TableCell>
                     <TableCell className="text-center">
                       <Checkbox
-                        checked={!!r.invoice}
+                        checked={r.invoiceIssued}
                         disabled={r.totalDue <= 0}
                         onCheckedChange={() => toggleInvoiceIssued(r)}
                         aria-label="Invoice issued"

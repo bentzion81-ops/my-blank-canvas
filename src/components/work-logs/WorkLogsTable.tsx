@@ -193,7 +193,7 @@ export function WorkLogsTable({ scope = "global", employeeId, clientId, defaultR
       if (search && !(l.employee_name?.toLowerCase().includes(search.toLowerCase()) || l.client_name?.toLowerCase().includes(search.toLowerCase()))) return false;
       if (empFilter !== "all" && l.employee_id !== empFilter) return false;
       if (clientFilter !== "all" && l.client_id !== clientFilter) return false;
-      if (sourceFilter !== "all" && l.source !== sourceFilter) return false;
+      if (!sourceFilter.includes(l.source)) return false;
       if (statusFilter !== "all" && l.status !== statusFilter) return false;
       return true;
     });

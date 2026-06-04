@@ -333,16 +333,43 @@ export function WorkLogsTable({ scope = "global", employeeId, clientId, defaultR
               </Select>
             )}
 
-            <Select value={sourceFilter} onValueChange={setSourceFilter}>
-              <SelectTrigger className="h-9 w-[150px]"><SelectValue placeholder="Source" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All sources</SelectItem>
-                <SelectItem value="meckano">Meckano</SelectItem>
-                <SelectItem value="manual">Manual</SelectItem>
-                <SelectItem value="worker_form">Worker form</SelectItem>
-                <SelectItem value="absence">Absence</SelectItem>
-              </SelectContent>
-            </Select>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="h-9 w-[170px] justify-between font-normal">
+                  <span className="truncate">
+                    {sourceFilter.length === ALL_SOURCES.length
+                      ? "All sources"
+                      : sourceFilter.length === 0
+                        ? "No sources"
+                        : `${sourceFilter.length} sources`}
+                  </span>
+                  <ChevronDown className="h-4 w-4 opacity-50" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-[180px]">
+                {ALL_SOURCES.map((src) => (
+                  <DropdownMenuCheckboxItem
+                    key={src}
+                    checked={sourceFilter.includes(src)}
+                    onCheckedChange={(checked) => {
+                      setSourceFilter((prev) =>
+                        checked ? [...prev, src] : prev.filter((s) => s !== src),
+                      );
+                    }}
+                    onSelect={(e) => e.preventDefault()}
+                  >
+                    {sourceLabel[src] || src}
+                  </DropdownMenuCheckboxItem>
+                ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setSourceFilter([...ALL_SOURCES]); }}>
+                  Select all
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setSourceFilter([]); }}>
+                  Clear
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
 
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="h-9 w-[150px]"><SelectValue placeholder="Status" /></SelectTrigger>

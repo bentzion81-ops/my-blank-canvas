@@ -15,7 +15,8 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { CalendarIcon, Plus, Search, Loader2, Check, X, Trash2, Eye, Printer } from "lucide-react";
+import { CalendarIcon, Plus, Search, Loader2, Check, X, Trash2, Eye, Printer, ChevronDown } from "lucide-react";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuSeparator, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import type { DateRange } from "react-day-picker";
 import { toast } from "sonner";
@@ -112,7 +113,8 @@ export function WorkLogsTable({ scope = "global", employeeId, clientId, defaultR
   const [search, setSearch] = useState("");
   const [empFilter, setEmpFilter] = useState<string>(employeeId ?? "all");
   const [clientFilter, setClientFilter] = useState<string>(clientId ?? "all");
-  const [sourceFilter, setSourceFilter] = useState<string>("all");
+  const ALL_SOURCES = ["meckano", "manual", "worker_form", "absence"] as const;
+  const [sourceFilter, setSourceFilter] = useState<string[]>([...ALL_SOURCES]);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [detail, setDetail] = useState<WorkLog | null>(null);
   const [manualOpen, setManualOpen] = useState(false);
@@ -191,7 +193,7 @@ export function WorkLogsTable({ scope = "global", employeeId, clientId, defaultR
       if (search && !(l.employee_name?.toLowerCase().includes(search.toLowerCase()) || l.client_name?.toLowerCase().includes(search.toLowerCase()))) return false;
       if (empFilter !== "all" && l.employee_id !== empFilter) return false;
       if (clientFilter !== "all" && l.client_id !== clientFilter) return false;
-      if (sourceFilter !== "all" && l.source !== sourceFilter) return false;
+      if (!sourceFilter.includes(l.source)) return false;
       if (statusFilter !== "all" && l.status !== statusFilter) return false;
       return true;
     });
@@ -331,16 +333,43 @@ export function WorkLogsTable({ scope = "global", employeeId, clientId, defaultR
               </Select>
             )}
 
-            <Select value={sourceFilter} onValueChange={setSourceFilter}>
-              <SelectTrigger className="h-9 w-[150px]"><SelectValue placeholder="Source" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All sources</SelectItem>
-                <SelectItem value="meckano">Meckano</SelectItem>
-                <SelectItem value="manual">Manual</SelectItem>
-                <SelectItem value="worker_form">Worker form</SelectItem>
-                <SelectItem value="absence">Absence</SelectItem>
-              </SelectContent>
-            </Select>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="h-9 w-[170px] justify-between font-normal">
+                  <span className="truncate">
+                    {sourceFilter.length === ALL_SOURCES.length
+                      ? "All sources"
+                      : sourceFilter.length === 0
+                        ? "No sources"
+                        : `${sourceFilter.length} sources`}
+                  </span>
+                  <ChevronDown className="h-4 w-4 opacity-50" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-[180px]">
+                {ALL_SOURCES.map((src) => (
+                  <DropdownMenuCheckboxItem
+                    key={src}
+                    checked={sourceFilter.includes(src)}
+                    onCheckedChange={(checked) => {
+                      setSourceFilter((prev) =>
+                        checked ? [...prev, src] : prev.filter((s) => s !== src),
+                      );
+                    }}
+                    onSelect={(e) => e.preventDefault()}
+                  >
+                    {sourceLabel[src] || src}
+                  </DropdownMenuCheckboxItem>
+                ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setSourceFilter([...ALL_SOURCES]); }}>
+                  Select all
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setSourceFilter([]); }}>
+                  Clear
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
 
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="h-9 w-[150px]"><SelectValue placeholder="Status" /></SelectTrigger>

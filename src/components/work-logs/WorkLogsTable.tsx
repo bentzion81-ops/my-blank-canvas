@@ -15,7 +15,8 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { CalendarIcon, Plus, Search, Loader2, Check, X, Trash2, Eye, Printer } from "lucide-react";
+import { CalendarIcon, Plus, Search, Loader2, Check, X, Trash2, Eye, Printer, ChevronDown } from "lucide-react";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuSeparator, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import type { DateRange } from "react-day-picker";
 import { toast } from "sonner";

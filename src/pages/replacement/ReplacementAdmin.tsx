@@ -789,6 +789,8 @@ function AllReportsTab() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [sortBy, setSortBy] = useState<"created_desc" | "created_asc" | "work_desc" | "work_asc">("created_desc");
+  const [dateFrom, setDateFrom] = useState<string>("");
+  const [dateTo, setDateTo] = useState<string>("");
   const clients = useClients();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
@@ -798,12 +800,14 @@ function AllReportsTab() {
     const ascending = sortBy.endsWith("asc");
     let q = supabase.from("replacement_reports").select("*").order(sortCol, { ascending });
     if (statusFilter !== "all") q = q.eq("status", statusFilter as any);
+    if (dateFrom) q = q.gte("work_date", dateFrom);
+    if (dateTo) q = q.lte("work_date", dateTo);
     const { data } = await q;
     setReports((data as Report[]) || []);
     setSelectedIds(new Set());
     setLoading(false);
   };
-  useEffect(() => { load(); }, [statusFilter, sortBy]);
+  useEffect(() => { load(); }, [statusFilter, sortBy, dateFrom, dateTo]);
 
   const toggle = (id: string) => {
     const n = new Set(selectedIds);
@@ -821,9 +825,20 @@ function AllReportsTab() {
   return (
     <Card>
       <CardHeader>
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-end gap-3">
           <CardTitle>כל הדיווחים</CardTitle>
-          <div className="ml-auto flex gap-2">
+          <div className="ml-auto flex flex-wrap items-end gap-2">
+            <div className="space-y-1">
+              <Label className="text-xs">מתאריך</Label>
+              <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-40" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">עד תאריך</Label>
+              <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-40" />
+            </div>
+            {(dateFrom || dateTo) && (
+              <Button variant="ghost" size="sm" onClick={() => { setDateFrom(""); setDateTo(""); }}>נקה</Button>
+            )}
             <Input placeholder="חיפוש לפי שם / דרכון / מקום" value={search} onChange={(e) => setSearch(e.target.value)} className="w-64" />
             <Select value={sortBy} onValueChange={(v) => setSortBy(v as any)}>
               <SelectTrigger className="w-52"><SelectValue /></SelectTrigger>

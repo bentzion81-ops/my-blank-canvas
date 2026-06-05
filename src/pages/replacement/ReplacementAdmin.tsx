@@ -712,20 +712,25 @@ function PendingTab() {
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [dateFrom, setDateFrom] = useState<string>("");
+  const [dateTo, setDateTo] = useState<string>("");
   const clients = useClients();
 
   const load = async () => {
     setLoading(true);
-    const { data } = await supabase
+    let q = supabase
       .from("replacement_reports")
       .select("*")
       .in("status", ["pending", "needs_clarification"])
       .order("created_at", { ascending: false });
+    if (dateFrom) q = q.gte("work_date", dateFrom);
+    if (dateTo) q = q.lte("work_date", dateTo);
+    const { data } = await q;
     setReports((data as Report[]) || []);
     setSelectedIds(new Set());
     setLoading(false);
   };
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [dateFrom, dateTo]);
 
   const toggle = (id: string) => {
     const n = new Set(selectedIds);
@@ -735,7 +740,24 @@ function PendingTab() {
 
   return (
     <Card>
-      <CardHeader><CardTitle>דיווחים ממתינים לאישור ({reports.length})</CardTitle></CardHeader>
+      <CardHeader>
+        <div className="flex flex-wrap items-end gap-3">
+          <CardTitle>דיווחים ממתינים לאישור ({reports.length})</CardTitle>
+          <div className="ml-auto flex flex-wrap items-end gap-2">
+            <div className="space-y-1">
+              <Label className="text-xs">מתאריך</Label>
+              <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-40" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">עד תאריך</Label>
+              <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-40" />
+            </div>
+            {(dateFrom || dateTo) && (
+              <Button variant="ghost" size="sm" onClick={() => { setDateFrom(""); setDateTo(""); }}>נקה</Button>
+            )}
+          </div>
+        </div>
+      </CardHeader>
       <CardContent>
         {loading ? <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin" /></div> :
           reports.length === 0 ? <p className="text-muted-foreground text-center py-6">אין דיווחים ממתינים</p> :

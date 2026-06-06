@@ -22,7 +22,7 @@ import { NoWorkPeriodsPanel } from "@/components/attendance/NoWorkPeriodsPanel";
 import { DailyCheckTab } from "@/components/attendance/DailyCheckTab";
 
 type ViewMode = "day" | "range" | "month";
-type TopTab = "attendance" | "no_work";
+type TopTab = "attendance" | "no_work" | "daily_check";
 
 const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"] as const;
 

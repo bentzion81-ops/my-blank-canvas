@@ -13,11 +13,22 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { ALL_NAV_ITEMS } from "@/lib/navItems";
+import { useAuth } from "@/contexts/AuthContext";
+
+const ROLES = ["owner", "admin", "manager", "accountant", "office_staff", "viewer"] as const;
+type Role = (typeof ROLES)[number];
 
 type UserRow = {
   user_id: string;
@@ -29,12 +40,15 @@ type UserRow = {
 };
 
 const UserManagement = () => {
+  const { roles: myRoles, user: me } = useAuth();
+  const canEditRoles = myRoles.includes("owner");
   const [users, setUsers] = useState<UserRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<UserRow | null>(null);
   const [perms, setPerms] = useState<Record<string, boolean>>({});
   const [saving, setSaving] = useState(false);
   const [permLoading, setPermLoading] = useState(false);
+  const [updatingRole, setUpdatingRole] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -106,7 +120,35 @@ const UserManagement = () => {
     closeDialog();
   };
 
+  const changeRole = async (u: UserRow, newRole: Role) => {
+    if (!canEditRoles) return;
+    const current = u.roles[0];
+    if (current === newRole) return;
+    if (current === "owner" && u.user_id === me?.id) {
+      toast({ title: "לא ניתן להוריד הרשאת Owner מעצמך", variant: "destructive" });
+      return;
+    }
+    setUpdatingRole(u.user_id);
+    const { error: delErr } = await supabase.from("user_roles").delete().eq("user_id", u.user_id);
+    if (delErr) {
+      setUpdatingRole(null);
+      toast({ title: "שגיאה", description: delErr.message, variant: "destructive" });
+      return;
+    }
+    const { error: insErr } = await supabase
+      .from("user_roles")
+      .insert({ user_id: u.user_id, role: newRole as any });
+    setUpdatingRole(null);
+    if (insErr) {
+      toast({ title: "שגיאה", description: insErr.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: `התפקיד עודכן ל-${newRole}` });
+    setUsers((prev) => prev.map((x) => (x.user_id === u.user_id ? { ...x, roles: [newRole] } : x)));
+  };
+
   const isOwner = selected?.roles.includes("owner");
+
 
   return (
     <div className="flex flex-col">
@@ -143,7 +185,28 @@ const UserManagement = () => {
                     <TableRow key={u.user_id}>
                       <TableCell className="font-medium">{u.full_name}</TableCell>
                       <TableCell>{u.email}</TableCell>
-                      <TableCell className="capitalize">{u.roles.join(", ") || "—"}</TableCell>
+                      <TableCell>
+                        {canEditRoles ? (
+                          <Select
+                            value={u.roles[0] ?? "viewer"}
+                            onValueChange={(v) => changeRole(u, v as Role)}
+                            disabled={updatingRole === u.user_id}
+                          >
+                            <SelectTrigger className="h-8 w-36 capitalize">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {ROLES.map((r) => (
+                                <SelectItem key={r} value={r} className="capitalize">
+                                  {r}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <span className="capitalize">{u.roles.join(", ") || "—"}</span>
+                        )}
+                      </TableCell>
                       <TableCell>
                         <StatusBadge status={u.is_active ? "active" : "inactive"} />
                       </TableCell>

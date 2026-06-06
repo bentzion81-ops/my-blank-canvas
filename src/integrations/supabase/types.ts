@@ -468,6 +468,7 @@ export type Database = {
           id: string
           include_friday: boolean
           include_saturday: boolean
+          meckano_synced: boolean
           monthly_payment: number | null
           name: string
           notes: string | null
@@ -491,6 +492,7 @@ export type Database = {
           id?: string
           include_friday?: boolean
           include_saturday?: boolean
+          meckano_synced?: boolean
           monthly_payment?: number | null
           name: string
           notes?: string | null
@@ -514,6 +516,7 @@ export type Database = {
           id?: string
           include_friday?: boolean
           include_saturday?: boolean
+          meckano_synced?: boolean
           monthly_payment?: number | null
           name?: string
           notes?: string | null
@@ -523,6 +526,63 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      daily_check_logs: {
+        Row: {
+          check_date: string
+          checked_by: string | null
+          client_id: string
+          created_at: string
+          employee_id: string
+          id: string
+          missing_type: string | null
+          notes: string | null
+          source: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          check_date: string
+          checked_by?: string | null
+          client_id: string
+          created_at?: string
+          employee_id: string
+          id?: string
+          missing_type?: string | null
+          notes?: string | null
+          source?: string
+          status: string
+          updated_at?: string
+        }
+        Update: {
+          check_date?: string
+          checked_by?: string | null
+          client_id?: string
+          created_at?: string
+          employee_id?: string
+          id?: string
+          missing_type?: string | null
+          notes?: string | null
+          source?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_check_logs_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "daily_check_logs_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       documents: {
         Row: {

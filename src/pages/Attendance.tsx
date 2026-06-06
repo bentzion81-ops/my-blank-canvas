@@ -19,9 +19,10 @@ import type { DateRange } from "react-day-picker";
 import { AbsenceDialog, ABSENCE_LABELS, type AbsenceStatus } from "@/components/attendance/AbsenceDialog";
 import { AttendanceAlertsPanel } from "@/components/attendance/AttendanceAlertsPanel";
 import { NoWorkPeriodsPanel } from "@/components/attendance/NoWorkPeriodsPanel";
+import { DailyCheckTab } from "@/components/attendance/DailyCheckTab";
 
 type ViewMode = "day" | "range" | "month";
-type TopTab = "attendance" | "no_work";
+type TopTab = "attendance" | "no_work" | "daily_check";
 
 const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"] as const;
 
@@ -318,11 +319,21 @@ const Attendance = () => {
           <TabsList>
             <TabsTrigger value="attendance">נוכחות</TabsTrigger>
             <TabsTrigger value="no_work">תקופות אי-עבודה</TabsTrigger>
+            <TabsTrigger value="daily_check">
+              בדיקה יומית
+              {pendingAbsencesCount > 0 && (
+                <Badge variant="destructive" className="mr-1 h-4 w-4 p-0 text-[10px] flex items-center justify-center">
+                  {pendingAbsencesCount}
+                </Badge>
+              )}
+            </TabsTrigger>
           </TabsList>
         </Tabs>
 
         {topTab === "no_work" ? (
           <NoWorkPeriodsPanel />
+        ) : topTab === "daily_check" ? (
+          <DailyCheckTab selectedDate={selectedDay} />
         ) : (
         <>
         {/* Date selector */}

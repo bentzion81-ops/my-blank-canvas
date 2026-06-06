@@ -13,11 +13,22 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { ALL_NAV_ITEMS } from "@/lib/navItems";
+import { useAuth } from "@/contexts/AuthContext";
+
+const ROLES = ["owner", "admin", "manager", "accountant", "office_staff", "viewer"] as const;
+type Role = (typeof ROLES)[number];
 
 type UserRow = {
   user_id: string;
@@ -29,12 +40,15 @@ type UserRow = {
 };
 
 const UserManagement = () => {
+  const { roles: myRoles, user: me } = useAuth();
+  const canEditRoles = myRoles.includes("owner");
   const [users, setUsers] = useState<UserRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<UserRow | null>(null);
   const [perms, setPerms] = useState<Record<string, boolean>>({});
   const [saving, setSaving] = useState(false);
   const [permLoading, setPermLoading] = useState(false);
+  const [updatingRole, setUpdatingRole] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);

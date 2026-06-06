@@ -185,7 +185,28 @@ const UserManagement = () => {
                     <TableRow key={u.user_id}>
                       <TableCell className="font-medium">{u.full_name}</TableCell>
                       <TableCell>{u.email}</TableCell>
-                      <TableCell className="capitalize">{u.roles.join(", ") || "—"}</TableCell>
+                      <TableCell>
+                        {canEditRoles ? (
+                          <Select
+                            value={u.roles[0] ?? "viewer"}
+                            onValueChange={(v) => changeRole(u, v as Role)}
+                            disabled={updatingRole === u.user_id}
+                          >
+                            <SelectTrigger className="h-8 w-36 capitalize">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {ROLES.map((r) => (
+                                <SelectItem key={r} value={r} className="capitalize">
+                                  {r}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <span className="capitalize">{u.roles.join(", ") || "—"}</span>
+                        )}
+                      </TableCell>
                       <TableCell>
                         <StatusBadge status={u.is_active ? "active" : "inactive"} />
                       </TableCell>

@@ -34,6 +34,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 
+import { useNavPermissions } from "@/hooks/useNavPermissions";
+
 const mainItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "Attendance", url: "/attendance", icon: Clock },

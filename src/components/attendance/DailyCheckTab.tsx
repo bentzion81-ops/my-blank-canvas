@@ -94,19 +94,25 @@ export function DailyCheckTab({ selectedDate }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dateStr, refreshKey]);
 
-  // Group: for each client, list employees scheduled this day-of-week
+  // Group: for each client, list employees scheduled this day-of-week.
+  // If there are no work_schedules for this client at all on this day, fall back
+  // to all active assignments for that client (so the page is useful even without schedules).
   const grouped = useMemo(() => {
     const result: { client: any; employees: { id: string; name: string }[] }[] = [];
+    const hasAnySchedules = schedules.length > 0;
     for (const client of clients) {
-      const empIds = new Set(
-        schedules
-          .filter((s: any) => s.client_id === client.id)
-          .map((s: any) => s.employee_id)
-      );
-      // include assignments that have schedules
+      const clientSchedules = schedules.filter((s: any) => s.client_id === client.id);
+      const useSchedule = hasAnySchedules && clientSchedules.length > 0;
+      const empIds = useSchedule
+        ? new Set(clientSchedules.map((s: any) => s.employee_id))
+        : null;
       const emps: { id: string; name: string }[] = [];
       assignments
-        .filter((a: any) => a.client_id === client.id && empIds.has(a.employee_id) && a.employees?.status === "active")
+        .filter((a: any) =>
+          a.client_id === client.id &&
+          a.employees?.status === "active" &&
+          (empIds ? empIds.has(a.employee_id) : true)
+        )
         .forEach((a: any) => {
           if (!emps.some((e) => e.id === a.employee_id)) {
             emps.push({

@@ -120,7 +120,35 @@ const UserManagement = () => {
     closeDialog();
   };
 
+  const changeRole = async (u: UserRow, newRole: Role) => {
+    if (!canEditRoles) return;
+    const current = u.roles[0];
+    if (current === newRole) return;
+    if (current === "owner" && u.user_id === me?.id) {
+      toast({ title: "לא ניתן להוריד הרשאת Owner מעצמך", variant: "destructive" });
+      return;
+    }
+    setUpdatingRole(u.user_id);
+    const { error: delErr } = await supabase.from("user_roles").delete().eq("user_id", u.user_id);
+    if (delErr) {
+      setUpdatingRole(null);
+      toast({ title: "שגיאה", description: delErr.message, variant: "destructive" });
+      return;
+    }
+    const { error: insErr } = await supabase
+      .from("user_roles")
+      .insert({ user_id: u.user_id, role: newRole as any });
+    setUpdatingRole(null);
+    if (insErr) {
+      toast({ title: "שגיאה", description: insErr.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: `התפקיד עודכן ל-${newRole}` });
+    setUsers((prev) => prev.map((x) => (x.user_id === u.user_id ? { ...x, roles: [newRole] } : x)));
+  };
+
   const isOwner = selected?.roles.includes("owner");
+
 
   return (
     <div className="flex flex-col">

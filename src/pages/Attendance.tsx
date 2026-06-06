@@ -19,6 +19,7 @@ import type { DateRange } from "react-day-picker";
 import { AbsenceDialog, ABSENCE_LABELS, type AbsenceStatus } from "@/components/attendance/AbsenceDialog";
 import { AttendanceAlertsPanel } from "@/components/attendance/AttendanceAlertsPanel";
 import { NoWorkPeriodsPanel } from "@/components/attendance/NoWorkPeriodsPanel";
+import { DailyCheckTab } from "@/components/attendance/DailyCheckTab";
 
 type ViewMode = "day" | "range" | "month";
 type TopTab = "attendance" | "no_work";

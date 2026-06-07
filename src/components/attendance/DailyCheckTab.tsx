@@ -98,21 +98,25 @@ export function DailyCheckTab({ selectedDate, onDateChange }: Props) {
   // - meckano client: list of meckano employees (with auto-detected status)
   // - non-meckano client: no employees, single client-level row
   const grouped = useMemo(() => {
-    const result: { client: any; employees: { id: string; name: string }[] }[] = [];
+    const result: { client: any; isMeckano: boolean; employees: { id: string; name: string }[] }[] = [];
     const hasAnySchedules = schedules.length > 0;
     for (const client of clients) {
-      if (client.meckano_synced) {
+      // Meckano employees assigned to this client
+      const meckanoAssigns = assignments.filter(
+        (a: any) =>
+          a.client_id === client.id &&
+          a.employees?.status === "active" &&
+          a.employees?.meckano_synced === true
+      );
+      const isMeckano = client.meckano_synced || meckanoAssigns.length > 0;
+
+      if (isMeckano) {
         const clientSchedules = schedules.filter((s: any) => s.client_id === client.id);
         const useSchedule = hasAnySchedules && clientSchedules.length > 0;
         const empIds = useSchedule ? new Set(clientSchedules.map((s: any) => s.employee_id)) : null;
         const emps: { id: string; name: string }[] = [];
-        assignments
-          .filter((a: any) =>
-            a.client_id === client.id &&
-            a.employees?.status === "active" &&
-            a.employees?.meckano_synced === true &&
-            (empIds ? empIds.has(a.employee_id) : true)
-          )
+        meckanoAssigns
+          .filter((a: any) => (empIds ? empIds.has(a.employee_id) : true))
           .forEach((a: any) => {
             if (!emps.some((e) => e.id === a.employee_id)) {
               emps.push({
@@ -121,17 +125,17 @@ export function DailyCheckTab({ selectedDate, onDateChange }: Props) {
               });
             }
           });
-        if (emps.length) result.push({ client, employees: emps });
+        if (emps.length) result.push({ client, isMeckano: true, employees: emps });
       } else {
-        // Non-meckano: only show clients that have at least one active assignment
         const hasAssignment = assignments.some(
           (a: any) => a.client_id === client.id && a.employees?.status === "active"
         );
-        if (hasAssignment) result.push({ client, employees: [] });
+        if (hasAssignment) result.push({ client, isMeckano: false, employees: [] });
       }
     }
     return result;
   }, [clients, assignments, schedules]);
+
 
   const getRecordStatus = (employeeId: string, clientId: string): RowStatus => {
     const rec = records.find((r: any) => r.employee_id === employeeId && (r.client_id === clientId || !r.client_id));

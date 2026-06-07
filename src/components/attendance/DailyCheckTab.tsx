@@ -183,7 +183,7 @@ export function DailyCheckTab({ selectedDate, onDateChange }: Props) {
         const clientSchedules = schedules.filter((s: any) => s.client_id === client.id);
         const useSchedule = hasAnySchedules && clientSchedules.length > 0;
         const empIds = useSchedule ? new Set(clientSchedules.map((s: any) => s.employee_id)) : null;
-        const emps: { id: string; name: string }[] = [];
+        const emps: { id: string; name: string; israeli_phone?: string; foreign_phone?: string }[] = [];
         meckanoAssigns
           .filter((a: any) => (empIds ? empIds.has(a.employee_id) : true))
           .forEach((a: any) => {
@@ -191,6 +191,8 @@ export function DailyCheckTab({ selectedDate, onDateChange }: Props) {
               emps.push({
                 id: a.employee_id,
                 name: `${a.employees?.first_name || ""} ${a.employees?.last_name || ""}`.trim(),
+                israeli_phone: a.employees?.israeli_phone,
+                foreign_phone: a.employees?.foreign_phone,
               });
             }
           });

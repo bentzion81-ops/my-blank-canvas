@@ -400,12 +400,28 @@ export function DailyCheckTab({ selectedDate, onDateChange }: Props) {
                   {!isNoWork && (
                     <CardContent className="space-y-3">
                       {employees.map((e) => {
+                        const key = `${client.id}::${e.id}`;
+                        const empNW = empNoWork.has(key);
                         const st = getRecordStatus(e.id, client.id);
                         const lbl = labelFor(st);
                         return (
                           <div key={e.id} className="flex flex-wrap items-center gap-3 border-b pb-2 last:border-0">
                             <div className="min-w-[140px] font-medium text-sm">{e.name}</div>
-                            <Badge variant="outline" className={lbl.cls}>{lbl.text}</Badge>
+                            {empNW ? (
+                              <Badge variant="outline" className="bg-purple-500/10 text-purple-500 border-purple-500/20">לא היה עבודה</Badge>
+                            ) : (
+                              <Badge variant="outline" className={lbl.cls}>{lbl.text}</Badge>
+                            )}
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className={cn("h-7 ml-auto", !empNW && "border-purple-400/40 text-purple-500 hover:bg-purple-500/10")}
+                              disabled={savingEmp === key}
+                              onClick={() => toggleEmpNoWork(client.id, e.id, !empNW)}
+                            >
+                              {savingEmp === key ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : null}
+                              {empNW ? "בטל" : "לא עבד"}
+                            </Button>
                           </div>
                         );
                       })}

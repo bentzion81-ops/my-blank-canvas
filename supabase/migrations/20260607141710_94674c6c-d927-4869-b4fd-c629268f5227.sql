@@ -1,0 +1,2 @@
+ALTER TABLE public.clients ADD COLUMN IF NOT EXISTS exclude_from_daily_check boolean NOT NULL DEFAULT false;
+ALTER TABLE public.employees ADD COLUMN IF NOT EXISTS exclude_from_daily_check boolean NOT NULL DEFAULT false;

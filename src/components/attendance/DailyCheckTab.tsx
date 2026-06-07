@@ -460,7 +460,14 @@ export function DailyCheckTab({ selectedDate, onDateChange }: Props) {
                         const lbl = labelFor(st);
                         return (
                           <div key={e.id} className="flex flex-wrap items-center gap-3 border-b pb-2 last:border-0">
-                            <div className="min-w-[140px] font-medium text-sm">{e.name}</div>
+                            <div className="min-w-[140px]">
+                              <div className="font-medium text-sm">{e.name}</div>
+                              {(e.israeli_phone || e.foreign_phone) && (
+                                <div className="text-xs text-muted-foreground mt-0.5" dir="ltr">
+                                  {[e.israeli_phone, e.foreign_phone].filter(Boolean).join(" · ")}
+                                </div>
+                              )}
+                            </div>
                             {empNW ? (
                               <Badge variant="outline" className="bg-purple-500/10 text-purple-500 border-purple-500/20">לא היה עבודה</Badge>
                             ) : (

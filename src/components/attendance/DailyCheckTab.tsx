@@ -322,8 +322,8 @@ export function DailyCheckTab({ selectedDate, onDateChange }: Props) {
                 <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => onDateChange?.(addDays(selectedDate, -1))}>
                   <ChevronRight className="h-4 w-4" />
                 </Button>
-                <div className="text-sm font-medium min-w-[110px] text-center">
-                  {format(selectedDate, "dd/MM/yyyy")}
+                <div className="text-sm font-medium min-w-[170px] text-center">
+                  {["יום ראשון","יום שני","יום שלישי","יום רביעי","יום חמישי","יום שישי","שבת"][selectedDate.getDay()]}, {format(selectedDate, "dd/MM/yyyy")}
                 </div>
                 <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => onDateChange?.(addDays(selectedDate, 1))}>
                   <ChevronLeft className="h-4 w-4" />

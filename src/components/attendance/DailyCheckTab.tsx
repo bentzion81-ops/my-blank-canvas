@@ -226,6 +226,30 @@ export function DailyCheckTab({ selectedDate, onDateChange }: Props) {
     }
   };
 
+  const clearClientStatus = async (clientId: string) => {
+    setSavingClient(clientId);
+    try {
+      const { error } = await supabase
+        .from("daily_check_logs" as any)
+        .delete()
+        .eq("check_date", dateStr)
+        .eq("client_id", clientId)
+        .is("employee_id", null);
+      if (error) throw error;
+      setClientStatus((p) => {
+        const n = { ...p };
+        delete n[clientId];
+        return n;
+      });
+      toast.success("בוטל");
+      setRefreshKey((k) => k + 1);
+    } catch (e: any) {
+      toast.error(e.message || String(e));
+    } finally {
+      setSavingClient(null);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <Tabs value={inner} onValueChange={(v) => setInner(v as any)}>

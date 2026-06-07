@@ -584,6 +584,7 @@ function HistoryView({ clients }: { clients: any[] }) {
   const [month, setMonth] = useState<string>(format(new Date(), "yyyy-MM"));
   const [clientId, setClientId] = useState<string>("all");
   const [rows, setRows] = useState<any[]>([]);
+  const [closures, setClosures] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -601,11 +602,31 @@ function HistoryView({ clients }: { clients: any[] }) {
         .lte("check_date", to)
         .order("check_date", { ascending: false });
       if (clientId !== "all") q = q.eq("client_id", clientId);
-      const { data } = await q;
+      const [{ data }, { data: cl }] = await Promise.all([
+        q,
+        supabase.from("daily_check_closures" as any).select("check_date").gte("check_date", from).lte("check_date", to),
+      ]);
       setRows((data as any[]) || []);
+      setClosures((cl as any[]) || []);
       setLoading(false);
     })();
   }, [month, clientId]);
+
+  const unclosedDays = useMemo(() => {
+    const closedSet = new Set((closures || []).map((c: any) => c.check_date));
+    const [y, m] = month.split("-").map(Number);
+    const lastDay = new Date(y, m, 0).getDate();
+    const today = format(new Date(), "yyyy-MM-dd");
+    const days: string[] = [];
+    for (let day = 1; day <= lastDay; day++) {
+      const ds = `${month}-${String(day).padStart(2, "0")}`;
+      if (ds > today) break;
+      if (!closedSet.has(ds)) days.push(ds);
+    }
+    return days.reverse();
+  }, [closures, month]);
+
+  const dayName = (ds: string) => ["יום ראשון","יום שני","יום שלישי","יום רביעי","יום חמישי","יום שישי","שבת"][new Date(ds).getDay()];
 
   const statusLabel = (s: string) => {
     if (s === "ok") return { text: "דווח", cls: "bg-success/10 text-success border-success/20" };

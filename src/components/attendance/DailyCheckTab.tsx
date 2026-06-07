@@ -53,6 +53,63 @@ export function DailyCheckTab({ selectedDate, onDateChange }: Props) {
   // Client-level status for non-meckano clients
   const [clientStatus, setClientStatus] = useState<Record<string, { status: ClientStatus; notes: string }>>({});
   const [savingClient, setSavingClient] = useState<string | null>(null);
+  const [savingEmp, setSavingEmp] = useState<string | null>(null);
+
+  // employees marked no_work today: key = `${clientId}::${employeeId}`
+  const empNoWork = useMemo(() => {
+    const s = new Set<string>();
+    logs.forEach((r: any) => {
+      if (r.employee_id && r.status === "no_work") s.add(`${r.client_id}::${r.employee_id}`);
+    });
+    return s;
+  }, [logs]);
+
+  const toggleEmpNoWork = async (clientId: string, employeeId: string, makeNoWork: boolean) => {
+    const key = `${clientId}::${employeeId}`;
+    setSavingEmp(key);
+    try {
+      if (makeNoWork) {
+        // upsert
+        const { data: existing } = await supabase
+          .from("daily_check_logs" as any)
+          .select("id")
+          .eq("check_date", dateStr)
+          .eq("client_id", clientId)
+          .eq("employee_id", employeeId)
+          .maybeSingle();
+        const row = {
+          check_date: dateStr,
+          client_id: clientId,
+          employee_id: employeeId,
+          status: "no_work",
+          source: "manual",
+          checked_by: user?.id || null,
+        };
+        const ex = existing as any;
+        if (ex?.id) {
+          const { error } = await supabase.from("daily_check_logs" as any).update(row).eq("id", ex.id);
+          if (error) throw error;
+        } else {
+          const { error } = await supabase.from("daily_check_logs" as any).insert(row);
+          if (error) throw error;
+        }
+      } else {
+        const { error } = await supabase
+          .from("daily_check_logs" as any)
+          .delete()
+          .eq("check_date", dateStr)
+          .eq("client_id", clientId)
+          .eq("employee_id", employeeId);
+        if (error) throw error;
+      }
+      toast.success(makeNoWork ? "סומן: לא היה עבודה" : "בוטל");
+      setRefreshKey((k) => k + 1);
+    } catch (e: any) {
+      toast.error(e.message || String(e));
+    } finally {
+      setSavingEmp(null);
+    }
+  };
 
   const load = async () => {
     setLoading(true);

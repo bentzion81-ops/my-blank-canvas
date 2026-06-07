@@ -459,3 +459,168 @@ function HistoryView({ clients }: { clients: any[] }) {
     </Card>
   );
 }
+
+function ExclusionsDialog({ onChanged }: { onChanged: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [tab, setTab] = useState<"clients" | "employees">("clients");
+  const [clients, setClients] = useState<any[]>([]);
+  const [employees, setEmployees] = useState<any[]>([]);
+  const [search, setSearch] = useState("");
+  const [savingId, setSavingId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const [c, e] = await Promise.all([
+        supabase
+          .from("clients")
+          .select("id, name, exclude_from_daily_check" as any)
+          .eq("status", "active")
+          .order("name"),
+        supabase
+          .from("employees")
+          .select("id, first_name, last_name, exclude_from_daily_check" as any)
+          .eq("status", "active")
+          .order("first_name"),
+      ]);
+      setClients((c.data as any[]) || []);
+      setEmployees((e.data as any[]) || []);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (open) {
+      setSearch("");
+      load();
+    }
+  }, [open]);
+
+  const toggleClient = async (id: string, value: boolean) => {
+    setSavingId(id);
+    setClients((prev) => prev.map((c) => (c.id === id ? { ...c, exclude_from_daily_check: value } : c)));
+    const { error } = await supabase
+      .from("clients")
+      .update({ exclude_from_daily_check: value } as any)
+      .eq("id", id);
+    setSavingId(null);
+    if (error) {
+      toast.error(error.message);
+      setClients((prev) => prev.map((c) => (c.id === id ? { ...c, exclude_from_daily_check: !value } : c)));
+    } else {
+      onChanged();
+    }
+  };
+
+  const toggleEmployee = async (id: string, value: boolean) => {
+    setSavingId(id);
+    setEmployees((prev) => prev.map((e) => (e.id === id ? { ...e, exclude_from_daily_check: value } : e)));
+    const { error } = await supabase
+      .from("employees")
+      .update({ exclude_from_daily_check: value } as any)
+      .eq("id", id);
+    setSavingId(null);
+    if (error) {
+      toast.error(error.message);
+      setEmployees((prev) => prev.map((e) => (e.id === id ? { ...e, exclude_from_daily_check: !value } : e)));
+    } else {
+      onChanged();
+    }
+  };
+
+  const filteredClients = clients.filter((c) => !search || c.name?.toLowerCase().includes(search.toLowerCase()));
+  const filteredEmployees = employees.filter((e) => {
+    if (!search) return true;
+    const full = `${e.first_name || ""} ${e.last_name || ""}`.toLowerCase();
+    return full.includes(search.toLowerCase());
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline">
+          <Settings className="h-4 w-4 mr-1" />
+          הגדרות בדיקה
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>החרגה מהבדיקה היומית</DialogTitle>
+        </DialogHeader>
+        <Tabs value={tab} onValueChange={(v) => setTab(v as any)}>
+          <TabsList className="w-full">
+            <TabsTrigger value="clients" className="flex-1">לקוחות</TabsTrigger>
+            <TabsTrigger value="employees" className="flex-1">עובדים</TabsTrigger>
+          </TabsList>
+          <div className="pt-3">
+            <Input
+              placeholder="חיפוש…"
+              value={search}
+              onChange={(ev) => setSearch(ev.target.value)}
+              className="h-8 mb-2"
+            />
+          </div>
+          <TabsContent value="clients">
+            <ScrollArea className="h-[380px] pr-2">
+              {loading ? (
+                <div className="text-sm text-muted-foreground py-4 text-center">טוען…</div>
+              ) : filteredClients.length === 0 ? (
+                <div className="text-sm text-muted-foreground py-4 text-center">אין תוצאות</div>
+              ) : (
+                <div className="space-y-1">
+                  {filteredClients.map((c) => (
+                    <div key={c.id} className="flex items-center justify-between rounded-md px-2 py-1.5 hover:bg-muted/50">
+                      <span className="text-sm">{c.name}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground">
+                          {c.exclude_from_daily_check ? "מוסתר" : "מוצג"}
+                        </span>
+                        <Switch
+                          checked={!c.exclude_from_daily_check}
+                          disabled={savingId === c.id}
+                          onCheckedChange={(v) => toggleClient(c.id, !v)}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </ScrollArea>
+          </TabsContent>
+          <TabsContent value="employees">
+            <ScrollArea className="h-[380px] pr-2">
+              {loading ? (
+                <div className="text-sm text-muted-foreground py-4 text-center">טוען…</div>
+              ) : filteredEmployees.length === 0 ? (
+                <div className="text-sm text-muted-foreground py-4 text-center">אין תוצאות</div>
+              ) : (
+                <div className="space-y-1">
+                  {filteredEmployees.map((e) => (
+                    <div key={e.id} className="flex items-center justify-between rounded-md px-2 py-1.5 hover:bg-muted/50">
+                      <span className="text-sm">{e.first_name} {e.last_name}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground">
+                          {e.exclude_from_daily_check ? "מוסתר" : "מוצג"}
+                        </span>
+                        <Switch
+                          checked={!e.exclude_from_daily_check}
+                          disabled={savingId === e.id}
+                          onCheckedChange={(v) => toggleEmployee(e.id, !v)}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </ScrollArea>
+          </TabsContent>
+        </Tabs>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setOpen(false)}>סגור</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}

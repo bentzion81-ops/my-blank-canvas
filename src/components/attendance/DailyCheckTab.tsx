@@ -58,9 +58,9 @@ export function DailyCheckTab({ selectedDate, onDateChange }: Props) {
     setLoading(true);
     try {
       const [c, a, s, r, l] = await Promise.all([
-        supabase.from("clients").select("id, name, meckano_synced, status").eq("status", "active"),
+        supabase.from("clients").select("id, name, meckano_synced, status, exclude_from_daily_check" as any).eq("status", "active"),
         supabase.from("employee_client_assignments")
-          .select("employee_id, client_id, employees(id, first_name, last_name, status, meckano_synced)")
+          .select("employee_id, client_id, employees(id, first_name, last_name, status, meckano_synced, exclude_from_daily_check)")
           .is("end_date", null),
         supabase.from("work_schedules" as any)
           .select("employee_id, client_id, day_of_week, start_time, end_time")

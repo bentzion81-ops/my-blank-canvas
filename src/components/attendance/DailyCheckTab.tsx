@@ -48,6 +48,8 @@ export function DailyCheckTab({ selectedDate, onDateChange }: Props) {
   const [schedules, setSchedules] = useState<any[]>([]);
   const [records, setRecords] = useState<any[]>([]);
   const [logs, setLogs] = useState<any[]>([]);
+  const [closure, setClosure] = useState<any | null>(null);
+  const [closing, setClosing] = useState(false);
   const [loading, setLoading] = useState(false);
 
   // Client-level status for non-meckano clients

@@ -187,12 +187,9 @@ export function DailyCheckTab({ selectedDate, onDateChange }: Props) {
               });
             }
           });
-        if (emps.length) result.push({ client, isMeckano: true, employees: emps });
+        result.push({ client, isMeckano: true, employees: emps });
       } else {
-        const hasAssignment = assignments.some(
-          (a: any) => a.client_id === client.id && a.employees?.status === "active"
-        );
-        if (hasAssignment) result.push({ client, isMeckano: false, employees: [] });
+        result.push({ client, isMeckano: false, employees: [] });
       }
     }
     return result;

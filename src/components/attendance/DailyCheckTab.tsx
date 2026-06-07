@@ -584,6 +584,7 @@ function HistoryView({ clients }: { clients: any[] }) {
   const [month, setMonth] = useState<string>(format(new Date(), "yyyy-MM"));
   const [clientId, setClientId] = useState<string>("all");
   const [rows, setRows] = useState<any[]>([]);
+  const [closures, setClosures] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -601,11 +602,31 @@ function HistoryView({ clients }: { clients: any[] }) {
         .lte("check_date", to)
         .order("check_date", { ascending: false });
       if (clientId !== "all") q = q.eq("client_id", clientId);
-      const { data } = await q;
+      const [{ data }, { data: cl }] = await Promise.all([
+        q,
+        supabase.from("daily_check_closures" as any).select("check_date").gte("check_date", from).lte("check_date", to),
+      ]);
       setRows((data as any[]) || []);
+      setClosures((cl as any[]) || []);
       setLoading(false);
     })();
   }, [month, clientId]);
+
+  const unclosedDays = useMemo(() => {
+    const closedSet = new Set((closures || []).map((c: any) => c.check_date));
+    const [y, m] = month.split("-").map(Number);
+    const lastDay = new Date(y, m, 0).getDate();
+    const today = format(new Date(), "yyyy-MM-dd");
+    const days: string[] = [];
+    for (let day = 1; day <= lastDay; day++) {
+      const ds = `${month}-${String(day).padStart(2, "0")}`;
+      if (ds > today) break;
+      if (!closedSet.has(ds)) days.push(ds);
+    }
+    return days.reverse();
+  }, [closures, month]);
+
+  const dayName = (ds: string) => ["יום ראשון","יום שני","יום שלישי","יום רביעי","יום חמישי","יום שישי","שבת"][new Date(ds).getDay()];
 
   const statusLabel = (s: string) => {
     if (s === "ok") return { text: "דווח", cls: "bg-success/10 text-success border-success/20" };
@@ -616,61 +637,89 @@ function HistoryView({ clients }: { clients: any[] }) {
   };
 
   return (
-    <Card className="border-0 shadow-sm">
-      <CardHeader className="pb-3 flex flex-row flex-wrap items-end gap-3">
-        <div className="space-y-1">
-          <Label className="text-xs">חודש</Label>
-          <Input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="h-9 w-40" />
-        </div>
-        <div className="space-y-1">
-          <Label className="text-xs">לקוח</Label>
-          <Select value={clientId} onValueChange={setClientId}>
-            <SelectTrigger className="h-9 w-56"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">כל הלקוחות</SelectItem>
-              {clients.map((c) => (
-                <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+    <div className="space-y-4">
+      <Card className="border-0 shadow-sm">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2">
+            ימים שלא נסגרו
+            <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/20">
+              {unclosedDays.length}
+            </Badge>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="pt-0">
+          {loading ? (
+            <div className="text-sm text-muted-foreground">טוען…</div>
+          ) : unclosedDays.length === 0 ? (
+            <div className="text-sm text-muted-foreground">כל הימים בחודש נסגרו ✓</div>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {unclosedDays.map((ds) => (
+                <Badge key={ds} variant="outline" className="bg-destructive/10 text-destructive border-destructive/20 text-xs">
+                  {dayName(ds)} {format(new Date(ds), "dd/MM/yyyy")}
+                </Badge>
               ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </CardHeader>
-      <CardContent className="p-0">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>תאריך</TableHead>
-              <TableHead>לקוח</TableHead>
-              <TableHead>עובד</TableHead>
-              <TableHead>סטטוס</TableHead>
-              <TableHead>מקור</TableHead>
-              <TableHead>הערה</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading ? (
-              <TableRow><TableCell colSpan={6} className="text-center text-sm text-muted-foreground py-6">טוען…</TableCell></TableRow>
-            ) : rows.length === 0 ? (
-              <TableRow><TableCell colSpan={6} className="text-center text-sm text-muted-foreground py-6">אין רשומות</TableCell></TableRow>
-            ) : (
-              rows.map((r: any) => {
-                const sl = statusLabel(r.status);
-                return (
-                  <TableRow key={r.id}>
-                    <TableCell className="text-xs">{format(new Date(r.check_date), "dd/MM/yyyy")}</TableCell>
-                    <TableCell className="text-xs">{r.clients?.name || "—"}</TableCell>
-                    <TableCell className="text-xs">{r.employees ? `${r.employees.first_name} ${r.employees.last_name}` : "—"}</TableCell>
-                    <TableCell><Badge variant="outline" className={sl.cls}>{sl.text}</Badge></TableCell>
-                    <TableCell className="text-xs">{r.source === "auto" ? "אוטומטי" : "ידני"}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground max-w-xs truncate" title={r.notes || ""}>{r.notes || "—"}</TableCell>
-                  </TableRow>
-                );
-              })
-            )}
-          </TableBody>
-        </Table>
-      </CardContent>
-    </Card>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="border-0 shadow-sm">
+        <CardHeader className="pb-3 flex flex-row flex-wrap items-end gap-3">
+          <div className="space-y-1">
+            <Label className="text-xs">חודש</Label>
+            <Input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="h-9 w-40" />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">לקוח</Label>
+            <Select value={clientId} onValueChange={setClientId}>
+              <SelectTrigger className="h-9 w-56"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">כל הלקוחות</SelectItem>
+                {clients.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>תאריך</TableHead>
+                <TableHead>לקוח</TableHead>
+                <TableHead>עובד</TableHead>
+                <TableHead>סטטוס</TableHead>
+                <TableHead>מקור</TableHead>
+                <TableHead>הערה</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {loading ? (
+                <TableRow><TableCell colSpan={6} className="text-center text-sm text-muted-foreground py-6">טוען…</TableCell></TableRow>
+              ) : rows.length === 0 ? (
+                <TableRow><TableCell colSpan={6} className="text-center text-sm text-muted-foreground py-6">אין רשומות</TableCell></TableRow>
+              ) : (
+                rows.map((r: any) => {
+                  const sl = statusLabel(r.status);
+                  return (
+                    <TableRow key={r.id}>
+                      <TableCell className="text-xs">{format(new Date(r.check_date), "dd/MM/yyyy")}</TableCell>
+                      <TableCell className="text-xs">{r.clients?.name || "—"}</TableCell>
+                      <TableCell className="text-xs">{r.employees ? `${r.employees.first_name} ${r.employees.last_name}` : "—"}</TableCell>
+                      <TableCell><Badge variant="outline" className={sl.cls}>{sl.text}</Badge></TableCell>
+                      <TableCell className="text-xs">{r.source === "auto" ? "אוטומטי" : "ידני"}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground max-w-xs truncate" title={r.notes || ""}>{r.notes || "—"}</TableCell>
+                    </TableRow>
+                  );
+                })
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 

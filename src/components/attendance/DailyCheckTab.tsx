@@ -184,10 +184,11 @@ export function DailyCheckTab({ selectedDate, onDateChange }: Props) {
     }
   };
 
-  const saveClientStatus = async (clientId: string) => {
+  const saveClientStatus = async (clientId: string, overrideStatus?: ClientStatus) => {
     setSavingClient(clientId);
     try {
-      const cs = clientStatus[clientId] || { status: "missing" as ClientStatus, notes: "" };
+      const current = clientStatus[clientId] || { status: "missing" as ClientStatus, notes: "" };
+      const cs = overrideStatus ? { ...current, status: overrideStatus } : current;
       const row = {
         check_date: dateStr,
         employee_id: null as any,
@@ -217,6 +218,30 @@ export function DailyCheckTab({ selectedDate, onDateChange }: Props) {
         if (error) throw error;
       }
       toast.success("נשמר");
+      setRefreshKey((k) => k + 1);
+    } catch (e: any) {
+      toast.error(e.message || String(e));
+    } finally {
+      setSavingClient(null);
+    }
+  };
+
+  const clearClientStatus = async (clientId: string) => {
+    setSavingClient(clientId);
+    try {
+      const { error } = await supabase
+        .from("daily_check_logs" as any)
+        .delete()
+        .eq("check_date", dateStr)
+        .eq("client_id", clientId)
+        .is("employee_id", null);
+      if (error) throw error;
+      setClientStatus((p) => {
+        const n = { ...p };
+        delete n[clientId];
+        return n;
+      });
+      toast.success("בוטל");
       setRefreshKey((k) => k + 1);
     } catch (e: any) {
       toast.error(e.message || String(e));
@@ -261,10 +286,15 @@ export function DailyCheckTab({ selectedDate, onDateChange }: Props) {
 
           {!loading && grouped.map(({ client, isMeckano, employees }) => {
             if (isMeckano) {
+              const override = clientStatus[client.id];
+              const isNoWork = override?.status === "no_work";
+
               // Aggregate client-level status from employee meckano records
               const statuses = employees.map((e) => getRecordStatus(e.id, client.id));
               let agg: { text: string; cls: string };
-              if (statuses.length === 0) {
+              if (isNoWork) {
+                agg = { text: "לא היה עבודה", cls: "bg-purple-500/10 text-purple-500 border-purple-500/20" };
+              } else if (statuses.length === 0) {
                 agg = { text: "אין עובדים", cls: "bg-muted text-muted-foreground border-border" };
               } else if (statuses.some((s) => s === "missing_in")) {
                 agg = { text: "חסר כניסה", cls: "bg-destructive/10 text-destructive border-destructive/20" };
@@ -277,28 +307,55 @@ export function DailyCheckTab({ selectedDate, onDateChange }: Props) {
               }
               return (
                 <Card key={client.id} className="border-0 shadow-sm">
-                  <CardHeader className="pb-2">
+                  <CardHeader className="pb-2 flex flex-row items-start justify-between gap-2">
                     <CardTitle className="text-sm flex items-center gap-2 flex-wrap">
                       {client.name}
                       <Badge variant="outline" className="bg-info/10 text-info border-info/20">🔄 מכונה</Badge>
                       <Badge variant="outline" className={agg.cls}>{agg.text}</Badge>
                     </CardTitle>
+                    {isNoWork ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={savingClient === client.id}
+                        onClick={() => clearClientStatus(client.id)}
+                      >
+                        בטל
+                      </Button>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="border-purple-400/40 text-purple-500 hover:bg-purple-500/10"
+                        disabled={savingClient === client.id}
+                        onClick={() => {
+                          setClientStatus((p) => ({ ...p, [client.id]: { status: "no_work", notes: "" } }));
+                          saveClientStatus(client.id, "no_work");
+                        }}
+                      >
+                        {savingClient === client.id ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : null}
+                        לא היה עבודה
+                      </Button>
+                    )}
                   </CardHeader>
-                  <CardContent className="space-y-3">
-                    {employees.map((e) => {
-                      const st = getRecordStatus(e.id, client.id);
-                      const lbl = labelFor(st);
-                      return (
-                        <div key={e.id} className="flex flex-wrap items-center gap-3 border-b pb-2 last:border-0">
-                          <div className="min-w-[140px] font-medium text-sm">{e.name}</div>
-                          <Badge variant="outline" className={lbl.cls}>{lbl.text}</Badge>
-                        </div>
-                      );
-                    })}
-                  </CardContent>
+                  {!isNoWork && (
+                    <CardContent className="space-y-3">
+                      {employees.map((e) => {
+                        const st = getRecordStatus(e.id, client.id);
+                        const lbl = labelFor(st);
+                        return (
+                          <div key={e.id} className="flex flex-wrap items-center gap-3 border-b pb-2 last:border-0">
+                            <div className="min-w-[140px] font-medium text-sm">{e.name}</div>
+                            <Badge variant="outline" className={lbl.cls}>{lbl.text}</Badge>
+                          </div>
+                        );
+                      })}
+                    </CardContent>
+                  )}
                 </Card>
               );
             }
+
 
             // Non-meckano: client-level status
             const cs = clientStatus[client.id] || { status: "missing" as ClientStatus, notes: "" };

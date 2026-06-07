@@ -540,7 +540,37 @@ export function DailyCheckTab({ selectedDate, onDateChange }: Props) {
               </CardContent>
             </Card>
           )}
+
+          {!loading && grouped.length > 0 && (
+            <Card className="border-0 shadow-sm sticky bottom-2">
+              <CardContent className="p-3 flex flex-wrap items-center justify-between gap-3">
+                <div className="text-sm">
+                  {closure ? (
+                    <span className="text-success font-medium">
+                      ✓ הבדיקה נסגרה {closure.closed_at ? `(${format(new Date(closure.closed_at), "dd/MM/yyyy HH:mm")})` : ""}
+                    </span>
+                  ) : readiness.ready ? (
+                    <span className="text-success font-medium">כל הדיווחים תקינים — ניתן לסגור את הבדיקה</span>
+                  ) : (
+                    <span className="text-muted-foreground">
+                      נותרו {readiness.pending} מתוך {readiness.total} שורות לסגירה (יש לסמן דווח / לא היה עבודה / לא עבד)
+                    </span>
+                  )}
+                </div>
+                <Button
+                  size="sm"
+                  variant={closure ? "outline" : "default"}
+                  disabled={closing || (!closure && !readiness.ready)}
+                  onClick={closeCheck}
+                >
+                  {closing ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : null}
+                  {closure ? "בטל סגירה" : "סגור בדיקה"}
+                </Button>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
+
 
         <TabsContent value="history">
           <HistoryView clients={clients} />

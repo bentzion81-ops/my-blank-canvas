@@ -55,7 +55,7 @@ export function DailyCheckTab({ selectedDate }: Props) {
       const [c, a, s, r, l] = await Promise.all([
         supabase.from("clients").select("id, name, meckano_synced, status").eq("status", "active"),
         supabase.from("employee_client_assignments")
-          .select("employee_id, client_id, employees(id, first_name, last_name, status)")
+          .select("employee_id, client_id, employees(id, first_name, last_name, status, meckano_synced)")
           .is("end_date", null),
         supabase.from("work_schedules" as any)
           .select("employee_id, client_id, day_of_week, start_time, end_time")
@@ -98,7 +98,7 @@ export function DailyCheckTab({ selectedDate }: Props) {
   // If there are no work_schedules for this client at all on this day, fall back
   // to all active assignments for that client (so the page is useful even without schedules).
   const grouped = useMemo(() => {
-    const result: { client: any; employees: { id: string; name: string }[] }[] = [];
+    const result: { client: any; employees: { id: string; name: string; meckano: boolean }[] }[] = [];
     const hasAnySchedules = schedules.length > 0;
     for (const client of clients) {
       const clientSchedules = schedules.filter((s: any) => s.client_id === client.id);
@@ -106,7 +106,7 @@ export function DailyCheckTab({ selectedDate }: Props) {
       const empIds = useSchedule
         ? new Set(clientSchedules.map((s: any) => s.employee_id))
         : null;
-      const emps: { id: string; name: string }[] = [];
+      const emps: { id: string; name: string; meckano: boolean }[] = [];
       assignments
         .filter((a: any) =>
           a.client_id === client.id &&
@@ -118,6 +118,7 @@ export function DailyCheckTab({ selectedDate }: Props) {
             emps.push({
               id: a.employee_id,
               name: `${a.employees?.first_name || ""} ${a.employees?.last_name || ""}`.trim(),
+              meckano: !!a.employees?.meckano_synced,
             });
           }
         });
@@ -169,10 +170,12 @@ export function DailyCheckTab({ selectedDate }: Props) {
     }
   };
 
-  const saveClient = async (clientId: string, employees: { id: string; name: string }[]) => {
+  const saveClient = async (clientId: string, employees: { id: string; name: string; meckano: boolean }[]) => {
     setSavingClient(clientId);
     try {
-      const rows = employees.map((e) => {
+      // Save only manual (non-meckano) employees
+      const manualEmps = employees.filter((e) => !e.meckano);
+      const rows = manualEmps.map((e) => {
         const key = `${clientId}-${e.id}`;
         const m = manualState[key] || { status: "ok" as const, notes: "" };
         if (m.status === "missing" && !m.notes.trim()) {
@@ -188,6 +191,10 @@ export function DailyCheckTab({ selectedDate }: Props) {
           checked_by: user?.id || null,
         };
       });
+      if (rows.length === 0) {
+        toast.info("אין עובדים ידניים בלקוח זה");
+        return;
+      }
       const { error } = await supabase
         .from("daily_check_logs" as any)
         .upsert(rows, { onConflict: "check_date,employee_id,client_id" });
@@ -200,9 +207,6 @@ export function DailyCheckTab({ selectedDate }: Props) {
       setSavingClient(null);
     }
   };
-
-  const meckanoGroups = grouped.filter((g) => g.client.meckano_synced);
-  const manualGroups = grouped.filter((g) => !g.client.meckano_synced);
 
   return (
     <div className="space-y-4">
@@ -227,106 +231,78 @@ export function DailyCheckTab({ selectedDate }: Props) {
 
           {loading && <div className="text-sm text-muted-foreground">טוען…</div>}
 
-          {!loading && meckanoGroups.length > 0 && (
-            <div className="space-y-3">
-              <h3 className="text-sm font-semibold text-muted-foreground">לקוחות מכונה</h3>
-              {meckanoGroups.map(({ client, employees }) => (
-                <Card key={client.id} className="border-0 shadow-sm">
-                  <CardHeader className="pb-2 flex flex-row items-center justify-between">
-                    <CardTitle className="text-sm flex items-center gap-2">
-                      {client.name}
-                      <Badge className="bg-info/10 text-info border-info/20" variant="outline">🔄 מכונה</Badge>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-0">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>עובד</TableHead>
-                          <TableHead>סטטוס</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {employees.map((e) => {
-                          const st = getRecordStatus(e.id, client.id);
-                          const lbl = labelFor(st);
-                          return (
-                            <TableRow key={e.id}>
-                              <TableCell>{e.name}</TableCell>
-                              <TableCell>
-                                <Badge variant="outline" className={lbl.cls}>{lbl.text}</Badge>
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })}
-                      </TableBody>
-                    </Table>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
-
-          {!loading && manualGroups.length > 0 && (
-            <div className="space-y-3">
-              <h3 className="text-sm font-semibold text-muted-foreground">לקוחות ידניים</h3>
-              {manualGroups.map(({ client, employees }) => (
-                <Card key={client.id} className="border-0 shadow-sm">
-                  <CardHeader className="pb-2 flex flex-row items-center justify-between">
-                    <CardTitle className="text-sm flex items-center gap-2">
-                      {client.name}
-                      <Badge variant="outline" className="bg-muted text-muted-foreground">✏️ ידני</Badge>
-                    </CardTitle>
+          {!loading && grouped.map(({ client, employees }) => {
+            const hasManual = employees.some((e) => !e.meckano);
+            return (
+              <Card key={client.id} className="border-0 shadow-sm">
+                <CardHeader className="pb-2 flex flex-row items-center justify-between">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    {client.name}
+                  </CardTitle>
+                  {hasManual && (
                     <Button size="sm" disabled={savingClient === client.id} onClick={() => saveClient(client.id, employees)}>
                       {savingClient === client.id ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : null}
                       שמור
                     </Button>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    {employees.map((e) => {
-                      const key = `${client.id}-${e.id}`;
-                      const m = manualState[key] || { status: "ok" as const, notes: "" };
+                  )}
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {employees.map((e) => {
+                    const key = `${client.id}-${e.id}`;
+                    if (e.meckano) {
+                      const st = getRecordStatus(e.id, client.id);
+                      const lbl = labelFor(st);
                       return (
-                        <div key={e.id} className="flex flex-wrap items-center gap-4 border-b pb-3 last:border-0">
+                        <div key={e.id} className="flex flex-wrap items-center gap-3 border-b pb-2 last:border-0">
                           <div className="min-w-[140px] font-medium text-sm">{e.name}</div>
-                          <RadioGroup
-                            value={m.status}
-                            onValueChange={(v) =>
-                              setManualState((p) => ({ ...p, [key]: { ...m, status: v as any } }))
-                            }
-                            className="flex flex-row gap-4"
-                          >
-                            <div className="flex items-center gap-1">
-                              <RadioGroupItem value="ok" id={`${key}-ok`} />
-                              <Label htmlFor={`${key}-ok`} className="text-xs">דווח תקין</Label>
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <RadioGroupItem value="no_work" id={`${key}-nw`} />
-                              <Label htmlFor={`${key}-nw`} className="text-xs">לא היה עבודה</Label>
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <RadioGroupItem value="missing" id={`${key}-m`} />
-                              <Label htmlFor={`${key}-m`} className="text-xs">חסר משהו</Label>
-                            </div>
-                          </RadioGroup>
-                          {m.status === "missing" && (
-                            <Input
-                              className="h-8 flex-1 min-w-[200px]"
-                              placeholder="הערה (חובה)"
-                              value={m.notes}
-                              onChange={(ev) =>
-                                setManualState((p) => ({ ...p, [key]: { ...m, notes: ev.target.value } }))
-                              }
-                            />
-                          )}
+                          <Badge variant="outline" className="bg-info/10 text-info border-info/20">🔄 מכונה</Badge>
+                          <Badge variant="outline" className={lbl.cls}>{lbl.text}</Badge>
                         </div>
                       );
-                    })}
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
+                    }
+                    const m = manualState[key] || { status: "ok" as const, notes: "" };
+                    return (
+                      <div key={e.id} className="flex flex-wrap items-center gap-4 border-b pb-3 last:border-0">
+                        <div className="min-w-[140px] font-medium text-sm">{e.name}</div>
+                        <Badge variant="outline" className="bg-muted text-muted-foreground">✏️ ידני</Badge>
+                        <RadioGroup
+                          value={m.status}
+                          onValueChange={(v) =>
+                            setManualState((p) => ({ ...p, [key]: { ...m, status: v as any } }))
+                          }
+                          className="flex flex-row gap-4"
+                        >
+                          <div className="flex items-center gap-1">
+                            <RadioGroupItem value="ok" id={`${key}-ok`} />
+                            <Label htmlFor={`${key}-ok`} className="text-xs">דווח תקין</Label>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <RadioGroupItem value="no_work" id={`${key}-nw`} />
+                            <Label htmlFor={`${key}-nw`} className="text-xs">לא היה עבודה</Label>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <RadioGroupItem value="missing" id={`${key}-m`} />
+                            <Label htmlFor={`${key}-m`} className="text-xs">חסר משהו</Label>
+                          </div>
+                        </RadioGroup>
+                        {m.status === "missing" && (
+                          <Input
+                            className="h-8 flex-1 min-w-[200px]"
+                            placeholder="הערה (חובה)"
+                            value={m.notes}
+                            onChange={(ev) =>
+                              setManualState((p) => ({ ...p, [key]: { ...m, notes: ev.target.value } }))
+                            }
+                          />
+                        )}
+                      </div>
+                    );
+                  })}
+                </CardContent>
+              </Card>
+            );
+          })}
+
 
           {!loading && grouped.length === 0 && (
             <Card className="border-0 shadow-sm">

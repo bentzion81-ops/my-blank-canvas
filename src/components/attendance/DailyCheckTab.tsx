@@ -196,12 +196,12 @@ export function DailyCheckTab({ selectedDate, onDateChange }: Props) {
         .eq("client_id", clientId)
         .is("employee_id", null)
         .maybeSingle();
-      const existingRow = existing as { id?: string } | null;
+      const existingRow = existing as any;
       if (existingRow?.id) {
         const { error } = await supabase
           .from("daily_check_logs" as any)
           .update(row)
-          .eq("id", existing.id);
+          .eq("id", existingRow.id);
         if (error) throw error;
       } else {
         const { error } = await supabase.from("daily_check_logs" as any).insert(row);

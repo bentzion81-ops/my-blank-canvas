@@ -530,6 +530,36 @@ export type Database = {
         }
         Relationships: []
       }
+      daily_check_closures: {
+        Row: {
+          check_date: string
+          closed_at: string
+          closed_by: string | null
+          created_at: string
+          id: string
+          notes: string | null
+          updated_at: string
+        }
+        Insert: {
+          check_date: string
+          closed_at?: string
+          closed_by?: string | null
+          created_at?: string
+          id?: string
+          notes?: string | null
+          updated_at?: string
+        }
+        Update: {
+          check_date?: string
+          closed_at?: string
+          closed_by?: string | null
+          created_at?: string
+          id?: string
+          notes?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       daily_check_logs: {
         Row: {
           check_date: string

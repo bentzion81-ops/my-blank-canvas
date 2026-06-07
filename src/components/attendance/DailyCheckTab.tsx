@@ -53,6 +53,63 @@ export function DailyCheckTab({ selectedDate, onDateChange }: Props) {
   // Client-level status for non-meckano clients
   const [clientStatus, setClientStatus] = useState<Record<string, { status: ClientStatus; notes: string }>>({});
   const [savingClient, setSavingClient] = useState<string | null>(null);
+  const [savingEmp, setSavingEmp] = useState<string | null>(null);
+
+  // employees marked no_work today: key = `${clientId}::${employeeId}`
+  const empNoWork = useMemo(() => {
+    const s = new Set<string>();
+    logs.forEach((r: any) => {
+      if (r.employee_id && r.status === "no_work") s.add(`${r.client_id}::${r.employee_id}`);
+    });
+    return s;
+  }, [logs]);
+
+  const toggleEmpNoWork = async (clientId: string, employeeId: string, makeNoWork: boolean) => {
+    const key = `${clientId}::${employeeId}`;
+    setSavingEmp(key);
+    try {
+      if (makeNoWork) {
+        // upsert
+        const { data: existing } = await supabase
+          .from("daily_check_logs" as any)
+          .select("id")
+          .eq("check_date", dateStr)
+          .eq("client_id", clientId)
+          .eq("employee_id", employeeId)
+          .maybeSingle();
+        const row = {
+          check_date: dateStr,
+          client_id: clientId,
+          employee_id: employeeId,
+          status: "no_work",
+          source: "manual",
+          checked_by: user?.id || null,
+        };
+        const ex = existing as any;
+        if (ex?.id) {
+          const { error } = await supabase.from("daily_check_logs" as any).update(row).eq("id", ex.id);
+          if (error) throw error;
+        } else {
+          const { error } = await supabase.from("daily_check_logs" as any).insert(row);
+          if (error) throw error;
+        }
+      } else {
+        const { error } = await supabase
+          .from("daily_check_logs" as any)
+          .delete()
+          .eq("check_date", dateStr)
+          .eq("client_id", clientId)
+          .eq("employee_id", employeeId);
+        if (error) throw error;
+      }
+      toast.success(makeNoWork ? "סומן: לא היה עבודה" : "בוטל");
+      setRefreshKey((k) => k + 1);
+    } catch (e: any) {
+      toast.error(e.message || String(e));
+    } finally {
+      setSavingEmp(null);
+    }
+  };
 
   const load = async () => {
     setLoading(true);
@@ -289,8 +346,10 @@ export function DailyCheckTab({ selectedDate, onDateChange }: Props) {
               const override = clientStatus[client.id];
               const isNoWork = override?.status === "no_work";
 
-              // Aggregate client-level status from employee meckano records
-              const statuses = employees.map((e) => getRecordStatus(e.id, client.id));
+              // Aggregate skips employees marked no_work
+              const statuses = employees
+                .filter((e) => !empNoWork.has(`${client.id}::${e.id}`))
+                .map((e) => getRecordStatus(e.id, client.id));
               let agg: { text: string; cls: string };
               if (isNoWork) {
                 agg = { text: "לא היה עבודה", cls: "bg-purple-500/10 text-purple-500 border-purple-500/20" };
@@ -341,12 +400,28 @@ export function DailyCheckTab({ selectedDate, onDateChange }: Props) {
                   {!isNoWork && (
                     <CardContent className="space-y-3">
                       {employees.map((e) => {
+                        const key = `${client.id}::${e.id}`;
+                        const empNW = empNoWork.has(key);
                         const st = getRecordStatus(e.id, client.id);
                         const lbl = labelFor(st);
                         return (
                           <div key={e.id} className="flex flex-wrap items-center gap-3 border-b pb-2 last:border-0">
                             <div className="min-w-[140px] font-medium text-sm">{e.name}</div>
-                            <Badge variant="outline" className={lbl.cls}>{lbl.text}</Badge>
+                            {empNW ? (
+                              <Badge variant="outline" className="bg-purple-500/10 text-purple-500 border-purple-500/20">לא היה עבודה</Badge>
+                            ) : (
+                              <Badge variant="outline" className={lbl.cls}>{lbl.text}</Badge>
+                            )}
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className={cn("h-7 ml-auto", !empNW && "border-purple-400/40 text-purple-500 hover:bg-purple-500/10")}
+                              disabled={savingEmp === key}
+                              onClick={() => toggleEmpNoWork(client.id, e.id, !empNW)}
+                            >
+                              {savingEmp === key ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : null}
+                              {empNW ? "בטל" : "לא עבד"}
+                            </Button>
                           </div>
                         );
                       })}

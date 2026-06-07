@@ -30,7 +30,7 @@ const statusColor = (s: string) => {
   return "bg-warning/10 text-warning border-warning/20";
 };
 
-export function DailyCheckTab({ selectedDate }: Props) {
+export function DailyCheckTab({ selectedDate, onDateChange }: Props) {
   const { user } = useAuth();
   const [inner, setInner] = useState<"today" | "history">("today");
   const [refreshKey, setRefreshKey] = useState(0);

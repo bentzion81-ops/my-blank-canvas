@@ -637,25 +637,52 @@ function HistoryView({ clients }: { clients: any[] }) {
   };
 
   return (
-    <Card className="border-0 shadow-sm">
-      <CardHeader className="pb-3 flex flex-row flex-wrap items-end gap-3">
-        <div className="space-y-1">
-          <Label className="text-xs">חודש</Label>
-          <Input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="h-9 w-40" />
-        </div>
-        <div className="space-y-1">
-          <Label className="text-xs">לקוח</Label>
-          <Select value={clientId} onValueChange={setClientId}>
-            <SelectTrigger className="h-9 w-56"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">כל הלקוחות</SelectItem>
-              {clients.map((c) => (
-                <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+    <div className="space-y-4">
+      <Card className="border-0 shadow-sm">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2">
+            ימים שלא נסגרו
+            <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/20">
+              {unclosedDays.length}
+            </Badge>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="pt-0">
+          {loading ? (
+            <div className="text-sm text-muted-foreground">טוען…</div>
+          ) : unclosedDays.length === 0 ? (
+            <div className="text-sm text-muted-foreground">כל הימים בחודש נסגרו ✓</div>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {unclosedDays.map((ds) => (
+                <Badge key={ds} variant="outline" className="bg-destructive/10 text-destructive border-destructive/20 text-xs">
+                  {dayName(ds)} {format(new Date(ds), "dd/MM/yyyy")}
+                </Badge>
               ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </CardHeader>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="border-0 shadow-sm">
+        <CardHeader className="pb-3 flex flex-row flex-wrap items-end gap-3">
+          <div className="space-y-1">
+            <Label className="text-xs">חודש</Label>
+            <Input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="h-9 w-40" />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">לקוח</Label>
+            <Select value={clientId} onValueChange={setClientId}>
+              <SelectTrigger className="h-9 w-56"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">כל הלקוחות</SelectItem>
+                {clients.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </CardHeader>
       <CardContent className="p-0">
         <Table>
           <TableHeader>

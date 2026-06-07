@@ -220,8 +220,26 @@ export function DailyCheckTab({ selectedDate, onDateChange }: Props) {
         <TabsContent value="today" className="space-y-4">
           <Card className="border-0 shadow-sm">
             <CardContent className="p-3 flex flex-wrap items-center justify-between gap-3">
-              <div className="text-sm text-muted-foreground">
-                בדיקה יומית — {format(selectedDate, "dd/MM/yyyy")}
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => onDateChange?.(addDays(selectedDate, -1))}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+                <div className="text-sm font-medium min-w-[110px] text-center">
+                  {format(selectedDate, "dd/MM/yyyy")}
+                </div>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => onDateChange?.(addDays(selectedDate, 1))}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
               </div>
               <Button size="sm" onClick={handleSyncMeckano} disabled={syncing}>
                 {syncing ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-1" />}

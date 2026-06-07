@@ -346,8 +346,10 @@ export function DailyCheckTab({ selectedDate, onDateChange }: Props) {
               const override = clientStatus[client.id];
               const isNoWork = override?.status === "no_work";
 
-              // Aggregate client-level status from employee meckano records
-              const statuses = employees.map((e) => getRecordStatus(e.id, client.id));
+              // Aggregate skips employees marked no_work
+              const statuses = employees
+                .filter((e) => !empNoWork.has(`${client.id}::${e.id}`))
+                .map((e) => getRecordStatus(e.id, client.id));
               let agg: { text: string; cls: string };
               if (isNoWork) {
                 agg = { text: "לא היה עבודה", cls: "bg-purple-500/10 text-purple-500 border-purple-500/20" };

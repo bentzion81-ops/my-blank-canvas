@@ -6,12 +6,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface Props {
@@ -22,13 +22,14 @@ interface Props {
 const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"] as const;
 
 type RowStatus = "ok" | "missing_in" | "missing_out" | "pending";
+type ClientStatus = "ok" | "checking" | "no_work" | "missing";
 
-const statusColor = (s: string) => {
-  if (s === "ok") return "bg-success/10 text-success border-success/20";
-  if (s === "no_work") return "bg-muted text-muted-foreground border-border";
-  if (s === "missing") return "bg-destructive/10 text-destructive border-destructive/20";
-  return "bg-warning/10 text-warning border-warning/20";
-};
+const CLIENT_STATUS_OPTIONS: { value: ClientStatus; label: string; cls: string; activeCls: string }[] = [
+  { value: "ok",       label: "דווח",          cls: "border-success/40 text-success hover:bg-success/10",                 activeCls: "bg-success text-success-foreground border-success hover:bg-success" },
+  { value: "checking", label: "בבדיקה",        cls: "border-warning/40 text-warning hover:bg-warning/10",                 activeCls: "bg-warning text-warning-foreground border-warning hover:bg-warning" },
+  { value: "no_work",  label: "לא היה עבודה",  cls: "border-purple-400/40 text-purple-500 hover:bg-purple-500/10",        activeCls: "bg-purple-500 text-white border-purple-500 hover:bg-purple-500" },
+  { value: "missing",  label: "חסר דיווח",     cls: "border-destructive/40 text-destructive hover:bg-destructive/10",     activeCls: "bg-destructive text-destructive-foreground border-destructive hover:bg-destructive" },
+];
 
 export function DailyCheckTab({ selectedDate, onDateChange }: Props) {
   const { user } = useAuth();
@@ -46,8 +47,8 @@ export function DailyCheckTab({ selectedDate, onDateChange }: Props) {
   const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // Manual edit state: key = `${client_id}-${employee_id}` -> { status, notes }
-  const [manualState, setManualState] = useState<Record<string, { status: "ok" | "no_work" | "missing"; notes: string }>>({});
+  // Client-level status for non-meckano clients
+  const [clientStatus, setClientStatus] = useState<Record<string, { status: ClientStatus; notes: string }>>({});
   const [savingClient, setSavingClient] = useState<string | null>(null);
 
   const load = async () => {
@@ -74,17 +75,15 @@ export function DailyCheckTab({ selectedDate, onDateChange }: Props) {
       setRecords(r.data || []);
       setLogs((l.data as any[]) || []);
 
-      // Hydrate manual state from existing logs
-      const next: Record<string, { status: "ok" | "no_work" | "missing"; notes: string }> = {};
+      // Hydrate client-level state from logs where employee_id is null
+      const cs: Record<string, { status: ClientStatus; notes: string }> = {};
       ((l.data as any[]) || []).forEach((row) => {
-        if (row.source === "manual") {
-          next[`${row.client_id}-${row.employee_id}`] = {
-            status: row.status === "ok" ? "ok" : row.status === "no_work" ? "no_work" : "missing",
-            notes: row.notes || "",
-          };
+        if (!row.employee_id) {
+          const st = (["ok", "checking", "no_work", "missing"].includes(row.status) ? row.status : "missing") as ClientStatus;
+          cs[row.client_id] = { status: st, notes: row.notes || "" };
         }
       });
-      setManualState(next);
+      setClientStatus(cs);
     } finally {
       setLoading(false);
     }
@@ -95,35 +94,41 @@ export function DailyCheckTab({ selectedDate, onDateChange }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dateStr, refreshKey]);
 
-  // Group: for each client, list employees scheduled this day-of-week.
-  // If there are no work_schedules for this client at all on this day, fall back
-  // to all active assignments for that client (so the page is useful even without schedules).
+  // Build display list:
+  // - meckano client: list of meckano employees (with auto-detected status)
+  // - non-meckano client: no employees, single client-level row
   const grouped = useMemo(() => {
-    const result: { client: any; employees: { id: string; name: string; meckano: boolean }[] }[] = [];
+    const result: { client: any; employees: { id: string; name: string }[] }[] = [];
     const hasAnySchedules = schedules.length > 0;
     for (const client of clients) {
-      const clientSchedules = schedules.filter((s: any) => s.client_id === client.id);
-      const useSchedule = hasAnySchedules && clientSchedules.length > 0;
-      const empIds = useSchedule
-        ? new Set(clientSchedules.map((s: any) => s.employee_id))
-        : null;
-      const emps: { id: string; name: string; meckano: boolean }[] = [];
-      assignments
-        .filter((a: any) =>
-          a.client_id === client.id &&
-          a.employees?.status === "active" &&
-          (empIds ? empIds.has(a.employee_id) : true)
-        )
-        .forEach((a: any) => {
-          if (!emps.some((e) => e.id === a.employee_id)) {
-            emps.push({
-              id: a.employee_id,
-              name: `${a.employees?.first_name || ""} ${a.employees?.last_name || ""}`.trim(),
-              meckano: !!a.employees?.meckano_synced,
-            });
-          }
-        });
-      if (emps.length) result.push({ client, employees: emps });
+      if (client.meckano_synced) {
+        const clientSchedules = schedules.filter((s: any) => s.client_id === client.id);
+        const useSchedule = hasAnySchedules && clientSchedules.length > 0;
+        const empIds = useSchedule ? new Set(clientSchedules.map((s: any) => s.employee_id)) : null;
+        const emps: { id: string; name: string }[] = [];
+        assignments
+          .filter((a: any) =>
+            a.client_id === client.id &&
+            a.employees?.status === "active" &&
+            a.employees?.meckano_synced === true &&
+            (empIds ? empIds.has(a.employee_id) : true)
+          )
+          .forEach((a: any) => {
+            if (!emps.some((e) => e.id === a.employee_id)) {
+              emps.push({
+                id: a.employee_id,
+                name: `${a.employees?.first_name || ""} ${a.employees?.last_name || ""}`.trim(),
+              });
+            }
+          });
+        if (emps.length) result.push({ client, employees: emps });
+      } else {
+        // Non-meckano: only show clients that have at least one active assignment
+        const hasAssignment = assignments.some(
+          (a: any) => a.client_id === client.id && a.employees?.status === "active"
+        );
+        if (hasAssignment) result.push({ client, employees: [] });
+      }
     }
     return result;
   }, [clients, assignments, schedules]);
@@ -133,7 +138,6 @@ export function DailyCheckTab({ selectedDate, onDateChange }: Props) {
     const isFuture = new Date(dateStr) > new Date(format(new Date(), "yyyy-MM-dd"));
     if (isFuture) return "pending";
     if (!rec || !rec.check_in) {
-      // check if scheduled start time is in the past
       const sch = schedules.find((s: any) => s.employee_id === employeeId && s.client_id === clientId);
       if (sch && new Date(dateStr) === new Date(format(new Date(), "yyyy-MM-dd"))) {
         const [h, m] = String(sch.start_time).split(":").map(Number);
@@ -171,35 +175,38 @@ export function DailyCheckTab({ selectedDate, onDateChange }: Props) {
     }
   };
 
-  const saveClient = async (clientId: string, employees: { id: string; name: string; meckano: boolean }[]) => {
+  const saveClientStatus = async (clientId: string) => {
     setSavingClient(clientId);
     try {
-      // Save only manual (non-meckano) employees
-      const manualEmps = employees.filter((e) => !e.meckano);
-      const rows = manualEmps.map((e) => {
-        const key = `${clientId}-${e.id}`;
-        const m = manualState[key] || { status: "ok" as const, notes: "" };
-        if (m.status === "missing" && !m.notes.trim()) {
-          throw new Error(`יש להוסיף הערה ל-${e.name}`);
-        }
-        return {
-          check_date: dateStr,
-          employee_id: e.id,
-          client_id: clientId,
-          status: m.status,
-          notes: m.notes || null,
-          source: "manual",
-          checked_by: user?.id || null,
-        };
-      });
-      if (rows.length === 0) {
-        toast.info("אין עובדים ידניים בלקוח זה");
-        return;
-      }
-      const { error } = await supabase
+      const cs = clientStatus[clientId] || { status: "missing" as ClientStatus, notes: "" };
+      const row = {
+        check_date: dateStr,
+        employee_id: null as any,
+        client_id: clientId,
+        status: cs.status,
+        notes: cs.notes || null,
+        source: "manual",
+        checked_by: user?.id || null,
+      };
+      // Upsert by (check_date, client_id) for employee_id IS NULL rows
+      const { data: existing } = await supabase
         .from("daily_check_logs" as any)
-        .upsert(rows, { onConflict: "check_date,employee_id,client_id" });
-      if (error) throw error;
+        .select("id")
+        .eq("check_date", dateStr)
+        .eq("client_id", clientId)
+        .is("employee_id", null)
+        .maybeSingle();
+      const existingRow = existing as any;
+      if (existingRow?.id) {
+        const { error } = await supabase
+          .from("daily_check_logs" as any)
+          .update(row)
+          .eq("id", existingRow.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("daily_check_logs" as any).insert(row);
+        if (error) throw error;
+      }
       toast.success("נשמר");
       setRefreshKey((k) => k + 1);
     } catch (e: any) {
@@ -221,23 +228,13 @@ export function DailyCheckTab({ selectedDate, onDateChange }: Props) {
           <Card className="border-0 shadow-sm">
             <CardContent className="p-3 flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-8 w-8"
-                  onClick={() => onDateChange?.(addDays(selectedDate, -1))}
-                >
+                <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => onDateChange?.(addDays(selectedDate, -1))}>
                   <ChevronRight className="h-4 w-4" />
                 </Button>
                 <div className="text-sm font-medium min-w-[110px] text-center">
                   {format(selectedDate, "dd/MM/yyyy")}
                 </div>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-8 w-8"
-                  onClick={() => onDateChange?.(addDays(selectedDate, 1))}
-                >
+                <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => onDateChange?.(addDays(selectedDate, 1))}>
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
               </div>
@@ -251,82 +248,83 @@ export function DailyCheckTab({ selectedDate, onDateChange }: Props) {
           {loading && <div className="text-sm text-muted-foreground">טוען…</div>}
 
           {!loading && grouped.map(({ client, employees }) => {
-            const hasManual = employees.some((e) => !e.meckano);
-            return (
-              <Card key={client.id} className="border-0 shadow-sm">
-                <CardHeader className="pb-2 flex flex-row items-center justify-between">
-                  <CardTitle className="text-sm flex items-center gap-2">
-                    {client.name}
-                  </CardTitle>
-                  {hasManual && (
-                    <Button size="sm" disabled={savingClient === client.id} onClick={() => saveClient(client.id, employees)}>
-                      {savingClient === client.id ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : null}
-                      שמור
-                    </Button>
-                  )}
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {employees.map((e) => {
-                    const key = `${client.id}-${e.id}`;
-                    if (e.meckano) {
+            if (client.meckano_synced) {
+              return (
+                <Card key={client.id} className="border-0 shadow-sm">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm flex items-center gap-2">
+                      {client.name}
+                      <Badge variant="outline" className="bg-info/10 text-info border-info/20">🔄 מכונה</Badge>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {employees.map((e) => {
                       const st = getRecordStatus(e.id, client.id);
                       const lbl = labelFor(st);
                       return (
                         <div key={e.id} className="flex flex-wrap items-center gap-3 border-b pb-2 last:border-0">
                           <div className="min-w-[140px] font-medium text-sm">{e.name}</div>
-                          <Badge variant="outline" className="bg-info/10 text-info border-info/20">🔄 מכונה</Badge>
                           <Badge variant="outline" className={lbl.cls}>{lbl.text}</Badge>
                         </div>
                       );
-                    }
-                    const m = manualState[key] || { status: "ok" as const, notes: "" };
-                    return (
-                      <div key={e.id} className="flex flex-wrap items-center gap-4 border-b pb-3 last:border-0">
-                        <div className="min-w-[140px] font-medium text-sm">{e.name}</div>
-                        <Badge variant="outline" className="bg-muted text-muted-foreground">✏️ ידני</Badge>
-                        <RadioGroup
-                          value={m.status}
-                          onValueChange={(v) =>
-                            setManualState((p) => ({ ...p, [key]: { ...m, status: v as any } }))
+                    })}
+                  </CardContent>
+                </Card>
+              );
+            }
+            // Non-meckano: client-level status
+            const cs = clientStatus[client.id] || { status: "missing" as ClientStatus, notes: "" };
+            return (
+              <Card key={client.id} className="border-0 shadow-sm">
+                <CardHeader className="pb-2 flex flex-row items-center justify-between">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    {client.name}
+                    <Badge variant="outline" className="bg-muted text-muted-foreground">✏️ ידני</Badge>
+                  </CardTitle>
+                  <Button size="sm" disabled={savingClient === client.id} onClick={() => saveClientStatus(client.id)}>
+                    {savingClient === client.id ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : null}
+                    שמור
+                  </Button>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {CLIENT_STATUS_OPTIONS.map((opt) => {
+                      const active = cs.status === opt.value;
+                      return (
+                        <Button
+                          key={opt.value}
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className={cn("h-8", active ? opt.activeCls : opt.cls)}
+                          onClick={() =>
+                            setClientStatus((p) => ({ ...p, [client.id]: { ...cs, status: opt.value } }))
                           }
-                          className="flex flex-row gap-4"
                         >
-                          <div className="flex items-center gap-1">
-                            <RadioGroupItem value="ok" id={`${key}-ok`} />
-                            <Label htmlFor={`${key}-ok`} className="text-xs">דווח תקין</Label>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <RadioGroupItem value="no_work" id={`${key}-nw`} />
-                            <Label htmlFor={`${key}-nw`} className="text-xs">לא היה עבודה</Label>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <RadioGroupItem value="missing" id={`${key}-m`} />
-                            <Label htmlFor={`${key}-m`} className="text-xs">חסר משהו</Label>
-                          </div>
-                        </RadioGroup>
-                        {m.status === "missing" && (
-                          <Input
-                            className="h-8 flex-1 min-w-[200px]"
-                            placeholder="הערה (חובה)"
-                            value={m.notes}
-                            onChange={(ev) =>
-                              setManualState((p) => ({ ...p, [key]: { ...m, notes: ev.target.value } }))
-                            }
-                          />
-                        )}
-                      </div>
-                    );
-                  })}
+                          {opt.label}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                  {(cs.status === "missing" || cs.status === "checking") && (
+                    <Input
+                      className="h-8"
+                      placeholder="הערה (אופציונלי)"
+                      value={cs.notes}
+                      onChange={(ev) =>
+                        setClientStatus((p) => ({ ...p, [client.id]: { ...cs, notes: ev.target.value } }))
+                      }
+                    />
+                  )}
                 </CardContent>
               </Card>
             );
           })}
 
-
           {!loading && grouped.length === 0 && (
             <Card className="border-0 shadow-sm">
               <CardContent className="p-6 text-center text-sm text-muted-foreground">
-                אין עובדים משובצים לעבודה ביום זה
+                אין לקוחות פעילים ביום זה
               </CardContent>
             </Card>
           )}
@@ -368,10 +366,11 @@ function HistoryView({ clients }: { clients: any[] }) {
   }, [month, clientId]);
 
   const statusLabel = (s: string) => {
-    if (s === "ok") return { text: "תקין", cls: "bg-success/10 text-success border-success/20" };
-    if (s === "no_work") return { text: "לא היה עבודה", cls: "bg-muted text-muted-foreground border-border" };
-    if (s === "missing") return { text: "חסר", cls: "bg-destructive/10 text-destructive border-destructive/20" };
-    return { text: "ממתין", cls: "bg-warning/10 text-warning border-warning/20" };
+    if (s === "ok") return { text: "דווח", cls: "bg-success/10 text-success border-success/20" };
+    if (s === "checking") return { text: "בבדיקה", cls: "bg-warning/10 text-warning border-warning/20" };
+    if (s === "no_work") return { text: "לא היה עבודה", cls: "bg-purple-500/10 text-purple-500 border-purple-500/20" };
+    if (s === "missing") return { text: "חסר דיווח", cls: "bg-destructive/10 text-destructive border-destructive/20" };
+    return { text: "ממתין", cls: "bg-muted text-muted-foreground border-border" };
   };
 
   return (

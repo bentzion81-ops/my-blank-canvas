@@ -251,8 +251,8 @@ export function DailyCheckTab({ selectedDate, onDateChange }: Props) {
 
           {loading && <div className="text-sm text-muted-foreground">טוען…</div>}
 
-          {!loading && grouped.map(({ client, employees }) => {
-            if (client.meckano_synced) {
+          {!loading && grouped.map(({ client, isMeckano, employees }) => {
+            if (isMeckano) {
               // Aggregate client-level status from employee meckano records
               const statuses = employees.map((e) => getRecordStatus(e.id, client.id));
               let agg: { text: string; cls: string };

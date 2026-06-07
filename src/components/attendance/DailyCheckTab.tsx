@@ -98,7 +98,7 @@ export function DailyCheckTab({ selectedDate }: Props) {
   // If there are no work_schedules for this client at all on this day, fall back
   // to all active assignments for that client (so the page is useful even without schedules).
   const grouped = useMemo(() => {
-    const result: { client: any; employees: { id: string; name: string }[] }[] = [];
+    const result: { client: any; employees: { id: string; name: string; meckano: boolean }[] }[] = [];
     const hasAnySchedules = schedules.length > 0;
     for (const client of clients) {
       const clientSchedules = schedules.filter((s: any) => s.client_id === client.id);
@@ -106,7 +106,7 @@ export function DailyCheckTab({ selectedDate }: Props) {
       const empIds = useSchedule
         ? new Set(clientSchedules.map((s: any) => s.employee_id))
         : null;
-      const emps: { id: string; name: string }[] = [];
+      const emps: { id: string; name: string; meckano: boolean }[] = [];
       assignments
         .filter((a: any) =>
           a.client_id === client.id &&
@@ -118,6 +118,7 @@ export function DailyCheckTab({ selectedDate }: Props) {
             emps.push({
               id: a.employee_id,
               name: `${a.employees?.first_name || ""} ${a.employees?.last_name || ""}`.trim(),
+              meckano: !!a.employees?.meckano_synced,
             });
           }
         });

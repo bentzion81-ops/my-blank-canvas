@@ -16,6 +16,7 @@ import { useAuth } from "@/contexts/AuthContext";
 
 interface Props {
   selectedDate: Date;
+  onDateChange?: (date: Date) => void;
 }
 
 const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"] as const;

@@ -533,7 +533,7 @@ export type Database = {
           checked_by: string | null
           client_id: string
           created_at: string
-          employee_id: string
+          employee_id: string | null
           id: string
           missing_type: string | null
           notes: string | null
@@ -546,7 +546,7 @@ export type Database = {
           checked_by?: string | null
           client_id: string
           created_at?: string
-          employee_id: string
+          employee_id?: string | null
           id?: string
           missing_type?: string | null
           notes?: string | null
@@ -559,7 +559,7 @@ export type Database = {
           checked_by?: string | null
           client_id?: string
           created_at?: string
-          employee_id?: string
+          employee_id?: string | null
           id?: string
           missing_type?: string | null
           notes?: string | null

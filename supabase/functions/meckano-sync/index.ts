@@ -294,17 +294,9 @@ async function syncEmployees(isCron: boolean, userId: string | null) {
   }
 }
 
-// ---------- ATTENDANCE ----------
-// Strategy:
-//   1. Try to fetch APPROVED/PAID hours from Meckano's report endpoints
-//      (these include manual corrections, missing-punch fixes, etc).
-//   2. Always fetch raw punches via /time-entry — used for check_in/out
-//      timestamps + audit table meckano_attendance_raw.
-//   3. For each (employee, date):
-//        - If existing attendance_records row has source = 'manual' or
-//          'corrected' → SKIP (never overwrite human edits).
-//        - Else upsert with hours_worked from approved-hours source if
-//          available, otherwise computed from punches.
+// ---------- ATTENDANCE (real punches via GET /rest/time-entry?start=&end=) ----------
+// Returns raw clock events (each entry: {id, userId, ts, isOut, dateStr, timeStr}).
+// We pair them into shifts (in→out) per employee per day to get real check-in/out times.
 async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userId: string | null) {
   const logId = await startLog("attendance", isCron, userId, { from: dFrom, to: dTo });
   try {
@@ -313,101 +305,25 @@ async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userI
     const startTs = Math.floor(new Date(`${dFrom}T00:00:00`).getTime() / 1000);
     const endTs = Math.floor(new Date(`${dTo}T23:59:59`).getTime() / 1000);
 
-    // ---------- STEP 1: try approved-hours endpoints ----------
-    const approvedMap = new Map<string, Map<string, number>>();
-    let hoursSource: "approved_hours" | "punches_fallback" = "punches_fallback";
-    let approvedEndpointUsed: string | null = null;
-    const approvedAttempts: any[] = [];
-
-    const approvedEndpoints: Array<{ method: string; path: string; body?: any; query?: string }> = [
-      { method: "GET", path: "/time-reports/detailed", query: `?start=${startTs}&end=${endTs}` },
-      { method: "PUT", path: "/time-reports/detailed", body: { fromDate: startTs, toDate: endTs, fetchInactive: true, detailed: true } },
-      { method: "PUT", path: "/time-reports/full", body: { fromDate: startTs, toDate: endTs, fetchInactive: true, includeDays: true } },
-    ];
-
-    const extractApproved = (payload: any): Map<string, Map<string, number>> | null => {
-      const out = new Map<string, Map<string, number>>();
-      const hourKeys = ["paidHours","paid_hours","approvedHours","approved_hours","totalHours","total_hours","workedHours","worked_hours","hours","dailyHours","daily_hours","shulamot","totalShulamot"];
-      const dateKeys = ["date","day","dateStr","workDate","work_date"];
-      const userKeys = ["userId","employeeId","employee_id","user_id","id"];
-
-      const norm = (v: any): number | null => {
-        if (v === null || v === undefined) return null;
-        if (typeof v === "number" && isFinite(v)) return v;
-        if (typeof v === "string") {
-          if (/^\d{1,3}:\d{2}$/.test(v)) {
-            const [h, m] = v.split(":").map(Number); return h + m / 60;
-          }
-          const n = Number(v); return isFinite(n) ? n : null;
-        }
-        return null;
-      };
-      const normDate = (v: any): string | null => {
-        if (!v) return null;
-        const s = String(v);
-        if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
-        const m = s.match(/^(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{4})/);
-        if (m) { const dd = m[1].padStart(2,"0"); const mm = m[2].padStart(2,"0"); return `${m[3]}-${mm}-${dd}`; }
-        const n = Number(s);
-        if (isFinite(n) && n > 1000000000) return new Date(n * 1000).toISOString().slice(0, 10);
-        return null;
-      };
-
-      const visit = (node: any, ctxUser: string | null) => {
-        if (!node) return;
-        if (Array.isArray(node)) { for (const x of node) visit(x, ctxUser); return; }
-        if (typeof node !== "object") return;
-        let user = ctxUser;
-        for (const k of userKeys) {
-          if (node[k] !== undefined && node[k] !== null && (typeof node[k] === "string" || typeof node[k] === "number")) {
-            user = String(node[k]); break;
-          }
-        }
-        let date: string | null = null;
-        for (const k of dateKeys) { if (node[k]) { date = normDate(node[k]); if (date) break; } }
-        let hours: number | null = null;
-        for (const k of hourKeys) { if (node[k] !== undefined) { hours = norm(node[k]); if (hours !== null) break; } }
-        if (user && date && hours !== null && hours >= 0) {
-          if (!out.has(user)) out.set(user, new Map());
-          const prev = out.get(user)!.get(date) ?? 0;
-          if (hours > prev) out.get(user)!.set(date, hours);
-        }
-        for (const v of Object.values(node)) if (v && typeof v === "object") visit(v, user);
-      };
-      visit(payload, null);
-      return out.size > 0 ? out : null;
-    };
-
-    for (const ep of approvedEndpoints) {
-      try {
-        const path = ep.path + (ep.query ?? "");
-        const r = await meckanoFetch(path, {
-          method: ep.method,
-          body: ep.body ? JSON.stringify(ep.body) : undefined,
-        });
-        approvedAttempts.push({ endpoint: `${ep.method} ${ep.path}`, status: r.status, ok: r.ok });
-        if (!r.ok) continue;
-        const parsed = extractApproved(r.data);
-        if (parsed && parsed.size > 0) {
-          for (const [u, dm] of parsed) approvedMap.set(u, dm);
-          hoursSource = "approved_hours";
-          approvedEndpointUsed = `${ep.method} ${ep.path}`;
-          break;
-        }
-      } catch (e) {
-        approvedAttempts.push({ endpoint: `${ep.method} ${ep.path}`, error: String(e) });
-      }
-    }
-
-    // ---------- STEP 2: raw punches (always, for audit + check_in/out) ----------
     const r = await meckanoFetch(`/time-entry?start=${startTs}&end=${endTs}`);
     if (!r.ok) throw new Error(`/time-entry returned ${r.status}: ${r.raw.slice(0, 300)}`);
-    const entries: any[] = Array.isArray(r.data) ? r.data : ((r.data as any)?.data ?? []);
+    const entries: any[] = Array.isArray(r.data)
+      ? r.data
+      : ((r.data as any)?.data ?? []);
 
+    // SAFE STRATEGY: Meckano provides `dateStr` (DD.MM.YYYY) and `timeStr` (HH:mm)
+    // representing exactly what Meckano displays in Israel local time.
+    // To make our stored timestamps EXACTLY match Meckano regardless of DST or
+    // server location, we build the UTC instant from those strings + the actual
+    // Israel offset at that wall-clock moment (DST-aware).
     const israelOffsetSecondsAt = (year: number, month: number, day: number, hour: number, minute: number) => {
+      // Build a "naive" UTC date with the wall-clock components, then ask what
+      // that instant looks like in Asia/Jerusalem. The diff = the offset.
       const asUtc = Date.UTC(year, month - 1, day, hour, minute, 0);
       const parts = new Intl.DateTimeFormat("en-US", {
-        timeZone: "Asia/Jerusalem", timeZoneName: "shortOffset", year: "numeric",
+        timeZone: "Asia/Jerusalem",
+        timeZoneName: "shortOffset",
+        year: "numeric",
       }).formatToParts(new Date(asUtc));
       const tz = parts.find((p) => p.type === "timeZoneName")?.value || "GMT+2";
       const m = tz.match(/GMT([+-])(\d{1,2})(?::(\d{2}))?/);
@@ -415,23 +331,43 @@ async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userI
       const sign = m[1] === "-" ? -1 : 1;
       return sign * (Number(m[2]) * 3600 + Number(m[3] ?? 0) * 60);
     };
+
+    // Build UTC ms from Meckano's dateStr "DD.MM.YYYY" + timeStr "HH:mm".
+    // Falls back to ts-based math only if those strings are missing.
     const meckanoToUtcMs = (e: any): number => {
       const dateStr: string = e.dateStr ?? "";
       const timeStr: string = e.timeStr ?? "";
       const dm = dateStr.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
       const tm = timeStr.match(/^(\d{1,2}):(\d{2})/);
       if (dm && tm) {
-        const day = Number(dm[1]); const month = Number(dm[2]); const year = Number(dm[3]);
-        const hour = Number(tm[1]); const minute = Number(tm[2]);
+        const day = Number(dm[1]);
+        const month = Number(dm[2]);
+        const year = Number(dm[3]);
+        const hour = Number(tm[1]);
+        const minute = Number(tm[2]);
         const offsetSec = israelOffsetSecondsAt(year, month, day, hour, minute);
-        return Date.UTC(year, month - 1, day, hour, minute, 0) - offsetSec * 1000;
+        const utcMs = Date.UTC(year, month - 1, day, hour, minute, 0) - offsetSec * 1000;
+        return utcMs;
       }
+      // Fallback: treat ts as Israel-local-as-UTC and subtract offset
       const ts = Number(e.ts ?? 0);
       const d = new Date(ts * 1000);
-      const off = israelOffsetSecondsAt(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate(), d.getUTCHours(), d.getUTCMinutes());
+      const off = israelOffsetSecondsAt(
+        d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate(),
+        d.getUTCHours(), d.getUTCMinutes(),
+      );
+      return (ts - off) * 1000;
+    };
+    const tsToUtcMs = (ts: number) => {
+      const d = new Date(ts * 1000);
+      const off = israelOffsetSecondsAt(
+        d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate(),
+        d.getUTCHours(), d.getUTCMinutes(),
+      );
       return (ts - off) * 1000;
     };
 
+    // Persist raw punches
     const rawRows = entries
       .filter((e: any) => e.id && e.userId && e.ts)
       .map((e: any) => ({
@@ -448,6 +384,11 @@ async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userI
       await admin.from("meckano_attendance_raw").upsert(rawRows, { onConflict: "meckano_report_id" });
     }
 
+    // Group punches by employee (ALL days together) so we can pair shifts that
+    // cross midnight (in at 20:00, out at 01:00 next day). Then we sort all
+    // punches chronologically and pair each `in` with the next `out`.
+    // The shift's date is derived from the `in` punch's Israel-local date
+    // (using Meckano's dateStr, which is what Meckano itself displays).
     type Punch = { ts: number; isOut: boolean; raw: any; date: string };
     const byEmp = new Map<string, Punch[]>();
     for (const e of entries) {
@@ -465,28 +406,36 @@ async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userI
       byEmp.get(meckEmp)!.push({ ts, isOut: !!e.isOut, raw: e, date });
     }
 
+    // Max plausible shift length in hours — anything longer is treated as an
+    // unpaired in (likely a forgotten clock-out) so we don't merge unrelated shifts.
     const MAX_SHIFT_HOURS = 16;
-    type Shift = { meckEmp: string; date: string; checkIn: Date; checkOut: Date | null; hours: number };
-    const shifts: Shift[] = [];
+
+    const shifts: Array<{ meckEmp: string; date: string; checkIn: Date; checkOut: Date | null; hours: number }> = [];
     for (const [meckEmp, punches] of byEmp) {
       punches.sort((a, b) => a.ts - b.ts);
       let openIn: Punch | null = null;
       for (const p of punches) {
         if (!p.isOut) {
           if (openIn !== null) {
+            // Unpaired previous in — store as missing-out shift on its own date
             shifts.push({ meckEmp, date: openIn.date, checkIn: new Date(meckanoToUtcMs(openIn.raw)), checkOut: null, hours: 0 });
           }
           openIn = p;
-        } else if (openIn !== null) {
-          const checkIn = new Date(meckanoToUtcMs(openIn.raw));
-          const checkOut = new Date(meckanoToUtcMs(p.raw));
-          const hours = (checkOut.getTime() - checkIn.getTime()) / 3600000;
-          if (hours <= MAX_SHIFT_HOURS) {
-            shifts.push({ meckEmp, date: openIn.date, checkIn, checkOut, hours });
-          } else {
-            shifts.push({ meckEmp, date: openIn.date, checkIn, checkOut: null, hours: 0 });
+        } else {
+          if (openIn !== null) {
+            const checkIn = new Date(meckanoToUtcMs(openIn.raw));
+            const checkOut = new Date(meckanoToUtcMs(p.raw));
+            const hours = (checkOut.getTime() - checkIn.getTime()) / 3600000;
+            if (hours <= MAX_SHIFT_HOURS) {
+              shifts.push({ meckEmp, date: openIn.date, checkIn, checkOut, hours });
+              openIn = null;
+            } else {
+              // Gap too large — treat the in as unpaired and drop the stray out
+              shifts.push({ meckEmp, date: openIn.date, checkIn: new Date(meckanoToUtcMs(openIn.raw)), checkOut: null, hours: 0 });
+              openIn = null;
+            }
           }
-          openIn = null;
+          // stray `out` without a prior `in` — ignore
         }
       }
       if (openIn !== null) {
@@ -494,30 +443,45 @@ async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userI
       }
     }
 
-    const punchByKey = new Map<string, Shift>();
-    for (const s of shifts) {
-      const k = `${s.meckEmp}|${s.date}`;
-      if (!punchByKey.has(k)) punchByKey.set(k, s);
-    }
-
-    const meckIds = Array.from(new Set([...byEmp.keys(), ...approvedMap.keys()]));
+    // Map Meckano employees → internal UUIDs (only employees flagged as synced with Meckano)
+    const meckIds = Array.from(byEmp.keys());
     const { data: emps } = meckIds.length
-      ? await admin.from("employees").select("id, meckano_employee_id, meckano_synced").in("meckano_employee_id", meckIds)
+      ? await admin
+          .from("employees")
+          .select("id, meckano_employee_id, meckano_synced")
+          .in("meckano_employee_id", meckIds)
       : { data: [] };
     const empMap = new Map(
-      (emps ?? []).filter((e: any) => e.meckano_synced === true).map((e: any) => [String(e.meckano_employee_id), e.id as string]),
+      (emps ?? [])
+        .filter((e: any) => e.meckano_synced === true)
+        .map((e: any) => [String(e.meckano_employee_id), e.id]),
     );
     const skippedNotSynced = (emps ?? []).filter((e: any) => e.meckano_synced !== true).length;
 
     const batchIns = await admin.from("attendance_import_batches").insert({
       source: "meckano",
       status: "completed",
-      record_count: 0,
-      notes: `Sync ${dFrom} → ${dTo} (hours_source=${hoursSource})`,
+      record_count: shifts.length,
+      notes: `Punches sync ${dFrom} → ${dTo} (${entries.length} raw events, ${shifts.length} shifts)`,
     }).select("id").single();
     const batchId = batchIns.data?.id;
 
-    const matchedEmpIds = Array.from(new Set([...empMap.values()] as string[]));
+    // Wipe existing meckano records in window for matched employees
+    const matchedEmpIds = Array.from(new Set(
+      shifts.map((s) => empMap.get(s.meckEmp)).filter(Boolean) as string[],
+    ));
+    if (matchedEmpIds.length) {
+      await admin.from("attendance_records")
+        .delete()
+        .in("employee_id", matchedEmpIds)
+        .gte("date", dFrom)
+        .lte("date", dTo)
+        .eq("source", "meckano");
+    }
+
+    // Resolve client_id per (employee, date) from the assignment active on that date.
+    // Prefer primary, then latest start_date. Respects start_date / end_date so historical
+    // punches are attributed to the workplace the employee actually had on that day.
     const assignsByEmp = new Map<string, any[]>();
     if (matchedEmpIds.length) {
       const { data: assigns } = await admin
@@ -530,127 +494,48 @@ async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userI
         assignsByEmp.get(a.employee_id)!.push(a);
       }
     }
-    const clientForDate = (empId: string, date: string): string | null => {
+    // Only consider PRIMARY assignments active on that date. Non-primary assignments
+    // (e.g. those auto-created from replacement reports) must not hijack Meckano hours
+    // away from the employee's regular workplace.
+    const clientForShift = (empId: string, date: string): string | null => {
       const list = assignsByEmp.get(empId) ?? [];
-      const active = list.filter((a) =>
-        a.is_primary === true &&
-        (!a.start_date || a.start_date <= date) &&
-        (!a.end_date || a.end_date >= date),
+      const active = list.filter(
+        (a) =>
+          a.is_primary === true &&
+          (!a.start_date || a.start_date <= date) &&
+          (!a.end_date || a.end_date >= date),
       );
       if (active.length === 0) return null;
-      active.sort((a, b) => String(b.start_date ?? "").localeCompare(String(a.start_date ?? "")));
+      active.sort((a, b) =>
+        String(b.start_date ?? "").localeCompare(String(a.start_date ?? "")),
+      );
       return active[0].client_id;
     };
 
-    type Target = { empId: string; date: string; hours: number; checkIn: string | null; checkOut: string | null; fromApproved: boolean };
-    const targetMap = new Map<string, Target>();
-
-    if (hoursSource === "approved_hours") {
-      for (const [meckEmp, dayMap] of approvedMap) {
-        const empId = empMap.get(meckEmp);
-        if (!empId) continue;
-        for (const [date, hours] of dayMap) {
-          if (date < dFrom || date > dTo) continue;
-          const punch = punchByKey.get(`${meckEmp}|${date}`);
-          targetMap.set(`${empId}|${date}`, {
-            empId, date,
-            hours: Number(hours.toFixed(2)),
-            checkIn: punch?.checkIn ? punch.checkIn.toISOString() : null,
-            checkOut: punch?.checkOut ? punch.checkOut.toISOString() : null,
-            fromApproved: true,
-          });
-        }
-      }
-    }
+    let stored = 0;
+    let unmatched = 0;
+    const toInsert: any[] = [];
     for (const s of shifts) {
       const empId = empMap.get(s.meckEmp);
-      if (!empId) continue;
-      const key = `${empId}|${s.date}`;
-      if (targetMap.has(key)) continue;
-      targetMap.set(key, {
-        empId, date: s.date,
-        hours: Number(s.hours.toFixed(2)),
-        checkIn: s.checkIn.toISOString(),
-        checkOut: s.checkOut ? s.checkOut.toISOString() : null,
-        fromApproved: false,
-      });
-    }
-
-    const existingByKey = new Map<string, { id: string; source: string }>();
-    if (matchedEmpIds.length) {
-      const { data: existing } = await admin
-        .from("attendance_records")
-        .select("id, employee_id, date, source")
-        .in("employee_id", matchedEmpIds)
-        .gte("date", dFrom)
-        .lte("date", dTo);
-      for (const e of existing ?? []) {
-        existingByKey.set(`${e.employee_id}|${e.date}`, { id: e.id, source: String(e.source) });
-      }
-    }
-
-    let stored = 0;
-    let manualSkipped = 0;
-    const unmatched = shifts.filter((s) => !empMap.get(s.meckEmp)).length;
-    const toInsert: any[] = [];
-    const toUpdate: Array<{ id: string; patch: any }> = [];
-
-    for (const t of targetMap.values()) {
-      const ex = existingByKey.get(`${t.empId}|${t.date}`);
-      if (ex && (ex.source === "manual" || ex.source === "corrected")) {
-        manualSkipped++;
-        continue;
-      }
-      const notes = t.fromApproved ? "שעות מאושרות ממכונה" : (t.checkOut ? null : "Missing check-out");
-      const row: any = {
-        employee_id: t.empId,
-        client_id: clientForDate(t.empId, t.date),
-        date: t.date,
-        check_in: t.checkIn,
-        check_out: t.checkOut,
-        hours_worked: t.hours,
+      if (!empId) { unmatched++; continue; }
+      toInsert.push({
+        employee_id: empId,
+        client_id: clientForShift(empId, s.date),
+        date: s.date,
+        check_in: s.checkIn.toISOString(),
+        check_out: s.checkOut ? s.checkOut.toISOString() : null,
+        hours_worked: Number(s.hours.toFixed(2)),
         source: "meckano",
         batch_id: batchId,
-        notes,
-      };
-      if (ex) toUpdate.push({ id: ex.id, patch: row });
-      else toInsert.push(row);
+        notes: s.checkOut ? null : "Missing check-out",
+      });
     }
-
     if (toInsert.length) {
       const chunkSize = 500;
       for (let i = 0; i < toInsert.length; i += chunkSize) {
         const chunk = toInsert.slice(i, i + chunkSize);
         const { data, error } = await admin.from("attendance_records").insert(chunk).select("id");
         if (!error) stored += data?.length ?? 0;
-      }
-    }
-    for (const u of toUpdate) {
-      const { error } = await admin.from("attendance_records").update(u.patch).eq("id", u.id);
-      if (!error) stored++;
-    }
-
-    // ---------- STEP 4: one-time fix for 2026-05-18 if approved hours unavailable ----------
-    let oneTimeFix: any = null;
-    if (hoursSource !== "approved_hours" && dFrom <= "2026-05-18" && dTo >= "2026-05-18") {
-      const { data: chaminda } = await admin
-        .from("employees").select("id")
-        .eq("meckano_employee_id", "608132")
-        .maybeSingle();
-      if (chaminda?.id) {
-        const { data: fixed, error } = await admin
-          .from("attendance_records")
-          .update({
-            check_out: "2026-05-18T21:54:00+00:00",
-            hours_worked: 23.9,
-            notes: "תוקן ידנית — יציאה חסרה ממכונה",
-          })
-          .eq("date", "2026-05-18")
-          .eq("source", "meckano")
-          .eq("employee_id", chaminda.id)
-          .is("check_out", null)
-          .select("id");
-        oneTimeFix = { applied: (fixed?.length ?? 0) > 0, count: fixed?.length ?? 0, error: error?.message };
       }
     }
 
@@ -662,25 +547,11 @@ async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userI
         raw_events: entries.length,
         shifts: shifts.length,
         stored, unmatched,
-        manual_skipped: manualSkipped,
         skipped_not_synced: skippedNotSynced,
-        hours_source: hoursSource,
-        approved_endpoint: approvedEndpointUsed,
-        approved_attempts: approvedAttempts,
         batch_id: batchId,
-        one_time_fix: oneTimeFix,
       },
     });
-    return {
-      ok: true,
-      raw_events: entries.length,
-      shifts: shifts.length,
-      stored, unmatched,
-      manual_skipped: manualSkipped,
-      hours_source: hoursSource,
-      approved_endpoint: approvedEndpointUsed,
-      one_time_fix: oneTimeFix,
-    };
+    return { ok: true, raw_events: entries.length, shifts: shifts.length, stored, unmatched, skipped_not_synced: skippedNotSynced };
   } catch (e) {
     await endLog(logId, { status: "error", error_message: String(e) });
     return { ok: false, error: String(e) };

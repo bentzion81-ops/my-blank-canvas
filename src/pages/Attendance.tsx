@@ -333,7 +333,7 @@ const Attendance = () => {
         {topTab === "no_work" ? (
           <NoWorkPeriodsPanel />
         ) : topTab === "daily_check" ? (
-          <DailyCheckTab selectedDate={selectedDay} />
+          <DailyCheckTab selectedDate={selectedDay} onDateChange={setSelectedDay} />
         ) : (
         <>
         {/* Date selector */}

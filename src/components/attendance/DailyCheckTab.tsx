@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { format } from "date-fns";
+import { format, addDays } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,12 +10,13 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, RefreshCw } from "lucide-react";
+import { Loader2, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface Props {
   selectedDate: Date;
+  onDateChange?: (date: Date) => void;
 }
 
 const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"] as const;
@@ -29,7 +30,7 @@ const statusColor = (s: string) => {
   return "bg-warning/10 text-warning border-warning/20";
 };
 
-export function DailyCheckTab({ selectedDate }: Props) {
+export function DailyCheckTab({ selectedDate, onDateChange }: Props) {
   const { user } = useAuth();
   const [inner, setInner] = useState<"today" | "history">("today");
   const [refreshKey, setRefreshKey] = useState(0);
@@ -219,8 +220,26 @@ export function DailyCheckTab({ selectedDate }: Props) {
         <TabsContent value="today" className="space-y-4">
           <Card className="border-0 shadow-sm">
             <CardContent className="p-3 flex flex-wrap items-center justify-between gap-3">
-              <div className="text-sm text-muted-foreground">
-                בדיקה יומית — {format(selectedDate, "dd/MM/yyyy")}
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => onDateChange?.(addDays(selectedDate, -1))}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+                <div className="text-sm font-medium min-w-[110px] text-center">
+                  {format(selectedDate, "dd/MM/yyyy")}
+                </div>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => onDateChange?.(addDays(selectedDate, 1))}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
               </div>
               <Button size="sm" onClick={handleSyncMeckano} disabled={syncing}>
                 {syncing ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-1" />}

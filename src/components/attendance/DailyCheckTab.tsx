@@ -104,12 +104,14 @@ export function DailyCheckTab({ selectedDate, onDateChange }: Props) {
     const result: { client: any; isMeckano: boolean; employees: { id: string; name: string }[] }[] = [];
     const hasAnySchedules = schedules.length > 0;
     for (const client of clients) {
-      // Meckano employees assigned to this client
+      if (client.exclude_from_daily_check) continue;
+      // Meckano employees assigned to this client (excluding hidden ones)
       const meckanoAssigns = assignments.filter(
         (a: any) =>
           a.client_id === client.id &&
           a.employees?.status === "active" &&
-          a.employees?.meckano_synced === true
+          a.employees?.meckano_synced === true &&
+          !a.employees?.exclude_from_daily_check
       );
       const isMeckano = client.meckano_synced || meckanoAssigns.length > 0;
 

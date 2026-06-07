@@ -683,42 +683,43 @@ function HistoryView({ clients }: { clients: any[] }) {
             </Select>
           </div>
         </CardHeader>
-      <CardContent className="p-0">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>תאריך</TableHead>
-              <TableHead>לקוח</TableHead>
-              <TableHead>עובד</TableHead>
-              <TableHead>סטטוס</TableHead>
-              <TableHead>מקור</TableHead>
-              <TableHead>הערה</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading ? (
-              <TableRow><TableCell colSpan={6} className="text-center text-sm text-muted-foreground py-6">טוען…</TableCell></TableRow>
-            ) : rows.length === 0 ? (
-              <TableRow><TableCell colSpan={6} className="text-center text-sm text-muted-foreground py-6">אין רשומות</TableCell></TableRow>
-            ) : (
-              rows.map((r: any) => {
-                const sl = statusLabel(r.status);
-                return (
-                  <TableRow key={r.id}>
-                    <TableCell className="text-xs">{format(new Date(r.check_date), "dd/MM/yyyy")}</TableCell>
-                    <TableCell className="text-xs">{r.clients?.name || "—"}</TableCell>
-                    <TableCell className="text-xs">{r.employees ? `${r.employees.first_name} ${r.employees.last_name}` : "—"}</TableCell>
-                    <TableCell><Badge variant="outline" className={sl.cls}>{sl.text}</Badge></TableCell>
-                    <TableCell className="text-xs">{r.source === "auto" ? "אוטומטי" : "ידני"}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground max-w-xs truncate" title={r.notes || ""}>{r.notes || "—"}</TableCell>
-                  </TableRow>
-                );
-              })
-            )}
-          </TableBody>
-        </Table>
-      </CardContent>
-    </Card>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>תאריך</TableHead>
+                <TableHead>לקוח</TableHead>
+                <TableHead>עובד</TableHead>
+                <TableHead>סטטוס</TableHead>
+                <TableHead>מקור</TableHead>
+                <TableHead>הערה</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {loading ? (
+                <TableRow><TableCell colSpan={6} className="text-center text-sm text-muted-foreground py-6">טוען…</TableCell></TableRow>
+              ) : rows.length === 0 ? (
+                <TableRow><TableCell colSpan={6} className="text-center text-sm text-muted-foreground py-6">אין רשומות</TableCell></TableRow>
+              ) : (
+                rows.map((r: any) => {
+                  const sl = statusLabel(r.status);
+                  return (
+                    <TableRow key={r.id}>
+                      <TableCell className="text-xs">{format(new Date(r.check_date), "dd/MM/yyyy")}</TableCell>
+                      <TableCell className="text-xs">{r.clients?.name || "—"}</TableCell>
+                      <TableCell className="text-xs">{r.employees ? `${r.employees.first_name} ${r.employees.last_name}` : "—"}</TableCell>
+                      <TableCell><Badge variant="outline" className={sl.cls}>{sl.text}</Badge></TableCell>
+                      <TableCell className="text-xs">{r.source === "auto" ? "אוטומטי" : "ידני"}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground max-w-xs truncate" title={r.notes || ""}>{r.notes || "—"}</TableCell>
+                    </TableRow>
+                  );
+                })
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 

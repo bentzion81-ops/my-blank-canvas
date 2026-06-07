@@ -48,6 +48,8 @@ export function DailyCheckTab({ selectedDate, onDateChange }: Props) {
   const [schedules, setSchedules] = useState<any[]>([]);
   const [records, setRecords] = useState<any[]>([]);
   const [logs, setLogs] = useState<any[]>([]);
+  const [closure, setClosure] = useState<any | null>(null);
+  const [closing, setClosing] = useState(false);
   const [loading, setLoading] = useState(false);
 
   // Client-level status for non-meckano clients
@@ -114,7 +116,7 @@ export function DailyCheckTab({ selectedDate, onDateChange }: Props) {
   const load = async () => {
     setLoading(true);
     try {
-      const [c, a, s, r, l] = await Promise.all([
+      const [c, a, s, r, l, cl] = await Promise.all([
         supabase.from("clients").select("id, name, meckano_synced, status, exclude_from_daily_check" as any).eq("status", "active"),
         supabase.from("employee_client_assignments")
           .select("employee_id, client_id, employees(id, first_name, last_name, status, meckano_synced, exclude_from_daily_check)")
@@ -128,12 +130,17 @@ export function DailyCheckTab({ selectedDate, onDateChange }: Props) {
         supabase.from("daily_check_logs" as any)
           .select("*")
           .eq("check_date", dateStr),
+        supabase.from("daily_check_closures" as any)
+          .select("*")
+          .eq("check_date", dateStr)
+          .maybeSingle(),
       ]);
       setClients(c.data || []);
       setAssignments(a.data || []);
       setSchedules((s.data as any[]) || []);
       setRecords(r.data || []);
       setLogs((l.data as any[]) || []);
+      setClosure((cl as any)?.data || null);
 
       // Hydrate client-level state from logs where employee_id is null
       const cs: Record<string, { status: ClientStatus; notes: string }> = {};
@@ -301,6 +308,54 @@ export function DailyCheckTab({ selectedDate, onDateChange }: Props) {
       toast.error(e.message || String(e));
     } finally {
       setSavingClient(null);
+    }
+  };
+
+  // Readiness: all displayed rows are OK (or no_work). Counts what's left.
+  const readiness = useMemo(() => {
+    let pending = 0;
+    let total = 0;
+    for (const { client, isMeckano, employees } of grouped) {
+      if (isMeckano) {
+        const override = clientStatus[client.id];
+        if (override?.status === "no_work") { total += 1; continue; }
+        const activeEmps = employees.filter((e) => !empNoWork.has(`${client.id}::${e.id}`));
+        if (activeEmps.length === 0) { total += 1; continue; }
+        for (const e of activeEmps) {
+          total += 1;
+          const st = getRecordStatus(e.id, client.id);
+          if (st !== "ok") pending += 1;
+        }
+      } else {
+        total += 1;
+        const cs = clientStatus[client.id];
+        if (!cs || (cs.status !== "ok" && cs.status !== "no_work")) pending += 1;
+      }
+    }
+    return { pending, total, ready: total > 0 && pending === 0 };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [grouped, clientStatus, empNoWork, records, schedules, dateStr]);
+
+  const closeCheck = async () => {
+    setClosing(true);
+    try {
+      if (closure) {
+        const { error } = await supabase.from("daily_check_closures" as any).delete().eq("id", closure.id);
+        if (error) throw error;
+        toast.success("הסגירה בוטלה");
+      } else {
+        const { error } = await supabase.from("daily_check_closures" as any).insert({
+          check_date: dateStr,
+          closed_by: user?.id || null,
+        });
+        if (error) throw error;
+        toast.success("הבדיקה נסגרה");
+      }
+      setRefreshKey((k) => k + 1);
+    } catch (e: any) {
+      toast.error(e.message || String(e));
+    } finally {
+      setClosing(false);
     }
   };
 
@@ -485,7 +540,37 @@ export function DailyCheckTab({ selectedDate, onDateChange }: Props) {
               </CardContent>
             </Card>
           )}
+
+          {!loading && grouped.length > 0 && (
+            <Card className="border-0 shadow-sm sticky bottom-2">
+              <CardContent className="p-3 flex flex-wrap items-center justify-between gap-3">
+                <div className="text-sm">
+                  {closure ? (
+                    <span className="text-success font-medium">
+                      ✓ הבדיקה נסגרה {closure.closed_at ? `(${format(new Date(closure.closed_at), "dd/MM/yyyy HH:mm")})` : ""}
+                    </span>
+                  ) : readiness.ready ? (
+                    <span className="text-success font-medium">כל הדיווחים תקינים — ניתן לסגור את הבדיקה</span>
+                  ) : (
+                    <span className="text-muted-foreground">
+                      נותרו {readiness.pending} מתוך {readiness.total} שורות לסגירה (יש לסמן דווח / לא היה עבודה / לא עבד)
+                    </span>
+                  )}
+                </div>
+                <Button
+                  size="sm"
+                  variant={closure ? "outline" : "default"}
+                  disabled={closing || (!closure && !readiness.ready)}
+                  onClick={closeCheck}
+                >
+                  {closing ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : null}
+                  {closure ? "בטל סגירה" : "סגור בדיקה"}
+                </Button>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
+
 
         <TabsContent value="history">
           <HistoryView clients={clients} />

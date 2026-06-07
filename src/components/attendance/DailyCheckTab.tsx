@@ -165,7 +165,7 @@ export function DailyCheckTab({ selectedDate, onDateChange }: Props) {
   // - meckano client: list of meckano employees (with auto-detected status)
   // - non-meckano client: no employees, single client-level row
   const grouped = useMemo(() => {
-    const result: { client: any; isMeckano: boolean; employees: { id: string; name: string }[] }[] = [];
+    const result: { client: any; isMeckano: boolean; employees: { id: string; name: string; israeli_phone?: string; foreign_phone?: string }[] }[] = [];
     const hasAnySchedules = schedules.length > 0;
     for (const client of clients) {
       if (client.exclude_from_daily_check) continue;

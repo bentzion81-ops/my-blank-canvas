@@ -196,7 +196,8 @@ export function DailyCheckTab({ selectedDate, onDateChange }: Props) {
         .eq("client_id", clientId)
         .is("employee_id", null)
         .maybeSingle();
-      if (existing?.id) {
+      const existingRow = existing as { id?: string } | null;
+      if (existingRow?.id) {
         const { error } = await supabase
           .from("daily_check_logs" as any)
           .update(row)

@@ -119,7 +119,7 @@ export function DailyCheckTab({ selectedDate, onDateChange }: Props) {
       const [c, a, s, r, l, cl] = await Promise.all([
         supabase.from("clients").select("id, name, meckano_synced, status, exclude_from_daily_check" as any).eq("status", "active"),
         supabase.from("employee_client_assignments")
-          .select("employee_id, client_id, employees(id, first_name, last_name, status, meckano_synced, exclude_from_daily_check)")
+          .select("employee_id, client_id, employees(id, first_name, last_name, status, meckano_synced, exclude_from_daily_check, israeli_phone, foreign_phone)")
           .is("end_date", null),
         supabase.from("work_schedules" as any)
           .select("employee_id, client_id, day_of_week, start_time, end_time")
@@ -165,7 +165,7 @@ export function DailyCheckTab({ selectedDate, onDateChange }: Props) {
   // - meckano client: list of meckano employees (with auto-detected status)
   // - non-meckano client: no employees, single client-level row
   const grouped = useMemo(() => {
-    const result: { client: any; isMeckano: boolean; employees: { id: string; name: string }[] }[] = [];
+    const result: { client: any; isMeckano: boolean; employees: { id: string; name: string; israeli_phone?: string; foreign_phone?: string }[] }[] = [];
     const hasAnySchedules = schedules.length > 0;
     for (const client of clients) {
       if (client.exclude_from_daily_check) continue;
@@ -183,7 +183,7 @@ export function DailyCheckTab({ selectedDate, onDateChange }: Props) {
         const clientSchedules = schedules.filter((s: any) => s.client_id === client.id);
         const useSchedule = hasAnySchedules && clientSchedules.length > 0;
         const empIds = useSchedule ? new Set(clientSchedules.map((s: any) => s.employee_id)) : null;
-        const emps: { id: string; name: string }[] = [];
+        const emps: { id: string; name: string; israeli_phone?: string; foreign_phone?: string }[] = [];
         meckanoAssigns
           .filter((a: any) => (empIds ? empIds.has(a.employee_id) : true))
           .forEach((a: any) => {
@@ -191,6 +191,8 @@ export function DailyCheckTab({ selectedDate, onDateChange }: Props) {
               emps.push({
                 id: a.employee_id,
                 name: `${a.employees?.first_name || ""} ${a.employees?.last_name || ""}`.trim(),
+                israeli_phone: a.employees?.israeli_phone,
+                foreign_phone: a.employees?.foreign_phone,
               });
             }
           });
@@ -458,7 +460,14 @@ export function DailyCheckTab({ selectedDate, onDateChange }: Props) {
                         const lbl = labelFor(st);
                         return (
                           <div key={e.id} className="flex flex-wrap items-center gap-3 border-b pb-2 last:border-0">
-                            <div className="min-w-[140px] font-medium text-sm">{e.name}</div>
+                            <div className="min-w-[140px]">
+                              <div className="font-medium text-sm">{e.name}</div>
+                              {(e.israeli_phone || e.foreign_phone) && (
+                                <div className="text-xs text-muted-foreground mt-0.5" dir="ltr">
+                                  {[e.israeli_phone, e.foreign_phone].filter(Boolean).join(" · ")}
+                                </div>
+                              )}
+                            </div>
                             {empNW ? (
                               <Badge variant="outline" className="bg-purple-500/10 text-purple-500 border-purple-500/20">לא היה עבודה</Badge>
                             ) : (

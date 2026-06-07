@@ -184,10 +184,11 @@ export function DailyCheckTab({ selectedDate, onDateChange }: Props) {
     }
   };
 
-  const saveClientStatus = async (clientId: string) => {
+  const saveClientStatus = async (clientId: string, overrideStatus?: ClientStatus) => {
     setSavingClient(clientId);
     try {
-      const cs = clientStatus[clientId] || { status: "missing" as ClientStatus, notes: "" };
+      const current = clientStatus[clientId] || { status: "missing" as ClientStatus, notes: "" };
+      const cs = overrideStatus ? { ...current, status: overrideStatus } : current;
       const row = {
         check_date: dateStr,
         employee_id: null as any,

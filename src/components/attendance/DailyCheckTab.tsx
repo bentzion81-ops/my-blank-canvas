@@ -249,12 +249,27 @@ export function DailyCheckTab({ selectedDate, onDateChange }: Props) {
 
           {!loading && grouped.map(({ client, employees }) => {
             if (client.meckano_synced) {
+              // Aggregate client-level status from employee meckano records
+              const statuses = employees.map((e) => getRecordStatus(e.id, client.id));
+              let agg: { text: string; cls: string };
+              if (statuses.length === 0) {
+                agg = { text: "אין עובדים", cls: "bg-muted text-muted-foreground border-border" };
+              } else if (statuses.some((s) => s === "missing_in")) {
+                agg = { text: "חסר כניסה", cls: "bg-destructive/10 text-destructive border-destructive/20" };
+              } else if (statuses.some((s) => s === "missing_out")) {
+                agg = { text: "חסרה יציאה", cls: "bg-warning/10 text-warning border-warning/20" };
+              } else if (statuses.every((s) => s === "ok")) {
+                agg = { text: "דווח תקין", cls: "bg-success/10 text-success border-success/20" };
+              } else {
+                agg = { text: "טרם דווח", cls: "bg-muted text-muted-foreground border-border" };
+              }
               return (
                 <Card key={client.id} className="border-0 shadow-sm">
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-sm flex items-center gap-2">
+                    <CardTitle className="text-sm flex items-center gap-2 flex-wrap">
                       {client.name}
                       <Badge variant="outline" className="bg-info/10 text-info border-info/20">🔄 מכונה</Badge>
+                      <Badge variant="outline" className={agg.cls}>{agg.text}</Badge>
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3">
@@ -272,6 +287,7 @@ export function DailyCheckTab({ selectedDate, onDateChange }: Props) {
                 </Card>
               );
             }
+
             // Non-meckano: client-level status
             const cs = clientStatus[client.id] || { status: "missing" as ClientStatus, notes: "" };
             return (

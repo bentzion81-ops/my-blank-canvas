@@ -116,7 +116,7 @@ export function DailyCheckTab({ selectedDate, onDateChange }: Props) {
   const load = async () => {
     setLoading(true);
     try {
-      const [c, a, s, r, l] = await Promise.all([
+      const [c, a, s, r, l, cl] = await Promise.all([
         supabase.from("clients").select("id, name, meckano_synced, status, exclude_from_daily_check" as any).eq("status", "active"),
         supabase.from("employee_client_assignments")
           .select("employee_id, client_id, employees(id, first_name, last_name, status, meckano_synced, exclude_from_daily_check)")
@@ -130,12 +130,17 @@ export function DailyCheckTab({ selectedDate, onDateChange }: Props) {
         supabase.from("daily_check_logs" as any)
           .select("*")
           .eq("check_date", dateStr),
+        supabase.from("daily_check_closures" as any)
+          .select("*")
+          .eq("check_date", dateStr)
+          .maybeSingle(),
       ]);
       setClients(c.data || []);
       setAssignments(a.data || []);
       setSchedules((s.data as any[]) || []);
       setRecords(r.data || []);
       setLogs((l.data as any[]) || []);
+      setClosure((cl as any)?.data || null);
 
       // Hydrate client-level state from logs where employee_id is null
       const cs: Record<string, { status: ClientStatus; notes: string }> = {};

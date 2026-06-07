@@ -247,10 +247,13 @@ export function DailyCheckTab({ selectedDate, onDateChange }: Props) {
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
               </div>
-              <Button size="sm" onClick={handleSyncMeckano} disabled={syncing}>
-                {syncing ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-1" />}
-                רענן מכונה
-              </Button>
+              <div className="flex items-center gap-2">
+                <ExclusionsDialog onChanged={() => setRefreshKey((k) => k + 1)} />
+                <Button size="sm" onClick={handleSyncMeckano} disabled={syncing}>
+                  {syncing ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-1" />}
+                  רענן מכונה
+                </Button>
+              </div>
             </CardContent>
           </Card>
 

@@ -311,6 +311,54 @@ export function DailyCheckTab({ selectedDate, onDateChange }: Props) {
     }
   };
 
+  // Readiness: all displayed rows are OK (or no_work). Counts what's left.
+  const readiness = useMemo(() => {
+    let pending = 0;
+    let total = 0;
+    for (const { client, isMeckano, employees } of grouped) {
+      if (isMeckano) {
+        const override = clientStatus[client.id];
+        if (override?.status === "no_work") { total += 1; continue; }
+        const activeEmps = employees.filter((e) => !empNoWork.has(`${client.id}::${e.id}`));
+        if (activeEmps.length === 0) { total += 1; continue; }
+        for (const e of activeEmps) {
+          total += 1;
+          const st = getRecordStatus(e.id, client.id);
+          if (st !== "ok") pending += 1;
+        }
+      } else {
+        total += 1;
+        const cs = clientStatus[client.id];
+        if (!cs || (cs.status !== "ok" && cs.status !== "no_work")) pending += 1;
+      }
+    }
+    return { pending, total, ready: total > 0 && pending === 0 };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [grouped, clientStatus, empNoWork, records, schedules, dateStr]);
+
+  const closeCheck = async () => {
+    setClosing(true);
+    try {
+      if (closure) {
+        const { error } = await supabase.from("daily_check_closures" as any).delete().eq("id", closure.id);
+        if (error) throw error;
+        toast.success("הסגירה בוטלה");
+      } else {
+        const { error } = await supabase.from("daily_check_closures" as any).insert({
+          check_date: dateStr,
+          closed_by: user?.id || null,
+        });
+        if (error) throw error;
+        toast.success("הבדיקה נסגרה");
+      }
+      setRefreshKey((k) => k + 1);
+    } catch (e: any) {
+      toast.error(e.message || String(e));
+    } finally {
+      setClosing(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <Tabs value={inner} onValueChange={(v) => setInner(v as any)}>

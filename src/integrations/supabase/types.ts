@@ -462,6 +462,7 @@ export type Database = {
           company_id: string | null
           created_at: string
           daily_planned_hours: number | null
+          exclude_from_daily_check: boolean
           friday_hours: number | null
           google_maps_link: string | null
           hourly_rate: number | null
@@ -486,6 +487,7 @@ export type Database = {
           company_id?: string | null
           created_at?: string
           daily_planned_hours?: number | null
+          exclude_from_daily_check?: boolean
           friday_hours?: number | null
           google_maps_link?: string | null
           hourly_rate?: number | null
@@ -510,6 +512,7 @@ export type Database = {
           company_id?: string | null
           created_at?: string
           daily_planned_hours?: number | null
+          exclude_from_daily_check?: boolean
           friday_hours?: number | null
           google_maps_link?: string | null
           hourly_rate?: number | null
@@ -841,6 +844,7 @@ export type Database = {
           created_at: string
           employee_type: Database["public"]["Enums"]["employee_type"]
           equipment_deduction: number | null
+          exclude_from_daily_check: boolean
           first_name: string
           food: number | null
           foreign_phone: string | null
@@ -871,6 +875,7 @@ export type Database = {
           created_at?: string
           employee_type?: Database["public"]["Enums"]["employee_type"]
           equipment_deduction?: number | null
+          exclude_from_daily_check?: boolean
           first_name: string
           food?: number | null
           foreign_phone?: string | null
@@ -901,6 +906,7 @@ export type Database = {
           created_at?: string
           employee_type?: Database["public"]["Enums"]["employee_type"]
           equipment_deduction?: number | null
+          exclude_from_daily_check?: boolean
           first_name?: string
           food?: number | null
           foreign_phone?: string | null

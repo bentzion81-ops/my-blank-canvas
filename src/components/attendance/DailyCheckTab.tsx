@@ -9,7 +9,10 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Switch } from "@/components/ui/switch";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Loader2, RefreshCw, ChevronLeft, ChevronRight, Settings } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
@@ -55,9 +58,9 @@ export function DailyCheckTab({ selectedDate, onDateChange }: Props) {
     setLoading(true);
     try {
       const [c, a, s, r, l] = await Promise.all([
-        supabase.from("clients").select("id, name, meckano_synced, status").eq("status", "active"),
+        supabase.from("clients").select("id, name, meckano_synced, status, exclude_from_daily_check" as any).eq("status", "active"),
         supabase.from("employee_client_assignments")
-          .select("employee_id, client_id, employees(id, first_name, last_name, status, meckano_synced)")
+          .select("employee_id, client_id, employees(id, first_name, last_name, status, meckano_synced, exclude_from_daily_check)")
           .is("end_date", null),
         supabase.from("work_schedules" as any)
           .select("employee_id, client_id, day_of_week, start_time, end_time")
@@ -101,12 +104,14 @@ export function DailyCheckTab({ selectedDate, onDateChange }: Props) {
     const result: { client: any; isMeckano: boolean; employees: { id: string; name: string }[] }[] = [];
     const hasAnySchedules = schedules.length > 0;
     for (const client of clients) {
-      // Meckano employees assigned to this client
+      if (client.exclude_from_daily_check) continue;
+      // Meckano employees assigned to this client (excluding hidden ones)
       const meckanoAssigns = assignments.filter(
         (a: any) =>
           a.client_id === client.id &&
           a.employees?.status === "active" &&
-          a.employees?.meckano_synced === true
+          a.employees?.meckano_synced === true &&
+          !a.employees?.exclude_from_daily_check
       );
       const isMeckano = client.meckano_synced || meckanoAssigns.length > 0;
 
@@ -242,10 +247,13 @@ export function DailyCheckTab({ selectedDate, onDateChange }: Props) {
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
               </div>
-              <Button size="sm" onClick={handleSyncMeckano} disabled={syncing}>
-                {syncing ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-1" />}
-                רענן מכונה
-              </Button>
+              <div className="flex items-center gap-2">
+                <ExclusionsDialog onChanged={() => setRefreshKey((k) => k + 1)} />
+                <Button size="sm" onClick={handleSyncMeckano} disabled={syncing}>
+                  {syncing ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-1" />}
+                  רענן מכונה
+                </Button>
+              </div>
             </CardContent>
           </Card>
 
@@ -449,5 +457,170 @@ function HistoryView({ clients }: { clients: any[] }) {
         </Table>
       </CardContent>
     </Card>
+  );
+}
+
+function ExclusionsDialog({ onChanged }: { onChanged: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [tab, setTab] = useState<"clients" | "employees">("clients");
+  const [clients, setClients] = useState<any[]>([]);
+  const [employees, setEmployees] = useState<any[]>([]);
+  const [search, setSearch] = useState("");
+  const [savingId, setSavingId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const [c, e] = await Promise.all([
+        supabase
+          .from("clients")
+          .select("id, name, exclude_from_daily_check" as any)
+          .eq("status", "active")
+          .order("name"),
+        supabase
+          .from("employees")
+          .select("id, first_name, last_name, exclude_from_daily_check" as any)
+          .eq("status", "active")
+          .order("first_name"),
+      ]);
+      setClients((c.data as any[]) || []);
+      setEmployees((e.data as any[]) || []);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (open) {
+      setSearch("");
+      load();
+    }
+  }, [open]);
+
+  const toggleClient = async (id: string, value: boolean) => {
+    setSavingId(id);
+    setClients((prev) => prev.map((c) => (c.id === id ? { ...c, exclude_from_daily_check: value } : c)));
+    const { error } = await supabase
+      .from("clients")
+      .update({ exclude_from_daily_check: value } as any)
+      .eq("id", id);
+    setSavingId(null);
+    if (error) {
+      toast.error(error.message);
+      setClients((prev) => prev.map((c) => (c.id === id ? { ...c, exclude_from_daily_check: !value } : c)));
+    } else {
+      onChanged();
+    }
+  };
+
+  const toggleEmployee = async (id: string, value: boolean) => {
+    setSavingId(id);
+    setEmployees((prev) => prev.map((e) => (e.id === id ? { ...e, exclude_from_daily_check: value } : e)));
+    const { error } = await supabase
+      .from("employees")
+      .update({ exclude_from_daily_check: value } as any)
+      .eq("id", id);
+    setSavingId(null);
+    if (error) {
+      toast.error(error.message);
+      setEmployees((prev) => prev.map((e) => (e.id === id ? { ...e, exclude_from_daily_check: !value } : e)));
+    } else {
+      onChanged();
+    }
+  };
+
+  const filteredClients = clients.filter((c) => !search || c.name?.toLowerCase().includes(search.toLowerCase()));
+  const filteredEmployees = employees.filter((e) => {
+    if (!search) return true;
+    const full = `${e.first_name || ""} ${e.last_name || ""}`.toLowerCase();
+    return full.includes(search.toLowerCase());
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline">
+          <Settings className="h-4 w-4 mr-1" />
+          הגדרות בדיקה
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>החרגה מהבדיקה היומית</DialogTitle>
+        </DialogHeader>
+        <Tabs value={tab} onValueChange={(v) => setTab(v as any)}>
+          <TabsList className="w-full">
+            <TabsTrigger value="clients" className="flex-1">לקוחות</TabsTrigger>
+            <TabsTrigger value="employees" className="flex-1">עובדים</TabsTrigger>
+          </TabsList>
+          <div className="pt-3">
+            <Input
+              placeholder="חיפוש…"
+              value={search}
+              onChange={(ev) => setSearch(ev.target.value)}
+              className="h-8 mb-2"
+            />
+          </div>
+          <TabsContent value="clients">
+            <ScrollArea className="h-[380px] pr-2">
+              {loading ? (
+                <div className="text-sm text-muted-foreground py-4 text-center">טוען…</div>
+              ) : filteredClients.length === 0 ? (
+                <div className="text-sm text-muted-foreground py-4 text-center">אין תוצאות</div>
+              ) : (
+                <div className="space-y-1">
+                  {filteredClients.map((c) => (
+                    <div key={c.id} className="flex items-center justify-between rounded-md px-2 py-1.5 hover:bg-muted/50">
+                      <span className="text-sm">{c.name}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground">
+                          {c.exclude_from_daily_check ? "מוסתר" : "מוצג"}
+                        </span>
+                        <Switch
+                          checked={!c.exclude_from_daily_check}
+                          disabled={savingId === c.id}
+                          onCheckedChange={(v) => toggleClient(c.id, !v)}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </ScrollArea>
+          </TabsContent>
+          <TabsContent value="employees">
+            <ScrollArea className="h-[380px] pr-2">
+              {loading ? (
+                <div className="text-sm text-muted-foreground py-4 text-center">טוען…</div>
+              ) : filteredEmployees.length === 0 ? (
+                <div className="text-sm text-muted-foreground py-4 text-center">אין תוצאות</div>
+              ) : (
+                <div className="space-y-1">
+                  {filteredEmployees.map((e) => (
+                    <div key={e.id} className="flex items-center justify-between rounded-md px-2 py-1.5 hover:bg-muted/50">
+                      <span className="text-sm">{e.first_name} {e.last_name}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground">
+                          {e.exclude_from_daily_check ? "מוסתר" : "מוצג"}
+                        </span>
+                        <Switch
+                          checked={!e.exclude_from_daily_check}
+                          disabled={savingId === e.id}
+                          onCheckedChange={(v) => toggleEmployee(e.id, !v)}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </ScrollArea>
+          </TabsContent>
+        </Tabs>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setOpen(false)}>סגור</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -466,18 +466,13 @@ async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userI
     }).select("id").single();
     const batchId = batchIns.data?.id;
 
-    // Wipe existing meckano records in window for matched employees
+    // Matched employees in this Meckano response. We intentionally do NOT wipe
+    // existing records before inserting replacements: if the insert/update fails,
+    // deleting first can erase a whole month of hours. Instead we update/insert
+    // first, and delete obsolete rows only after the new data is safely stored.
     const matchedEmpIds = Array.from(new Set(
       shifts.map((s) => empMap.get(s.meckEmp)).filter(Boolean) as string[],
     ));
-    if (matchedEmpIds.length) {
-      await admin.from("attendance_records")
-        .delete()
-        .in("employee_id", matchedEmpIds)
-        .gte("date", dFrom)
-        .lte("date", dTo)
-        .eq("source", "meckano");
-    }
 
     // Resolve client_id per (employee, date) from the assignment active on that date.
     // Prefer primary, then latest start_date. Respects start_date / end_date so historical
@@ -528,6 +523,8 @@ async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userI
 
 
     let stored = 0;
+    let updated = 0;
+    let retainedMissing = 0;
     let unmatched = 0;
     const toInsert: any[] = [];
     for (const s of shifts) {
@@ -545,14 +542,57 @@ async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userI
         notes: s.checkOut ? null : "Missing check-out",
       });
     }
-    if (toInsert.length) {
+
+    const rowKey = (r: any) => `${r.employee_id}|${r.date}|${r.check_in ? new Date(r.check_in).toISOString() : "null"}`;
+    const uniqueRowsByKey = new Map<string, any>();
+    for (const row of toInsert) uniqueRowsByKey.set(rowKey(row), row);
+    const rowsToPersist = Array.from(uniqueRowsByKey.values());
+
+    let existingRows: any[] = [];
+    if (matchedEmpIds.length) {
+      const { data, error } = await admin.from("attendance_records")
+        .select("id, employee_id, date, check_in")
+        .in("employee_id", matchedEmpIds)
+        .gte("date", dFrom)
+        .lte("date", dTo)
+        .eq("source", "meckano");
+      if (error) throw error;
+      existingRows = data ?? [];
+    }
+    const existingByKey = new Map(existingRows.map((r: any) => [rowKey(r), r.id]));
+    const incomingKeys = new Set(rowsToPersist.map(rowKey));
+
+    for (const row of rowsToPersist) {
+      const existingId = existingByKey.get(rowKey(row));
+      if (!existingId) continue;
+      const { error } = await admin.from("attendance_records")
+        .update({
+          client_id: row.client_id,
+          check_out: row.check_out,
+          hours_worked: row.hours_worked,
+          batch_id: row.batch_id,
+          notes: row.notes,
+        })
+        .eq("id", existingId);
+      if (error) throw error;
+      updated++;
+    }
+
+    const newRows = rowsToPersist.filter((row) => !existingByKey.has(rowKey(row)));
+    if (newRows.length) {
       const chunkSize = 500;
-      for (let i = 0; i < toInsert.length; i += chunkSize) {
-        const chunk = toInsert.slice(i, i + chunkSize);
+      for (let i = 0; i < newRows.length; i += chunkSize) {
+        const chunk = newRows.slice(i, i + chunkSize);
         const { data, error } = await admin.from("attendance_records").insert(chunk).select("id");
-        if (!error) stored += data?.length ?? 0;
+        if (error) throw error;
+        stored += data?.length ?? 0;
       }
     }
+
+    // Keep existing rows that are missing from the current API response. This
+    // protects payroll/billing when Meckano returns a partial response or older
+    // manually-edited dates are absent from a later sync.
+    retainedMissing = existingRows.filter((row: any) => !incomingKeys.has(rowKey(row))).length;
 
     await endLog(logId, {
       status: "success",
@@ -561,12 +601,12 @@ async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userI
         from: dFrom, to: dTo,
         raw_events: entries.length,
         shifts: shifts.length,
-        stored, unmatched,
+        stored, updated, retained_missing: retainedMissing, unmatched,
         skipped_not_synced: skippedNotSynced,
         batch_id: batchId,
       },
     });
-    return { ok: true, raw_events: entries.length, shifts: shifts.length, stored, unmatched, skipped_not_synced: skippedNotSynced };
+    return { ok: true, raw_events: entries.length, shifts: shifts.length, stored, updated, retained_missing: retainedMissing, unmatched, skipped_not_synced: skippedNotSynced };
   } catch (e) {
     await endLog(logId, { status: "error", error_message: String(e) });
     return { ok: false, error: String(e) };

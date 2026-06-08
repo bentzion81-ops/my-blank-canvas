@@ -338,6 +338,28 @@ export function DailyCheckTab({ selectedDate, onDateChange }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [grouped, clientStatus, empNoWork, records, schedules, dateStr]);
 
+  // Sort: pending/issues on top, resolved (OK / no work) at bottom
+  const sortedGrouped = useMemo(() => {
+    const isResolved = (g: typeof grouped[number]) => {
+      const { client, isMeckano, employees } = g;
+      const override = clientStatus[client.id];
+      if (isMeckano) {
+        if (override?.status === "no_work") return true;
+        const activeEmps = employees.filter((e) => !empNoWork.has(`${client.id}::${e.id}`));
+        if (activeEmps.length === 0) return true;
+        return activeEmps.every((e) => getRecordStatus(e.id, client.id) === "ok");
+      }
+      const cs = clientStatus[client.id];
+      return !!cs && (cs.status === "ok" || cs.status === "no_work");
+    };
+    return [...grouped].sort((a, b) => {
+      const ra = isResolved(a) ? 1 : 0;
+      const rb = isResolved(b) ? 1 : 0;
+      return ra - rb;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [grouped, clientStatus, empNoWork, records, schedules, dateStr]);
+
   const closeCheck = async () => {
     setClosing(true);
     try {

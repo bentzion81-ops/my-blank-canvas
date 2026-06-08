@@ -417,7 +417,7 @@ export function DailyCheckTab({ selectedDate, onDateChange }: Props) {
 
           {loading && <div className="text-sm text-muted-foreground">טוען…</div>}
 
-          {!loading && grouped.map(({ client, isMeckano, employees }) => {
+          {!loading && sortedGrouped.map(({ client, isMeckano, employees }) => {
             if (isMeckano) {
               const override = clientStatus[client.id];
               const isNoWork = override?.status === "no_work";

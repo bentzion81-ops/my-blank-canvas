@@ -372,9 +372,9 @@ const Billing = () => {
               </TableHeader>
               <TableBody>
                 {isLoading ? (
-                  <TableRow><TableCell colSpan={14} className="text-center py-8"><Loader2 className="h-5 w-5 animate-spin mx-auto text-muted-foreground" /></TableCell></TableRow>
+                  <TableRow><TableCell colSpan={15} className="text-center py-8"><Loader2 className="h-5 w-5 animate-spin mx-auto text-muted-foreground" /></TableCell></TableRow>
                 ) : rows.length === 0 ? (
-                  <TableRow><TableCell colSpan={14} className="text-center py-8 text-muted-foreground">No billing data for this month</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={15} className="text-center py-8 text-muted-foreground">No billing data for this month</TableCell></TableRow>
                 ) : rows.map((r) => (
                   <TableRow key={r.client.id}>
                     <TableCell className="font-medium">{r.client.name}</TableCell>

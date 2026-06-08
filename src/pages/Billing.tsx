@@ -41,7 +41,7 @@ const Billing = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("clients")
-        .select("id, name, billing_type, monthly_payment, hourly_rate, status, payment_terms_days")
+        .select("id, name, billing_type, monthly_payment, hourly_rate, status, payment_terms_days, vat_rate, tax_withholding_pct")
         .neq("status", "ended")
         .order("name");
       if (error) throw error;
@@ -143,7 +143,13 @@ const Billing = () => {
         .filter((ch) => ch.client_id === c.id)
         .reduce((s, ch) => s + (Number(ch.total_charge) || (Number(ch.quantity) * Number(ch.unit_charge)) || 0), 0);
 
-      const totalDue = baseRevenue + additional;
+      const subtotal = baseRevenue + additional;
+      const vatPct = Number(c.vat_rate ?? 18);
+      const vat = subtotal * (vatPct / 100);
+      const totalWithVat = subtotal + vat;
+      const withholdingPct = Number(c.tax_withholding_pct || 0);
+      const withholding = totalWithVat * (withholdingPct / 100);
+      const totalDue = totalWithVat - withholding;
 
       const clientInvoices = invoices.filter((i: any) => i.client_id === c.id);
       const paid = clientInvoices.reduce((s: number, i: any) => s + Number(i.paid_amount || 0), 0);
@@ -167,6 +173,12 @@ const Billing = () => {
         hours,
         baseRevenue,
         additional,
+        subtotal,
+        vatPct,
+        vat,
+        totalWithVat,
+        withholdingPct,
+        withholding,
         totalDue,
         paid,
         balance,
@@ -291,12 +303,14 @@ const Billing = () => {
   };
 
   const exportCsv = () => {
-    const header = ["Client", "Hours", "Base", "Additional", "Total Due", "Paid", "Balance", "Status"];
+    const header = ["Client", "Hours", "Base", "Additional", "Subtotal", "VAT%", "VAT", "Total w/VAT", "Withhold%", "Withholding", "Total Due", "Paid", "Balance", "Status"];
     const lines = [header.join(",")];
     for (const r of rows) {
       lines.push([
         `"${r.client.name}"`, r.hours.toFixed(1), r.baseRevenue, r.additional,
-        r.totalDue, r.paid, r.balance, r.status,
+        r.subtotal, r.vatPct, r.vat.toFixed(2), r.totalWithVat.toFixed(2),
+        r.withholdingPct, r.withholding.toFixed(2),
+        r.totalDue.toFixed(2), r.paid, r.balance.toFixed(2), r.status,
       ].join(","));
     }
     const blob = new Blob([lines.join("\n")], { type: "text/csv" });

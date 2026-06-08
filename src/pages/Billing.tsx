@@ -359,9 +359,8 @@ const Billing = () => {
                   <TableHead className="text-right">Base</TableHead>
                   <TableHead className="text-right hidden md:table-cell">Additional</TableHead>
                   <TableHead className="text-right hidden lg:table-cell">Subtotal</TableHead>
-                  <TableHead className="text-right hidden lg:table-cell">VAT</TableHead>
-                  <TableHead className="text-right">Total w/ VAT</TableHead>
-                  <TableHead className="text-right hidden lg:table-cell">Withholding</TableHead>
+                  <TableHead className="text-right">VAT</TableHead>
+                  <TableHead className="text-right">Withholding</TableHead>
                   <TableHead className="text-right">Total Due</TableHead>
                   <TableHead className="text-right hidden md:table-cell">Paid</TableHead>
                   <TableHead className="text-right">Balance</TableHead>
@@ -382,9 +381,8 @@ const Billing = () => {
                     <TableCell className="text-right tabular-nums">{fmt(r.baseRevenue)}</TableCell>
                     <TableCell className="text-right tabular-nums hidden md:table-cell">{fmt(r.additional)}</TableCell>
                     <TableCell className="text-right tabular-nums hidden lg:table-cell">{fmt(r.subtotal)}</TableCell>
-                    <TableCell className="text-right tabular-nums hidden lg:table-cell text-muted-foreground">{fmt(r.vat)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{fmt(r.totalWithVat)}</TableCell>
-                    <TableCell className="text-right tabular-nums hidden lg:table-cell text-muted-foreground">
+                    <TableCell className="text-right tabular-nums">{fmt(r.vat)}</TableCell>
+                    <TableCell className="text-right tabular-nums text-muted-foreground">
                       {r.withholdingPct > 0 ? `−${fmt(r.withholding)} (${r.withholdingPct}%)` : "—"}
                     </TableCell>
                     <TableCell className="text-right tabular-nums font-medium">{fmt(r.totalDue)}</TableCell>

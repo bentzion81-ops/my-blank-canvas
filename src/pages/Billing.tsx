@@ -358,6 +358,10 @@ const Billing = () => {
                   <TableHead className="text-right">Hours</TableHead>
                   <TableHead className="text-right">Base</TableHead>
                   <TableHead className="text-right hidden md:table-cell">Additional</TableHead>
+                  <TableHead className="text-right hidden lg:table-cell">Subtotal</TableHead>
+                  <TableHead className="text-right hidden lg:table-cell">VAT (18%)</TableHead>
+                  <TableHead className="text-right">Total w/ VAT</TableHead>
+                  <TableHead className="text-right hidden lg:table-cell">Withholding</TableHead>
                   <TableHead className="text-right">Total Due</TableHead>
                   <TableHead className="text-right hidden md:table-cell">Paid</TableHead>
                   <TableHead className="text-right">Balance</TableHead>
@@ -368,15 +372,21 @@ const Billing = () => {
               </TableHeader>
               <TableBody>
                 {isLoading ? (
-                  <TableRow><TableCell colSpan={10} className="text-center py-8"><Loader2 className="h-5 w-5 animate-spin mx-auto text-muted-foreground" /></TableCell></TableRow>
+                  <TableRow><TableCell colSpan={14} className="text-center py-8"><Loader2 className="h-5 w-5 animate-spin mx-auto text-muted-foreground" /></TableCell></TableRow>
                 ) : rows.length === 0 ? (
-                  <TableRow><TableCell colSpan={10} className="text-center py-8 text-muted-foreground">No billing data for this month</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={14} className="text-center py-8 text-muted-foreground">No billing data for this month</TableCell></TableRow>
                 ) : rows.map((r) => (
                   <TableRow key={r.client.id}>
                     <TableCell className="font-medium">{r.client.name}</TableCell>
                     <TableCell className="text-right tabular-nums">{r.hours.toFixed(1)}</TableCell>
                     <TableCell className="text-right tabular-nums">{fmt(r.baseRevenue)}</TableCell>
                     <TableCell className="text-right tabular-nums hidden md:table-cell">{fmt(r.additional)}</TableCell>
+                    <TableCell className="text-right tabular-nums hidden lg:table-cell">{fmt(r.subtotal)}</TableCell>
+                    <TableCell className="text-right tabular-nums hidden lg:table-cell text-muted-foreground">{fmt(r.vat)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{fmt(r.totalWithVat)}</TableCell>
+                    <TableCell className="text-right tabular-nums hidden lg:table-cell text-muted-foreground">
+                      {r.withholdingPct > 0 ? `−${fmt(r.withholding)} (${r.withholdingPct}%)` : "—"}
+                    </TableCell>
                     <TableCell className="text-right tabular-nums font-medium">{fmt(r.totalDue)}</TableCell>
                     <TableCell className="text-right tabular-nums hidden md:table-cell text-success">{fmt(r.paid)}</TableCell>
                     <TableCell className={`text-right tabular-nums font-medium ${r.balance > 0 ? "text-destructive" : "text-success"}`}>{fmt(r.balance)}</TableCell>

@@ -359,7 +359,7 @@ const Billing = () => {
                   <TableHead className="text-right">Base</TableHead>
                   <TableHead className="text-right hidden md:table-cell">Additional</TableHead>
                   <TableHead className="text-right hidden lg:table-cell">Subtotal</TableHead>
-                  <TableHead className="text-right hidden lg:table-cell">VAT (18%)</TableHead>
+                  <TableHead className="text-right hidden lg:table-cell">VAT</TableHead>
                   <TableHead className="text-right">Total w/ VAT</TableHead>
                   <TableHead className="text-right hidden lg:table-cell">Withholding</TableHead>
                   <TableHead className="text-right">Total Due</TableHead>

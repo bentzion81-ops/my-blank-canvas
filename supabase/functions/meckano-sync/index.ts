@@ -498,19 +498,34 @@ async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userI
     // (e.g. those auto-created from replacement reports) must not hijack Meckano hours
     // away from the employee's regular workplace.
     const clientForShift = (empId: string, date: string): string | null => {
-      const list = assignsByEmp.get(empId) ?? [];
+      const list = (assignsByEmp.get(empId) ?? []).filter((a) => a.is_primary === true);
+      if (list.length === 0) return null;
+      // 1) Primary assignment active on that exact date.
       const active = list.filter(
         (a) =>
-          a.is_primary === true &&
           (!a.start_date || a.start_date <= date) &&
           (!a.end_date || a.end_date >= date),
       );
-      if (active.length === 0) return null;
-      active.sort((a, b) =>
-        String(b.start_date ?? "").localeCompare(String(a.start_date ?? "")),
-      );
-      return active[0].client_id;
+      if (active.length > 0) {
+        active.sort((a, b) =>
+          String(b.start_date ?? "").localeCompare(String(a.start_date ?? "")),
+        );
+        return active[0].client_id;
+      }
+      // 2) Fallback: no primary active on that date (e.g. retroactive edits in
+      // Meckano for dates BEFORE a workplace change). Use the nearest open-ended
+      // primary assignment so historical hours still get attributed to a client
+      // instead of being silently dropped.
+      const openEnded = list.filter((a) => !a.end_date);
+      if (openEnded.length === 0) return null;
+      openEnded.sort((a, b) => {
+        const da = Math.abs(new Date(a.start_date ?? date).getTime() - new Date(date).getTime());
+        const db = Math.abs(new Date(b.start_date ?? date).getTime() - new Date(date).getTime());
+        return da - db;
+      });
+      return openEnded[0].client_id;
     };
+
 
     let stored = 0;
     let unmatched = 0;

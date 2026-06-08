@@ -476,7 +476,9 @@ export type Database = {
           payment_terms_days: number
           saturday_hours: number | null
           status: Database["public"]["Enums"]["client_status"]
+          tax_withholding_pct: number
           updated_at: string
+          vat_rate: number
         }
         Insert: {
           address?: string | null
@@ -501,7 +503,9 @@ export type Database = {
           payment_terms_days?: number
           saturday_hours?: number | null
           status?: Database["public"]["Enums"]["client_status"]
+          tax_withholding_pct?: number
           updated_at?: string
+          vat_rate?: number
         }
         Update: {
           address?: string | null
@@ -526,7 +530,9 @@ export type Database = {
           payment_terms_days?: number
           saturday_hours?: number | null
           status?: Database["public"]["Enums"]["client_status"]
+          tax_withholding_pct?: number
           updated_at?: string
+          vat_rate?: number
         }
         Relationships: []
       }

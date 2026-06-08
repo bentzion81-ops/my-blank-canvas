@@ -24,6 +24,8 @@ const defaultForm = {
   monthly_payment: 0,
   hourly_rate: 0,
   payment_terms_days: 30,
+  vat_rate: 18,
+  tax_withholding_pct: 0,
   billing_notes: "",
   daily_planned_hours: 0,
   friday_hours: 0,
@@ -65,6 +67,8 @@ const ClientForm = () => {
         monthly_payment: existing.monthly_payment || 0,
         hourly_rate: existing.hourly_rate || 0,
         payment_terms_days: (existing as any).payment_terms_days ?? 30,
+        vat_rate: (existing as any).vat_rate ?? 18,
+        tax_withholding_pct: (existing as any).tax_withholding_pct ?? 0,
         billing_notes: (existing as any).billing_notes || "",
         daily_planned_hours: existing.daily_planned_hours || 0,
         friday_hours: (existing as any).friday_hours || 0,
@@ -89,6 +93,8 @@ const ClientForm = () => {
         monthly_payment: Number(form.monthly_payment) || 0,
         hourly_rate: Number(form.hourly_rate) || 0,
         payment_terms_days: Number(form.payment_terms_days) || 30,
+        vat_rate: Number(form.vat_rate) || 0,
+        tax_withholding_pct: Number(form.tax_withholding_pct) || 0,
         daily_planned_hours: Number(form.daily_planned_hours) || 0,
         friday_hours: Number(form.friday_hours) || 0,
         saturday_hours: Number(form.saturday_hours) || 0,
@@ -238,6 +244,14 @@ const ClientForm = () => {
             <div className="space-y-1.5">
               <Label>Payment Terms (days)</Label>
               <Input type="number" value={form.payment_terms_days} onChange={(e) => update("payment_terms_days", e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>VAT Rate (%)</Label>
+              <Input type="number" step="0.01" value={form.vat_rate} onChange={(e) => update("vat_rate", e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Tax Withholding (%)</Label>
+              <Input type="number" step="0.01" value={form.tax_withholding_pct} onChange={(e) => update("tax_withholding_pct", e.target.value)} />
             </div>
             <div className="space-y-1.5 md:col-span-2">
               <Label>Billing Notes</Label>

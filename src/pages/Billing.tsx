@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Receipt, DollarSign, AlertTriangle, Users, RefreshCw, Plus, Loader2, FileDown, Eye } from "lucide-react";
+import { Receipt, DollarSign, AlertTriangle, Users, RefreshCw, Plus, Loader2, FileDown, Eye, ListChecks, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 const fmt = (n: number) => `₪${Math.round(n).toLocaleString()}`;
@@ -27,6 +27,7 @@ const Billing = () => {
   const [payOpen, setPayOpen] = useState<null | { clientId: string; clientName: string; balance: number; invoiceId?: string }>(null);
   const [payAmount, setPayAmount] = useState("");
   const [payNotes, setPayNotes] = useState("");
+  const [paymentsOpen, setPaymentsOpen] = useState<null | { clientId: string; clientName: string; invoiceId?: string }>(null);
 
   const fromStr = month;
   const toStr = format(endOfMonth(new Date(month)), "yyyy-MM-dd");
@@ -434,6 +435,11 @@ const Billing = () => {
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1 justify-end">
+                        {r.paid > 0 && (
+                          <Button size="sm" variant="ghost" onClick={() => setPaymentsOpen({ clientId: r.client.id, clientName: r.client.name, invoiceId: r.invoice?.id })}>
+                            <ListChecks className="h-3.5 w-3.5 mr-1" /> Payments
+                          </Button>
+                        )}
                         {r.balance > 0 && (
                           <Button size="sm" variant="ghost" onClick={() => setPayOpen({ clientId: r.client.id, clientName: r.client.name, balance: r.balance, invoiceId: r.invoice?.id })}>
                             <DollarSign className="h-3.5 w-3.5 mr-1" /> Pay
@@ -474,8 +480,100 @@ const Billing = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <PaymentsDialog
+        open={!!paymentsOpen}
+        invoiceId={paymentsOpen?.invoiceId}
+        clientName={paymentsOpen?.clientName || ""}
+        onClose={() => setPaymentsOpen(null)}
+        onChanged={() => { refetchInvoices(); }}
+      />
     </div>
   );
 };
 
 export default Billing;
+
+function PaymentsDialog({
+  open, invoiceId, clientName, onClose, onChanged,
+}: {
+  open: boolean;
+  invoiceId?: string;
+  clientName: string;
+  onClose: () => void;
+  onChanged: () => void;
+}) {
+  const { data: payments = [], refetch, isLoading } = useQuery({
+    queryKey: ["invoice-payments", invoiceId],
+    enabled: open && !!invoiceId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("invoice_payments")
+        .select("id, amount, payment_date, notes, created_at")
+        .eq("invoice_id", invoiceId!)
+        .order("payment_date", { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  const cancelPayment = async (paymentId: string, amount: number) => {
+    if (!invoiceId) return;
+    if (!confirm("בטל תשלום זה?")) return;
+    const { error } = await supabase.from("invoice_payments").delete().eq("id", paymentId);
+    if (error) return toast.error(error.message);
+
+    const { data: inv } = await supabase.from("invoices").select("amount, paid_amount").eq("id", invoiceId).single();
+    if (inv) {
+      const newPaid = Math.max(0, Number(inv.paid_amount || 0) - Number(amount));
+      const newBalance = Number(inv.amount || 0) - newPaid;
+      const newStatus = newBalance <= 0 ? "paid" : newPaid > 0 ? "partial" : "sent";
+      await supabase.from("invoices").update({
+        paid_amount: newPaid,
+        balance: newBalance,
+        status: newStatus,
+      }).eq("id", invoiceId);
+    }
+
+    toast.success("התשלום בוטל");
+    refetch();
+    onChanged();
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Payments — {clientName}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-2 max-h-[60vh] overflow-y-auto">
+          {!invoiceId ? (
+            <div className="text-sm text-muted-foreground py-4 text-center">No invoice yet</div>
+          ) : isLoading ? (
+            <div className="py-4 text-center"><Loader2 className="h-4 w-4 animate-spin mx-auto" /></div>
+          ) : payments.length === 0 ? (
+            <div className="text-sm text-muted-foreground py-4 text-center">No payments recorded</div>
+          ) : (
+            payments.map((p: any) => (
+              <div key={p.id} className="flex items-center justify-between rounded border p-2.5">
+                <div className="space-y-0.5">
+                  <div className="font-medium tabular-nums">{fmt(Number(p.amount))}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {format(new Date(p.payment_date), "dd/MM/yyyy")}
+                    {p.notes ? ` · ${p.notes}` : ""}
+                  </div>
+                </div>
+                <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => cancelPayment(p.id, Number(p.amount))}>
+                  <Trash2 className="h-3.5 w-3.5 mr-1" /> Cancel
+                </Button>
+              </div>
+            ))
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Close</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}

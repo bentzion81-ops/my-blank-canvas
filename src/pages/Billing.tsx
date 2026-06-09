@@ -480,6 +480,14 @@ const Billing = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <PaymentsDialog
+        open={!!paymentsOpen}
+        invoiceId={paymentsOpen?.invoiceId}
+        clientName={paymentsOpen?.clientName || ""}
+        onClose={() => setPaymentsOpen(null)}
+        onChanged={() => { refetchInvoices(); }}
+      />
     </div>
   );
 };

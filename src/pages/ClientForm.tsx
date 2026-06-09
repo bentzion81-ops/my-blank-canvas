@@ -26,6 +26,7 @@ const defaultForm = {
   payment_terms_days: 30,
   vat_rate: 18,
   tax_withholding_pct: 0,
+  invoicing_company: "urban_link" as "urban_link" | "ab_property",
   billing_notes: "",
   daily_planned_hours: 0,
   friday_hours: 0,

@@ -41,7 +41,7 @@ const Billing = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("clients")
-        .select("id, name, billing_type, monthly_payment, hourly_rate, status, payment_terms_days, vat_rate, tax_withholding_pct")
+        .select("id, name, billing_type, monthly_payment, hourly_rate, status, payment_terms_days, vat_rate, tax_withholding_pct, invoicing_company")
         .neq("status", "ended")
         .order("name");
       if (error) throw error;

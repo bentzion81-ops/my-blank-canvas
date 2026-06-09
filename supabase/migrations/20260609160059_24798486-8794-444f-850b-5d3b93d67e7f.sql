@@ -1,0 +1,1 @@
+ALTER TABLE public.clients ADD COLUMN IF NOT EXISTS invoicing_company text NOT NULL DEFAULT 'urban_link' CHECK (invoicing_company IN ('urban_link','ab_property'));

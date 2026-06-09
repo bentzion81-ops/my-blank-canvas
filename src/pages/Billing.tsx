@@ -41,7 +41,7 @@ const Billing = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("clients")
-        .select("id, name, billing_type, monthly_payment, hourly_rate, status, payment_terms_days, vat_rate, tax_withholding_pct")
+        .select("id, name, billing_type, monthly_payment, hourly_rate, status, payment_terms_days, vat_rate, tax_withholding_pct, invoicing_company")
         .neq("status", "ended")
         .order("name");
       if (error) throw error;
@@ -197,6 +197,18 @@ const Billing = () => {
     debtors: rows.filter((r) => r.balance > 0).length,
   }), [rows]);
 
+  const balanceByCompany = useMemo(() => {
+    const map: Record<string, number> = { urban_link: 0, ab_property: 0 };
+    for (const r of rows) {
+      const key = (r.client.invoicing_company as string) || "urban_link";
+      map[key] = (map[key] || 0) + r.balance;
+    }
+    return map;
+  }, [rows]);
+
+  const companyLabel = (c?: string) =>
+    c === "ab_property" ? "א.ב ניהול נכסים" : "אורבן לינק";
+
   const refresh = async () => {
     setRefreshing(true);
     try {
@@ -349,6 +361,11 @@ const Billing = () => {
           <KpiCard title="Clients with Debt" value={String(totals.debtors)} icon={AlertTriangle} variant="destructive" />
         </div>
 
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <KpiCard title="Outstanding · אורבן לינק" value={fmt(balanceByCompany.urban_link || 0)} icon={DollarSign} variant="info" />
+          <KpiCard title="Outstanding · א.ב ניהול נכסים" value={fmt(balanceByCompany.ab_property || 0)} icon={DollarSign} variant="info" />
+        </div>
+
         <Card className="border-0 shadow-sm">
           <CardContent className="p-0">
             <Table>
@@ -365,6 +382,7 @@ const Billing = () => {
                   <TableHead className="text-right hidden md:table-cell">Paid</TableHead>
                   <TableHead className="text-right">Balance</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Invoicing Company</TableHead>
                   <TableHead className="text-center">Invoice issued</TableHead>
                   <TableHead></TableHead>
                 </TableRow>
@@ -389,6 +407,9 @@ const Billing = () => {
                     <TableCell className="text-right tabular-nums hidden md:table-cell text-success">{fmt(r.paid)}</TableCell>
                     <TableCell className={`text-right tabular-nums font-medium ${r.balance > 0 ? "text-destructive" : "text-success"}`}>{fmt(r.balance)}</TableCell>
                     <TableCell><StatusBadge status={r.status} /></TableCell>
+                    <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                      {companyLabel((r.client as any).invoicing_company)}
+                    </TableCell>
                     <TableCell className="text-center">
                       <Checkbox
                         checked={r.invoiceIssued}

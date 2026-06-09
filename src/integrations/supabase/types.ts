@@ -469,6 +469,7 @@ export type Database = {
           id: string
           include_friday: boolean
           include_saturday: boolean
+          invoicing_company: string
           meckano_synced: boolean
           monthly_payment: number | null
           name: string
@@ -496,6 +497,7 @@ export type Database = {
           id?: string
           include_friday?: boolean
           include_saturday?: boolean
+          invoicing_company?: string
           meckano_synced?: boolean
           monthly_payment?: number | null
           name: string
@@ -523,6 +525,7 @@ export type Database = {
           id?: string
           include_friday?: boolean
           include_saturday?: boolean
+          invoicing_company?: string
           meckano_synced?: boolean
           monthly_payment?: number | null
           name?: string

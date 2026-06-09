@@ -435,6 +435,11 @@ const Billing = () => {
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1 justify-end">
+                        {r.paid > 0 && (
+                          <Button size="sm" variant="ghost" onClick={() => setPaymentsOpen({ clientId: r.client.id, clientName: r.client.name, invoiceId: r.invoice?.id })}>
+                            <ListChecks className="h-3.5 w-3.5 mr-1" /> Payments
+                          </Button>
+                        )}
                         {r.balance > 0 && (
                           <Button size="sm" variant="ghost" onClick={() => setPayOpen({ clientId: r.client.id, clientName: r.client.name, balance: r.balance, invoiceId: r.invoice?.id })}>
                             <DollarSign className="h-3.5 w-3.5 mr-1" /> Pay

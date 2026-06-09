@@ -375,6 +375,11 @@ const Billing = () => {
           <KpiCard title="Outstanding · א.ב ניהול נכסים" value={fmt(balanceByCompany.ab_property || 0)} icon={DollarSign} variant="info" />
         </div>
 
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <KpiCard title="מע\"מ · אורבן לינק" value={fmt(vatByCompany.urban_link || 0)} icon={Receipt} variant="info" />
+          <KpiCard title="מע\"מ · א.ב ניהול נכסים" value={fmt(vatByCompany.ab_property || 0)} icon={Receipt} variant="info" />
+        </div>
+
         <Card className="border-0 shadow-sm">
           <CardContent className="p-0">
             <Table>

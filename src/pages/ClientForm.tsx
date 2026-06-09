@@ -255,6 +255,16 @@ const ClientForm = () => {
               <Label>Tax Withholding (%)</Label>
               <Input type="number" step="0.01" value={form.tax_withholding_pct} onChange={(e) => update("tax_withholding_pct", e.target.value)} />
             </div>
+            <div className="space-y-1.5">
+              <Label>Invoicing Company</Label>
+              <Select value={form.invoicing_company} onValueChange={(v) => update("invoicing_company", v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="urban_link">אורבן לינק</SelectItem>
+                  <SelectItem value="ab_property">א.ב ניהול נכסים</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <div className="space-y-1.5 md:col-span-2">
               <Label>Billing Notes</Label>
               <Textarea value={form.billing_notes} onChange={(e) => update("billing_notes", e.target.value)} rows={2} />

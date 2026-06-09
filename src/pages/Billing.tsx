@@ -27,6 +27,7 @@ const Billing = () => {
   const [payOpen, setPayOpen] = useState<null | { clientId: string; clientName: string; balance: number; invoiceId?: string }>(null);
   const [payAmount, setPayAmount] = useState("");
   const [payNotes, setPayNotes] = useState("");
+  const [paymentsOpen, setPaymentsOpen] = useState<null | { clientId: string; clientName: string; invoiceId?: string }>(null);
 
   const fromStr = month;
   const toStr = format(endOfMonth(new Date(month)), "yyyy-MM-dd");

@@ -361,6 +361,11 @@ const Billing = () => {
           <KpiCard title="Clients with Debt" value={String(totals.debtors)} icon={AlertTriangle} variant="destructive" />
         </div>
 
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <KpiCard title="Outstanding · אורבן לינק" value={fmt(balanceByCompany.urban_link || 0)} icon={DollarSign} variant="info" />
+          <KpiCard title="Outstanding · א.ב ניהול נכסים" value={fmt(balanceByCompany.ab_property || 0)} icon={DollarSign} variant="info" />
+        </div>
+
         <Card className="border-0 shadow-sm">
           <CardContent className="p-0">
             <Table>

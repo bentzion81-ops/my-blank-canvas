@@ -70,6 +70,7 @@ const ClientForm = () => {
         payment_terms_days: (existing as any).payment_terms_days ?? 30,
         vat_rate: (existing as any).vat_rate ?? 18,
         tax_withholding_pct: (existing as any).tax_withholding_pct ?? 0,
+        invoicing_company: ((existing as any).invoicing_company as any) || "urban_link",
         billing_notes: (existing as any).billing_notes || "",
         daily_planned_hours: existing.daily_planned_hours || 0,
         friday_hours: (existing as any).friday_hours || 0,

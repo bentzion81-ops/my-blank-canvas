@@ -206,6 +206,15 @@ const Billing = () => {
     return map;
   }, [rows]);
 
+  const vatByCompany = useMemo(() => {
+    const map: Record<string, number> = { urban_link: 0, ab_property: 0 };
+    for (const r of rows) {
+      const key = (r.client.invoicing_company as string) || "urban_link";
+      map[key] = (map[key] || 0) + r.vat;
+    }
+    return map;
+  }, [rows]);
+
   const companyLabel = (c?: string) =>
     c === "ab_property" ? "א.ב ניהול נכסים" : "אורבן לינק";
 
@@ -364,6 +373,11 @@ const Billing = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <KpiCard title="Outstanding · אורבן לינק" value={fmt(balanceByCompany.urban_link || 0)} icon={DollarSign} variant="info" />
           <KpiCard title="Outstanding · א.ב ניהול נכסים" value={fmt(balanceByCompany.ab_property || 0)} icon={DollarSign} variant="info" />
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <KpiCard title={'מע"מ · אורבן לינק'} value={fmt(vatByCompany.urban_link || 0)} icon={Receipt} variant="info" />
+          <KpiCard title={'מע"מ · א.ב ניהול נכסים'} value={fmt(vatByCompany.ab_property || 0)} icon={Receipt} variant="info" />
         </div>
 
         <Card className="border-0 shadow-sm">

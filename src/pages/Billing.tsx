@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Receipt, DollarSign, AlertTriangle, Users, RefreshCw, Plus, Loader2, FileDown, Eye } from "lucide-react";
+import { Receipt, DollarSign, AlertTriangle, Users, RefreshCw, Plus, Loader2, FileDown, Eye, ListChecks, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 const fmt = (n: number) => `₪${Math.round(n).toLocaleString()}`;

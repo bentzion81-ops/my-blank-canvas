@@ -407,6 +407,9 @@ const Billing = () => {
                     <TableCell className="text-right tabular-nums hidden md:table-cell text-success">{fmt(r.paid)}</TableCell>
                     <TableCell className={`text-right tabular-nums font-medium ${r.balance > 0 ? "text-destructive" : "text-success"}`}>{fmt(r.balance)}</TableCell>
                     <TableCell><StatusBadge status={r.status} /></TableCell>
+                    <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                      {companyLabel((r.client as any).invoicing_company)}
+                    </TableCell>
                     <TableCell className="text-center">
                       <Checkbox
                         checked={r.invoiceIssued}

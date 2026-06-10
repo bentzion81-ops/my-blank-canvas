@@ -25,7 +25,10 @@ const Payroll = () => {
   const [payNotes, setPayNotes] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
+  const [sortBy, setSortBy] = useState<"site" | "name">("site");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   const toggleRow = (id: string) => setExpanded((p) => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const toggleSelect = (id: string) => setSelected((p) => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
   const monthOptions = Array.from({ length: 12 }, (_, i) => {
     const d = startOfMonth(subMonths(new Date(), i));

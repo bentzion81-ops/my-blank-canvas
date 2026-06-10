@@ -311,13 +311,19 @@ const Payroll = () => {
         const aInactive = a.emp.status === "inactive" ? 1 : 0;
         const bInactive = b.emp.status === "inactive" ? 1 : 0;
         if (aInactive !== bInactive) return aInactive - bInactive;
+        if (sortBy === "name") {
+          const na = `${a.emp.first_name} ${a.emp.last_name}`.localeCompare(`${b.emp.first_name} ${b.emp.last_name}`);
+          if (na !== 0) return na;
+          if (a.isPrimary !== b.isPrimary) return a.isPrimary ? -1 : 1;
+          return (a.siteName || "").localeCompare(b.siteName || "");
+        }
         const ca = a.siteName || "\uffff";
         const cb = b.siteName || "\uffff";
         if (ca !== cb) return ca.localeCompare(cb);
         if (a.isPrimary !== b.isPrimary) return a.isPrimary ? -1 : 1;
         return `${a.emp.first_name} ${a.emp.last_name}`.localeCompare(`${b.emp.first_name} ${b.emp.last_name}`);
       });
-  }, [employees, extEmployees, logs, extLogs, payments, rateMap, employeeFallbackRate, additionalItems, search]);
+  }, [employees, extEmployees, logs, extLogs, payments, rateMap, employeeFallbackRate, additionalItems, search, sortBy]);
 
   const totals = useMemo(() => ({
     hours: rows.reduce((s, r) => s + r.hoursAtSite, 0),

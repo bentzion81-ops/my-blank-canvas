@@ -367,6 +367,71 @@ const Payroll = () => {
     refetchPayments();
   }
 
+  const primaryRows = useMemo(() => rows.filter((r) => r.isPrimary), [rows]);
+  const allSelected = primaryRows.length > 0 && primaryRows.every((r) => selected.has(r.emp.id));
+  const toggleSelectAll = () => {
+    if (allSelected) setSelected(new Set());
+    else setSelected(new Set(primaryRows.map((r) => r.emp.id)));
+  };
+
+  function handlePrint() {
+    const chosen = primaryRows.filter((r) => selected.has(r.emp.id));
+    if (chosen.length === 0) return toast.error("Select at least one employee");
+    const monthLabel = format(new Date(month), "MMMM yyyy");
+    const rowsHtml = chosen.map((r) => {
+      const b = r.base;
+      const sitesHtml = b.sites.length === 0
+        ? `<tr><td colspan="4" style="text-align:center;color:#888">No work logs</td></tr>`
+        : b.sites.map((s) => {
+            const rate = s.hours > 0 ? s.gross / s.hours : 0;
+            return `<tr><td>${s.name}</td><td style="text-align:right">${s.hours.toFixed(1)}</td><td style="text-align:right">${fmt(rate)}</td><td style="text-align:right">${fmt(s.gross)}</td></tr>`;
+          }).join("");
+      return `
+        <div class="emp">
+          <div class="emp-head">
+            <div><strong>${r.emp.first_name || ""} ${r.emp.last_name || ""}</strong></div>
+            <div class="muted">Passport: ${r.emp.passport_number || "—"}</div>
+          </div>
+          <table class="sites">
+            <thead><tr><th>Workplace</th><th style="text-align:right">Hours</th><th style="text-align:right">Rate/hr</th><th style="text-align:right">Subtotal</th></tr></thead>
+            <tbody>${sitesHtml}</tbody>
+          </table>
+          <table class="summary">
+            <tr><td>Gross</td><td style="text-align:right">${fmt(b.grossFromLogs)}</td>
+                <td>Expenses (+)</td><td style="text-align:right">+${fmt(b.expenses)}</td></tr>
+            <tr><td>Deductions (-)</td><td style="text-align:right">-${fmt(b.deductions)}</td>
+                <td><strong>Total Due</strong></td><td style="text-align:right"><strong>${fmt(b.totalDue)}</strong></td></tr>
+            <tr><td>Paid</td><td style="text-align:right">${fmt(b.paid)}</td>
+                <td><strong>Balance</strong></td><td style="text-align:right"><strong>${fmt(b.balance)}</strong></td></tr>
+          </table>
+        </div>`;
+    }).join("");
+
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>Payroll — ${monthLabel}</title>
+      <style>
+        body { font-family: -apple-system, Arial, sans-serif; padding: 24px; color:#111; }
+        h1 { font-size: 20px; margin: 0 0 16px; }
+        .emp { border: 1px solid #ddd; border-radius: 6px; padding: 12px; margin-bottom: 14px; page-break-inside: avoid; }
+        .emp-head { display:flex; justify-content:space-between; margin-bottom: 8px; }
+        .muted { color:#666; font-size: 12px; }
+        table { width:100%; border-collapse: collapse; font-size: 12px; margin-top: 6px; }
+        th, td { border-bottom: 1px solid #eee; padding: 4px 6px; }
+        th { background:#f5f5f5; text-align:left; }
+        .summary td { border:none; padding: 3px 6px; }
+        @media print { .no-print { display:none } }
+      </style></head><body>
+      <h1>Payroll — ${monthLabel}</h1>
+      ${rowsHtml}
+      <script>window.onload = () => { window.print(); };</script>
+      </body></html>`;
+    const w = window.open("", "_blank");
+    if (!w) return toast.error("Popup blocked");
+    w.document.open();
+    w.document.write(html);
+    w.document.close();
+  }
+
+
   return (
     <div className="flex flex-col">
       <AppHeader title="Payroll" subtitle={format(new Date(month), "MMMM yyyy")} />

@@ -452,6 +452,16 @@ const Payroll = () => {
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
+          <Select value={sortBy} onValueChange={(v) => setSortBy(v as "site" | "name")}>
+            <SelectTrigger className="w-40 h-9"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="site">Sort by site</SelectItem>
+              <SelectItem value="name">Sort by name</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button size="sm" variant="outline" onClick={handlePrint} className="h-9">
+            <Printer className="h-4 w-4 mr-1" /> Print selected ({selected.size})
+          </Button>
         </div>
 
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">

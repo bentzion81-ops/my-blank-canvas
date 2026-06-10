@@ -562,6 +562,7 @@ const Payroll = () => {
                       {isOpen && (
                         <TableRow key={rowKey + "-detail"} className="bg-muted/30 hover:bg-muted/30">
                           <TableCell></TableCell>
+                          <TableCell></TableCell>
                           <TableCell colSpan={7} className="py-3">
                             <div className="space-y-2">
                               <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Work sites breakdown (full month)</div>

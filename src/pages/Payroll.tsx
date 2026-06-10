@@ -501,10 +501,10 @@ const Payroll = () => {
                   rows.forEach((r) => {
                     const isInactive = r.emp.status === "inactive";
                     const groupLabel = isInactive ? "Inactive" : (r.siteName || "Unassigned");
-                    if (groupLabel !== lastGroup) {
+                    if (sortBy === "site" && groupLabel !== lastGroup) {
                       out.push(
                         <TableRow key={`grp-${groupLabel}`} className="bg-muted/40 hover:bg-muted/40">
-                          <TableCell colSpan={8} className="py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                          <TableCell colSpan={9} className="py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                             {groupLabel}
                           </TableCell>
                         </TableRow>
@@ -518,6 +518,15 @@ const Payroll = () => {
                   return (
                     <Fragment key={rowKey}>
                       <TableRow key={rowKey} className="cursor-pointer" onClick={() => toggleRow(rowKey)}>
+                        <TableCell onClick={(e) => e.stopPropagation()}>
+                          {r.isPrimary && !r.emp.__external && (
+                            <Checkbox
+                              checked={selected.has(r.emp.id)}
+                              onCheckedChange={() => toggleSelect(r.emp.id)}
+                              aria-label="Select employee"
+                            />
+                          )}
+                        </TableCell>
                         <TableCell>
                           {isOpen ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
                         </TableCell>

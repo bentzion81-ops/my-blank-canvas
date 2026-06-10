@@ -477,6 +477,9 @@ const Payroll = () => {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-8">
+                    <Checkbox checked={allSelected} onCheckedChange={toggleSelectAll} aria-label="Select all" />
+                  </TableHead>
                   <TableHead className="w-8"></TableHead>
                   <TableHead>Employee</TableHead>
                   <TableHead>ID / Passport</TableHead>
@@ -489,9 +492,9 @@ const Payroll = () => {
               </TableHeader>
               <TableBody>
                 {isLoading ? (
-                  <TableRow><TableCell colSpan={8} className="text-center py-8"><Loader2 className="h-5 w-5 animate-spin mx-auto text-muted-foreground" /></TableCell></TableRow>
+                  <TableRow><TableCell colSpan={9} className="text-center py-8"><Loader2 className="h-5 w-5 animate-spin mx-auto text-muted-foreground" /></TableCell></TableRow>
                 ) : rows.length === 0 ? (
-                  <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">No payroll data for this month</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">No payroll data for this month</TableCell></TableRow>
                 ) : (() => {
                   let lastGroup: string | null = null;
                   const out: JSX.Element[] = [];

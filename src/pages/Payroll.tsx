@@ -373,6 +373,15 @@ const Payroll = () => {
     if (allSelected) setSelected(new Set());
     else setSelected(new Set(primaryRows.map((r) => r.emp.id)));
   };
+  const selectedTotals = useMemo(() => {
+    const chosen = primaryRows.filter((r) => selected.has(r.emp.id));
+    return {
+      count: chosen.length,
+      balance: chosen.reduce((s, r) => s + r.base.balance, 0),
+      totalDue: chosen.reduce((s, r) => s + r.base.totalDue, 0),
+      paid: chosen.reduce((s, r) => s + r.base.paid, 0),
+    };
+  }, [primaryRows, selected]);
 
   function handlePrint() {
     const chosen = primaryRows.filter((r) => selected.has(r.emp.id));

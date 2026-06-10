@@ -433,6 +433,12 @@ const Payroll = () => {
         @media print { .no-print { display:none } }
       </style></head><body>
       <h1>Payroll — ${monthLabel}</h1>
+      <div style="margin-bottom:16px;padding:10px 12px;border:1px solid #ddd;border-radius:6px;background:#f9fafb;display:flex;gap:24px;flex-wrap:wrap;font-size:13px">
+        <div><span style="color:#666">Employees:</span> <strong>${chosen.length}</strong></div>
+        <div><span style="color:#666">Total Due:</span> <strong>${fmt(totalDueAll)}</strong></div>
+        <div><span style="color:#666">Paid:</span> <strong>${fmt(totalPaidAll)}</strong></div>
+        <div><span style="color:#666">Total to Pay:</span> <strong style="color:#b91c1c">${fmt(totalBalance)}</strong></div>
+      </div>
       ${rowsHtml}
       <script>window.onload = () => { window.print(); };</script>
       </body></html>`;

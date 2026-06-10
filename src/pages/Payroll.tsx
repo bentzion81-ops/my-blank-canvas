@@ -12,7 +12,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Clock, Wallet, DollarSign, TrendingDown, Plus, Loader2, ChevronDown, ChevronRight, Search, Trash2 } from "lucide-react";
+import { Clock, Wallet, DollarSign, TrendingDown, Plus, Loader2, ChevronDown, ChevronRight, Search, Trash2, Printer } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 
 const fmt = (n: number) => `₪${Math.round(n).toLocaleString()}`;
@@ -24,7 +25,10 @@ const Payroll = () => {
   const [payNotes, setPayNotes] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
+  const [sortBy, setSortBy] = useState<"site" | "name">("site");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   const toggleRow = (id: string) => setExpanded((p) => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const toggleSelect = (id: string) => setSelected((p) => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
   const monthOptions = Array.from({ length: 12 }, (_, i) => {
     const d = startOfMonth(subMonths(new Date(), i));
@@ -307,13 +311,19 @@ const Payroll = () => {
         const aInactive = a.emp.status === "inactive" ? 1 : 0;
         const bInactive = b.emp.status === "inactive" ? 1 : 0;
         if (aInactive !== bInactive) return aInactive - bInactive;
+        if (sortBy === "name") {
+          const na = `${a.emp.first_name} ${a.emp.last_name}`.localeCompare(`${b.emp.first_name} ${b.emp.last_name}`);
+          if (na !== 0) return na;
+          if (a.isPrimary !== b.isPrimary) return a.isPrimary ? -1 : 1;
+          return (a.siteName || "").localeCompare(b.siteName || "");
+        }
         const ca = a.siteName || "\uffff";
         const cb = b.siteName || "\uffff";
         if (ca !== cb) return ca.localeCompare(cb);
         if (a.isPrimary !== b.isPrimary) return a.isPrimary ? -1 : 1;
         return `${a.emp.first_name} ${a.emp.last_name}`.localeCompare(`${b.emp.first_name} ${b.emp.last_name}`);
       });
-  }, [employees, extEmployees, logs, extLogs, payments, rateMap, employeeFallbackRate, additionalItems, search]);
+  }, [employees, extEmployees, logs, extLogs, payments, rateMap, employeeFallbackRate, additionalItems, search, sortBy]);
 
   const totals = useMemo(() => ({
     hours: rows.reduce((s, r) => s + r.hoursAtSite, 0),
@@ -357,6 +367,71 @@ const Payroll = () => {
     refetchPayments();
   }
 
+  const primaryRows = useMemo(() => rows.filter((r) => r.isPrimary), [rows]);
+  const allSelected = primaryRows.length > 0 && primaryRows.every((r) => selected.has(r.emp.id));
+  const toggleSelectAll = () => {
+    if (allSelected) setSelected(new Set());
+    else setSelected(new Set(primaryRows.map((r) => r.emp.id)));
+  };
+
+  function handlePrint() {
+    const chosen = primaryRows.filter((r) => selected.has(r.emp.id));
+    if (chosen.length === 0) return toast.error("Select at least one employee");
+    const monthLabel = format(new Date(month), "MMMM yyyy");
+    const rowsHtml = chosen.map((r) => {
+      const b = r.base;
+      const sitesHtml = b.sites.length === 0
+        ? `<tr><td colspan="4" style="text-align:center;color:#888">No work logs</td></tr>`
+        : b.sites.map((s) => {
+            const rate = s.hours > 0 ? s.gross / s.hours : 0;
+            return `<tr><td>${s.name}</td><td style="text-align:right">${s.hours.toFixed(1)}</td><td style="text-align:right">${fmt(rate)}</td><td style="text-align:right">${fmt(s.gross)}</td></tr>`;
+          }).join("");
+      return `
+        <div class="emp">
+          <div class="emp-head">
+            <div><strong>${r.emp.first_name || ""} ${r.emp.last_name || ""}</strong></div>
+            <div class="muted">Passport: ${r.emp.passport_number || "—"}</div>
+          </div>
+          <table class="sites">
+            <thead><tr><th>Workplace</th><th style="text-align:right">Hours</th><th style="text-align:right">Rate/hr</th><th style="text-align:right">Subtotal</th></tr></thead>
+            <tbody>${sitesHtml}</tbody>
+          </table>
+          <table class="summary">
+            <tr><td>Gross</td><td style="text-align:right">${fmt(b.grossFromLogs)}</td>
+                <td>Expenses (+)</td><td style="text-align:right">+${fmt(b.expenses)}</td></tr>
+            <tr><td>Deductions (-)</td><td style="text-align:right">-${fmt(b.deductions)}</td>
+                <td><strong>Total Due</strong></td><td style="text-align:right"><strong>${fmt(b.totalDue)}</strong></td></tr>
+            <tr><td>Paid</td><td style="text-align:right">${fmt(b.paid)}</td>
+                <td><strong>Balance</strong></td><td style="text-align:right"><strong>${fmt(b.balance)}</strong></td></tr>
+          </table>
+        </div>`;
+    }).join("");
+
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>Payroll — ${monthLabel}</title>
+      <style>
+        body { font-family: -apple-system, Arial, sans-serif; padding: 24px; color:#111; }
+        h1 { font-size: 20px; margin: 0 0 16px; }
+        .emp { border: 1px solid #ddd; border-radius: 6px; padding: 12px; margin-bottom: 14px; page-break-inside: avoid; }
+        .emp-head { display:flex; justify-content:space-between; margin-bottom: 8px; }
+        .muted { color:#666; font-size: 12px; }
+        table { width:100%; border-collapse: collapse; font-size: 12px; margin-top: 6px; }
+        th, td { border-bottom: 1px solid #eee; padding: 4px 6px; }
+        th { background:#f5f5f5; text-align:left; }
+        .summary td { border:none; padding: 3px 6px; }
+        @media print { .no-print { display:none } }
+      </style></head><body>
+      <h1>Payroll — ${monthLabel}</h1>
+      ${rowsHtml}
+      <script>window.onload = () => { window.print(); };</script>
+      </body></html>`;
+    const w = window.open("", "_blank");
+    if (!w) return toast.error("Popup blocked");
+    w.document.open();
+    w.document.write(html);
+    w.document.close();
+  }
+
+
   return (
     <div className="flex flex-col">
       <AppHeader title="Payroll" subtitle={format(new Date(month), "MMMM yyyy")} />
@@ -377,6 +452,16 @@ const Payroll = () => {
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
+          <Select value={sortBy} onValueChange={(v) => setSortBy(v as "site" | "name")}>
+            <SelectTrigger className="w-40 h-9"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="site">Sort by site</SelectItem>
+              <SelectItem value="name">Sort by name</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button size="sm" variant="outline" onClick={handlePrint} className="h-9">
+            <Printer className="h-4 w-4 mr-1" /> Print selected ({selected.size})
+          </Button>
         </div>
 
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
@@ -392,6 +477,9 @@ const Payroll = () => {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-8">
+                    <Checkbox checked={allSelected} onCheckedChange={toggleSelectAll} aria-label="Select all" />
+                  </TableHead>
                   <TableHead className="w-8"></TableHead>
                   <TableHead>Employee</TableHead>
                   <TableHead>ID / Passport</TableHead>
@@ -404,19 +492,19 @@ const Payroll = () => {
               </TableHeader>
               <TableBody>
                 {isLoading ? (
-                  <TableRow><TableCell colSpan={8} className="text-center py-8"><Loader2 className="h-5 w-5 animate-spin mx-auto text-muted-foreground" /></TableCell></TableRow>
+                  <TableRow><TableCell colSpan={9} className="text-center py-8"><Loader2 className="h-5 w-5 animate-spin mx-auto text-muted-foreground" /></TableCell></TableRow>
                 ) : rows.length === 0 ? (
-                  <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">No payroll data for this month</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">No payroll data for this month</TableCell></TableRow>
                 ) : (() => {
                   let lastGroup: string | null = null;
                   const out: JSX.Element[] = [];
                   rows.forEach((r) => {
                     const isInactive = r.emp.status === "inactive";
                     const groupLabel = isInactive ? "Inactive" : (r.siteName || "Unassigned");
-                    if (groupLabel !== lastGroup) {
+                    if (sortBy === "site" && groupLabel !== lastGroup) {
                       out.push(
                         <TableRow key={`grp-${groupLabel}`} className="bg-muted/40 hover:bg-muted/40">
-                          <TableCell colSpan={8} className="py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                          <TableCell colSpan={9} className="py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                             {groupLabel}
                           </TableCell>
                         </TableRow>
@@ -430,6 +518,15 @@ const Payroll = () => {
                   return (
                     <Fragment key={rowKey}>
                       <TableRow key={rowKey} className="cursor-pointer" onClick={() => toggleRow(rowKey)}>
+                        <TableCell onClick={(e) => e.stopPropagation()}>
+                          {r.isPrimary && !r.emp.__external && (
+                            <Checkbox
+                              checked={selected.has(r.emp.id)}
+                              onCheckedChange={() => toggleSelect(r.emp.id)}
+                              aria-label="Select employee"
+                            />
+                          )}
+                        </TableCell>
                         <TableCell>
                           {isOpen ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
                         </TableCell>
@@ -464,6 +561,7 @@ const Payroll = () => {
                       </TableRow>
                       {isOpen && (
                         <TableRow key={rowKey + "-detail"} className="bg-muted/30 hover:bg-muted/30">
+                          <TableCell></TableCell>
                           <TableCell></TableCell>
                           <TableCell colSpan={7} className="py-3">
                             <div className="space-y-2">

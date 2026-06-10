@@ -373,11 +373,23 @@ const Payroll = () => {
     if (allSelected) setSelected(new Set());
     else setSelected(new Set(primaryRows.map((r) => r.emp.id)));
   };
+  const selectedTotals = useMemo(() => {
+    const chosen = primaryRows.filter((r) => selected.has(r.emp.id));
+    return {
+      count: chosen.length,
+      balance: chosen.reduce((s, r) => s + r.base.balance, 0),
+      totalDue: chosen.reduce((s, r) => s + r.base.totalDue, 0),
+      paid: chosen.reduce((s, r) => s + r.base.paid, 0),
+    };
+  }, [primaryRows, selected]);
 
   function handlePrint() {
     const chosen = primaryRows.filter((r) => selected.has(r.emp.id));
     if (chosen.length === 0) return toast.error("Select at least one employee");
     const monthLabel = format(new Date(month), "MMMM yyyy");
+    const totalBalance = chosen.reduce((s, r) => s + r.base.balance, 0);
+    const totalDueAll = chosen.reduce((s, r) => s + r.base.totalDue, 0);
+    const totalPaidAll = chosen.reduce((s, r) => s + r.base.paid, 0);
     const rowsHtml = chosen.map((r) => {
       const b = r.base;
       const sitesHtml = b.sites.length === 0
@@ -421,6 +433,12 @@ const Payroll = () => {
         @media print { .no-print { display:none } }
       </style></head><body>
       <h1>Payroll — ${monthLabel}</h1>
+      <div style="margin-bottom:16px;padding:10px 12px;border:1px solid #ddd;border-radius:6px;background:#f9fafb;display:flex;gap:24px;flex-wrap:wrap;font-size:13px">
+        <div><span style="color:#666">Employees:</span> <strong>${chosen.length}</strong></div>
+        <div><span style="color:#666">Total Due:</span> <strong>${fmt(totalDueAll)}</strong></div>
+        <div><span style="color:#666">Paid:</span> <strong>${fmt(totalPaidAll)}</strong></div>
+        <div><span style="color:#666">Total to Pay:</span> <strong style="color:#b91c1c">${fmt(totalBalance)}</strong></div>
+      </div>
       ${rowsHtml}
       <script>window.onload = () => { window.print(); };</script>
       </body></html>`;
@@ -459,9 +477,18 @@ const Payroll = () => {
               <SelectItem value="name">Sort by name</SelectItem>
             </SelectContent>
           </Select>
-          <Button size="sm" variant="outline" onClick={handlePrint} className="h-9">
-            <Printer className="h-4 w-4 mr-1" /> Print selected ({selected.size})
-          </Button>
+          <div className="flex items-center gap-2">
+            {selectedTotals.count > 0 && (
+              <div className="text-xs px-2 py-1.5 rounded-md border bg-muted/40">
+                Selected: <span className="font-semibold">{selectedTotals.count}</span>
+                <span className="mx-2 text-muted-foreground">·</span>
+                To pay: <span className="font-semibold text-destructive">{fmt(selectedTotals.balance)}</span>
+              </div>
+            )}
+            <Button size="sm" variant="outline" onClick={handlePrint} className="h-9">
+              <Printer className="h-4 w-4 mr-1" /> Print selected ({selected.size})
+            </Button>
+          </div>
         </div>
 
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">

@@ -387,6 +387,9 @@ const Payroll = () => {
     const chosen = primaryRows.filter((r) => selected.has(r.emp.id));
     if (chosen.length === 0) return toast.error("Select at least one employee");
     const monthLabel = format(new Date(month), "MMMM yyyy");
+    const totalBalance = chosen.reduce((s, r) => s + r.base.balance, 0);
+    const totalDueAll = chosen.reduce((s, r) => s + r.base.totalDue, 0);
+    const totalPaidAll = chosen.reduce((s, r) => s + r.base.paid, 0);
     const rowsHtml = chosen.map((r) => {
       const b = r.base;
       const sitesHtml = b.sites.length === 0

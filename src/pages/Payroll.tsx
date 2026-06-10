@@ -477,9 +477,18 @@ const Payroll = () => {
               <SelectItem value="name">Sort by name</SelectItem>
             </SelectContent>
           </Select>
-          <Button size="sm" variant="outline" onClick={handlePrint} className="h-9">
-            <Printer className="h-4 w-4 mr-1" /> Print selected ({selected.size})
-          </Button>
+          <div className="flex items-center gap-2">
+            {selectedTotals.count > 0 && (
+              <div className="text-xs px-2 py-1.5 rounded-md border bg-muted/40">
+                Selected: <span className="font-semibold">{selectedTotals.count}</span>
+                <span className="mx-2 text-muted-foreground">·</span>
+                To pay: <span className="font-semibold text-destructive">{fmt(selectedTotals.balance)}</span>
+              </div>
+            )}
+            <Button size="sm" variant="outline" onClick={handlePrint} className="h-9">
+              <Printer className="h-4 w-4 mr-1" /> Print selected ({selected.size})
+            </Button>
+          </div>
         </div>
 
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">

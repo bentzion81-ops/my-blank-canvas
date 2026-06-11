@@ -47,6 +47,7 @@ export function DailyCheckTab({ selectedDate, onDateChange }: Props) {
   const [assignments, setAssignments] = useState<any[]>([]);
   const [schedules, setSchedules] = useState<any[]>([]);
   const [records, setRecords] = useState<any[]>([]);
+  const [allMeckanoEmployees, setAllMeckanoEmployees] = useState<any[]>([]);
   const [logs, setLogs] = useState<any[]>([]);
   const [closure, setClosure] = useState<any | null>(null);
   const [closing, setClosing] = useState(false);
@@ -116,7 +117,7 @@ export function DailyCheckTab({ selectedDate, onDateChange }: Props) {
   const load = async () => {
     setLoading(true);
     try {
-      const [c, a, s, r, l, cl] = await Promise.all([
+      const [c, a, s, r, l, cl, me] = await Promise.all([
         supabase.from("clients").select("id, name, meckano_synced, status, exclude_from_daily_check" as any).eq("status", "active"),
         supabase.from("employee_client_assignments")
           .select("employee_id, client_id, employees(id, first_name, last_name, status, meckano_synced, exclude_from_daily_check, israeli_phone, foreign_phone)")
@@ -134,6 +135,10 @@ export function DailyCheckTab({ selectedDate, onDateChange }: Props) {
           .select("*")
           .eq("check_date", dateStr)
           .maybeSingle(),
+        supabase.from("employees")
+          .select("id, first_name, last_name, israeli_phone, foreign_phone, exclude_from_daily_check")
+          .eq("status", "active")
+          .eq("meckano_synced", true),
       ]);
       setClients(c.data || []);
       setAssignments(a.data || []);
@@ -141,6 +146,7 @@ export function DailyCheckTab({ selectedDate, onDateChange }: Props) {
       setRecords(r.data || []);
       setLogs((l.data as any[]) || []);
       setClosure((cl as any)?.data || null);
+      setAllMeckanoEmployees(((me.data as any[]) || []).filter((e: any) => !e.exclude_from_daily_check));
 
       // Hydrate client-level state from logs where employee_id is null
       const cs: Record<string, { status: ClientStatus; notes: string }> = {};
@@ -203,6 +209,16 @@ export function DailyCheckTab({ selectedDate, onDateChange }: Props) {
     }
     return result;
   }, [clients, assignments, schedules]);
+
+  // Meckano-synced active employees with NO active client assignment
+  const unassignedMeckano = useMemo(() => {
+    const assignedIds = new Set(
+      assignments
+        .filter((a: any) => a.employees?.status === "active")
+        .map((a: any) => a.employee_id),
+    );
+    return allMeckanoEmployees.filter((e: any) => !assignedIds.has(e.id));
+  }, [assignments, allMeckanoEmployees]);
 
 
   const getRecordStatus = (employeeId: string, clientId: string): RowStatus => {
@@ -414,6 +430,36 @@ export function DailyCheckTab({ selectedDate, onDateChange }: Props) {
               </div>
             </CardContent>
           </Card>
+
+          {!loading && unassignedMeckano.length > 0 && (
+            <Card className="border-0 shadow-sm border-r-4 border-r-warning">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  עובדי מכונה ללא שיוך לקוח
+                  <Badge variant="outline" className="bg-warning/10 text-warning border-warning/20">
+                    {unassignedMeckano.length}
+                  </Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {unassignedMeckano.map((e: any) => (
+                  <div key={e.id} className="flex items-center justify-between gap-3 border-b pb-2 last:border-0">
+                    <div>
+                      <div className="font-medium text-sm">{e.first_name} {e.last_name}</div>
+                      {(e.israeli_phone || e.foreign_phone) && (
+                        <div className="text-xs text-muted-foreground mt-0.5" dir="ltr">
+                          {[e.israeli_phone, e.foreign_phone].filter(Boolean).join(" · ")}
+                        </div>
+                      )}
+                    </div>
+                    <Button asChild size="sm" variant="outline" className="h-7">
+                      <a href={`/employees/${e.id}`}>שייך ללקוח</a>
+                    </Button>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
 
           {loading && <div className="text-sm text-muted-foreground">טוען…</div>}
 

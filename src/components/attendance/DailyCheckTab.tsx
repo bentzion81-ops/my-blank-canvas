@@ -431,6 +431,36 @@ export function DailyCheckTab({ selectedDate, onDateChange }: Props) {
             </CardContent>
           </Card>
 
+          {!loading && unassignedMeckano.length > 0 && (
+            <Card className="border-0 shadow-sm border-r-4 border-r-warning">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  עובדי מכונה ללא שיוך לקוח
+                  <Badge variant="outline" className="bg-warning/10 text-warning border-warning/20">
+                    {unassignedMeckano.length}
+                  </Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {unassignedMeckano.map((e: any) => (
+                  <div key={e.id} className="flex items-center justify-between gap-3 border-b pb-2 last:border-0">
+                    <div>
+                      <div className="font-medium text-sm">{e.first_name} {e.last_name}</div>
+                      {(e.israeli_phone || e.foreign_phone) && (
+                        <div className="text-xs text-muted-foreground mt-0.5" dir="ltr">
+                          {[e.israeli_phone, e.foreign_phone].filter(Boolean).join(" · ")}
+                        </div>
+                      )}
+                    </div>
+                    <Button asChild size="sm" variant="outline" className="h-7">
+                      <a href={`/employees/${e.id}`}>שייך ללקוח</a>
+                    </Button>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+
           {loading && <div className="text-sm text-muted-foreground">טוען…</div>}
 
           {!loading && sortedGrouped.map(({ client, isMeckano, employees }) => {

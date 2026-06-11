@@ -204,6 +204,16 @@ export function DailyCheckTab({ selectedDate, onDateChange }: Props) {
     return result;
   }, [clients, assignments, schedules]);
 
+  // Meckano-synced active employees with NO active client assignment
+  const unassignedMeckano = useMemo(() => {
+    const assignedIds = new Set(
+      assignments
+        .filter((a: any) => a.employees?.status === "active")
+        .map((a: any) => a.employee_id),
+    );
+    return allMeckanoEmployees.filter((e: any) => !assignedIds.has(e.id));
+  }, [assignments, allMeckanoEmployees]);
+
 
   const getRecordStatus = (employeeId: string, clientId: string): RowStatus => {
     const rec = records.find((r: any) => r.employee_id === employeeId && (r.client_id === clientId || !r.client_id));

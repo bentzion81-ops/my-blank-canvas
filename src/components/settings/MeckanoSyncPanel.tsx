@@ -39,10 +39,26 @@ export const MeckanoSyncPanel = () => {
     setBusy(action);
     setLastResult(null);
     try {
-      const { data, error } = await supabase.functions.invoke("meckano-sync", {
-        body: { action, ...payload },
-      });
-      if (error) throw error;
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
+      if (!accessToken) {
+        await supabase.auth.signOut();
+        throw new Error("Session expired — please sign in again.");
+      }
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/meckano-sync`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          },
+          body: JSON.stringify({ action, ...payload }),
+        },
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
       setLastResult(data as SyncResult);
       if ((data as SyncResult)?.ok === false) {
         toast.error((data as any).error || "Sync failed");

@@ -149,7 +149,8 @@ const Billing = () => {
       const vat = subtotal * (vatPct / 100);
       const totalWithVat = subtotal + vat;
       const withholdingPct = Number(c.tax_withholding_pct || 0);
-      const withholding = totalWithVat * (withholdingPct / 100);
+      // Withholding tax is calculated on the principal (pre-VAT) per Israeli tax law
+      const withholding = subtotal * (withholdingPct / 100);
       const totalDue = totalWithVat - withholding;
 
       const clientInvoices = invoices.filter((i: any) => i.client_id === c.id);

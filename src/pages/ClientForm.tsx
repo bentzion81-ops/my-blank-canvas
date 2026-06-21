@@ -67,6 +67,8 @@ const ClientForm = () => {
         address: existing.address || "",
         city: existing.city || "",
         google_maps_link: existing.google_maps_link || "",
+        location_lat: (existing as any).location_lat ?? "",
+        location_lng: (existing as any).location_lng ?? "",
         billing_type: existing.billing_type || "fixed",
         monthly_payment: existing.monthly_payment || 0,
         hourly_rate: existing.hourly_rate || 0,

@@ -399,6 +399,43 @@ function ReportRow({ r, clients, onChanged, selectable, selected, onToggleSelect
                   </a>
                 )}
               </div>
+              {(mapsLink || reportCoords) && (
+                <div className="text-xs rounded-md bg-muted/50 border px-2 py-1.5 mt-1">
+                  {resolvingCoords ? (
+                    <span className="text-muted-foreground inline-flex items-center gap-1">
+                      <Loader2 className="h-3 w-3 animate-spin" /> מזהה מיקום…
+                    </span>
+                  ) : !reportCoords ? (
+                    <span className="text-muted-foreground">לא זוהה מיקום מהקישור</span>
+                  ) : suggestion ? (
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <span className="inline-flex items-center gap-1">
+                        <Sparkles className="h-3 w-3 text-primary" />
+                        <span className="text-muted-foreground">לכאורה:</span>
+                        <strong className="text-foreground">{suggestion.client.name}</strong>
+                        <span className="text-muted-foreground">
+                          (~{suggestion.meters < 1000
+                            ? `${Math.round(suggestion.meters)} מ׳`
+                            : `${(suggestion.meters / 1000).toFixed(2)} ק״מ`})
+                        </span>
+                      </span>
+                      {clientId !== suggestion.client.id && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs"
+                          onClick={() => setClientId(suggestion.client.id)}
+                        >
+                          שייך
+                        </Button>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="text-muted-foreground">אין לקוחות עם מיקום מוגדר להשוואה</span>
+                  )}
+                </div>
+              )}
             </div>
             <div className="space-y-1">
               <Label>הערות</Label>

@@ -193,7 +193,50 @@ const ClientForm = () => {
             </div>
             <div className="space-y-1.5 md:col-span-2">
               <Label>Google Maps Link</Label>
-              <Input value={form.google_maps_link} onChange={(e) => update("google_maps_link", e.target.value)} />
+              <div className="flex gap-2">
+                <Input value={form.google_maps_link} onChange={(e) => update("google_maps_link", e.target.value)} />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={!form.google_maps_link}
+                  onClick={async () => {
+                    const url = String(form.google_maps_link || "").trim();
+                    if (!url) return;
+                    toast.message("Resolving coordinates…");
+                    const coords = await resolveMapsCoords(url);
+                    if (!coords) { toast.error("Could not extract coordinates from this link"); return; }
+                    update("location_lat", coords.lat);
+                    update("location_lng", coords.lng);
+                    toast.success(`Coordinates set: ${coords.lat.toFixed(6)}, ${coords.lng.toFixed(6)}`);
+                  }}
+                >
+                  <MapPin className="h-3 w-3" /> Resolve
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Used to auto-suggest this client when replacement workers report from nearby.
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Latitude</Label>
+              <Input
+                type="number"
+                step="0.000001"
+                value={form.location_lat}
+                onChange={(e) => update("location_lat", e.target.value)}
+                placeholder="e.g. 31.7683"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Longitude</Label>
+              <Input
+                type="number"
+                step="0.000001"
+                value={form.location_lng}
+                onChange={(e) => update("location_lng", e.target.value)}
+                placeholder="e.g. 35.2137"
+              />
             </div>
           </CardContent>
         </Card>

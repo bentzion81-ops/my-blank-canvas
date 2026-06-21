@@ -31,6 +31,9 @@ type Report = {
   total_payment: number;
   workplace_description: string;
   workplace_address: string | null;
+  maps_link: string | null;
+  location_lat: number | null;
+  location_lng: number | null;
   status: string;
   hourly_wage: number;
 };

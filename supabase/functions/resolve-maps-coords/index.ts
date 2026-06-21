@@ -66,9 +66,10 @@ async function follow(url: string, maxHops = 6): Promise<{ url: string; address:
         method: "GET",
         redirect: "manual",
         headers: {
-          "User-Agent":
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
-          "Accept-Language": "en-US,en;q=0.9",
+          // curl-like UA forces goo.gl to issue a 302 redirect to the destination
+          // instead of returning a deep-link HTML interstitial.
+          "User-Agent": "curl/8.4.0",
+          "Accept": "*/*",
         },
       });
       console.log(`[follow] status=${res.status}`);

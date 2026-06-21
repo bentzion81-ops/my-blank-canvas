@@ -54,9 +54,13 @@ async function follow(url: string, maxHops = 6): Promise<{ url: string; address:
   let current = url;
   let address: string | null = null;
   for (let i = 0; i < maxHops; i++) {
+    console.log(`[follow] hop ${i}: ${current}`);
     if (parseCoords(current)) return { url: current, address };
     const addr = extractAddress(current);
-    if (addr) address = addr;
+    if (addr) {
+      console.log(`[follow] extracted address: ${addr}`);
+      address = addr;
+    }
     try {
       const res = await fetch(current, {
         method: "GET",
@@ -67,19 +71,20 @@ async function follow(url: string, maxHops = 6): Promise<{ url: string; address:
           "Accept-Language": "en-US,en;q=0.9",
         },
       });
+      console.log(`[follow] status=${res.status}`);
       const loc = res.headers.get("location");
       if (loc) {
         current = new URL(loc, current).toString();
         continue;
       }
-      // No more redirects: try to scrape from response body.
       const body = await res.text();
       const fromBody = parseCoords(body);
       if (fromBody) {
         return { url: `${current}#@${fromBody.lat},${fromBody.lng}`, address };
       }
       break;
-    } catch (_e) {
+    } catch (e) {
+      console.log(`[follow] fetch error: ${(e as any)?.message || e}`);
       break;
     }
   }

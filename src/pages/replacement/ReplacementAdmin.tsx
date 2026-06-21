@@ -332,7 +332,23 @@ function ReportRow({ r, clients, onChanged, selectable, selected, onToggleSelect
         <TableCell className="text-xs text-muted-foreground">{r.passport_number}</TableCell>
         <TableCell>{r.check_in}–{r.check_out}</TableCell>
         <TableCell>{Number(r.total_hours).toFixed(2)}</TableCell>
-        <TableCell className="max-w-[200px] truncate">{r.workplace_description}</TableCell>
+        <TableCell className="max-w-[200px]">
+          <div className="truncate">{r.workplace_description}</div>
+          {resolvingCoords ? (
+            <div className="text-[11px] text-muted-foreground inline-flex items-center gap-1 mt-0.5">
+              <Loader2 className="h-3 w-3 animate-spin" /> מזהה מיקום…
+            </div>
+          ) : suggestion ? (
+            <div className="text-[11px] inline-flex items-center gap-1 mt-0.5">
+              <Sparkles className="h-3 w-3 text-primary" />
+              <span className="text-muted-foreground">לכאורה:</span>
+              <strong className="text-foreground truncate max-w-[140px]">{suggestion.client.name}</strong>
+              <span className="text-muted-foreground">
+                (~{suggestion.meters < 1000 ? `${Math.round(suggestion.meters)} מ׳` : `${(suggestion.meters / 1000).toFixed(2)} ק״מ`})
+              </span>
+            </div>
+          ) : null}
+        </TableCell>
         <TableCell>{Number(r.total_payment).toFixed(2)}</TableCell>
         <TableCell>
           <Badge variant="outline" className={statusColor[r.status]}>{r.status}</Badge>

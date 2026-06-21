@@ -17,6 +17,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { getShareableAppOrigin } from "@/lib/utils";
 import ApprovedEventsTab from "@/components/replacement/ApprovedEventsTab";
 import PlannedEventsTab from "@/components/replacement/PlannedEventsTab";
+import { parseCoordsFromUrl, resolveMapsCoords, findNearestClient } from "@/lib/geo";
+import { Sparkles } from "lucide-react";
 
 type Report = {
   id: string;
@@ -38,9 +40,11 @@ type Report = {
   notes: string | null;
   rejection_reason: string | null;
   created_at: string;
+  location_lat?: number | null;
+  location_lng?: number | null;
 };
 
-type Client = { id: string; name: string };
+type Client = { id: string; name: string; location_lat?: number | null; location_lng?: number | null };
 type Worker = { id: string; full_name: string; passport_number: string; phone: string | null };
 type ChangeReq = {
   id: string;
@@ -168,6 +172,44 @@ function ReportRow({ r, clients, onChanged, selectable, selected, onToggleSelect
   const wageNum = parseFloat(wage) || 0;
   const computedPayment = computedHours * wageNum;
 
+  // --- Likely client suggestion based on the report's coordinates ---
+  const [reportCoords, setReportCoords] = useState<{ lat: number; lng: number } | null>(
+    r.location_lat != null && r.location_lng != null
+      ? { lat: Number(r.location_lat), lng: Number(r.location_lng) }
+      : (mapsLink ? parseCoordsFromUrl(mapsLink) : null)
+  );
+  const [resolvingCoords, setResolvingCoords] = useState(false);
+
+  // Re-parse when the maps link changes; resolve short links on demand.
+  useEffect(() => {
+    if (r.location_lat != null && r.location_lng != null && mapsLink === (r.maps_link || "")) {
+      setReportCoords({ lat: Number(r.location_lat), lng: Number(r.location_lng) });
+      return;
+    }
+    if (!mapsLink) { setReportCoords(null); return; }
+    const local = parseCoordsFromUrl(mapsLink);
+    if (local) { setReportCoords(local); return; }
+    let cancelled = false;
+    setResolvingCoords(true);
+    resolveMapsCoords(mapsLink).then((c) => {
+      if (!cancelled) setReportCoords(c);
+    }).finally(() => { if (!cancelled) setResolvingCoords(false); });
+    return () => { cancelled = true; };
+  }, [mapsLink, r.location_lat, r.location_lng, r.maps_link]);
+
+  const clientsWithCoords = useMemo(
+    () => clients
+      .filter((c) => c.location_lat != null && c.location_lng != null)
+      .map((c) => ({ id: c.id, name: c.name, lat: Number(c.location_lat), lng: Number(c.location_lng) })),
+    [clients]
+  );
+
+  const suggestion = useMemo(() => {
+    if (!reportCoords) return null;
+    return findNearestClient(reportCoords, clientsWithCoords);
+  }, [reportCoords, clientsWithCoords]);
+
+
   const buildEditedPatch = () => ({
     work_date: workDate,
     worker_name: workerName.trim(),
@@ -180,6 +222,8 @@ function ReportRow({ r, clients, onChanged, selectable, selected, onToggleSelect
     workplace_description: workplaceDesc.trim(),
     workplace_address: workplaceAddress.trim() || null,
     maps_link: mapsLink.trim() || null,
+    location_lat: reportCoords?.lat ?? null,
+    location_lng: reportCoords?.lng ?? null,
     notes: notes.trim() || null,
   });
 
@@ -355,6 +399,43 @@ function ReportRow({ r, clients, onChanged, selectable, selected, onToggleSelect
                   </a>
                 )}
               </div>
+              {(mapsLink || reportCoords) && (
+                <div className="text-xs rounded-md bg-muted/50 border px-2 py-1.5 mt-1">
+                  {resolvingCoords ? (
+                    <span className="text-muted-foreground inline-flex items-center gap-1">
+                      <Loader2 className="h-3 w-3 animate-spin" /> מזהה מיקום…
+                    </span>
+                  ) : !reportCoords ? (
+                    <span className="text-muted-foreground">לא זוהה מיקום מהקישור</span>
+                  ) : suggestion ? (
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <span className="inline-flex items-center gap-1">
+                        <Sparkles className="h-3 w-3 text-primary" />
+                        <span className="text-muted-foreground">לכאורה:</span>
+                        <strong className="text-foreground">{suggestion.client.name}</strong>
+                        <span className="text-muted-foreground">
+                          (~{suggestion.meters < 1000
+                            ? `${Math.round(suggestion.meters)} מ׳`
+                            : `${(suggestion.meters / 1000).toFixed(2)} ק״מ`})
+                        </span>
+                      </span>
+                      {clientId !== suggestion.client.id && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs"
+                          onClick={() => setClientId(suggestion.client.id)}
+                        >
+                          שייך
+                        </Button>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="text-muted-foreground">אין לקוחות עם מיקום מוגדר להשוואה</span>
+                  )}
+                </div>
+              )}
             </div>
             <div className="space-y-1">
               <Label>הערות</Label>
@@ -406,9 +487,12 @@ function ReportRow({ r, clients, onChanged, selectable, selected, onToggleSelect
 function useClients() {
   const [clients, setClients] = useState<Client[]>([]);
   useEffect(() => {
-    supabase.from("clients").select("id, name").order("name").then(({ data }) => {
-      setClients((data as Client[]) || []);
-    });
+    (supabase.from("clients") as any)
+      .select("id, name, location_lat, location_lng")
+      .order("name")
+      .then(({ data }: any) => {
+        setClients((data as Client[]) || []);
+      });
   }, []);
   return clients;
 }

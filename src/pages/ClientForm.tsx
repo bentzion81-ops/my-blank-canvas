@@ -11,7 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { Loader2, ArrowLeft } from "lucide-react";
+import { Loader2, ArrowLeft, MapPin } from "lucide-react";
+import { resolveMapsCoords } from "@/lib/geo";
 
 const defaultForm = {
   name: "",
@@ -20,6 +21,8 @@ const defaultForm = {
   address: "",
   city: "",
   google_maps_link: "",
+  location_lat: "" as string | number,
+  location_lng: "" as string | number,
   billing_type: "fixed" as "fixed" | "hourly",
   monthly_payment: 0,
   hourly_rate: 0,
@@ -64,6 +67,8 @@ const ClientForm = () => {
         address: existing.address || "",
         city: existing.city || "",
         google_maps_link: existing.google_maps_link || "",
+        location_lat: (existing as any).location_lat ?? "",
+        location_lng: (existing as any).location_lng ?? "",
         billing_type: existing.billing_type || "fixed",
         monthly_payment: existing.monthly_payment || 0,
         hourly_rate: existing.hourly_rate || 0,
@@ -90,7 +95,7 @@ const ClientForm = () => {
     if (!form.name) { toast.error("Client name is required"); return; }
     setSaving(true);
     try {
-      const payload = {
+      const payload: any = {
         ...form,
         monthly_payment: Number(form.monthly_payment) || 0,
         hourly_rate: Number(form.hourly_rate) || 0,
@@ -100,13 +105,15 @@ const ClientForm = () => {
         daily_planned_hours: Number(form.daily_planned_hours) || 0,
         friday_hours: Number(form.friday_hours) || 0,
         saturday_hours: Number(form.saturday_hours) || 0,
+        location_lat: form.location_lat === "" || form.location_lat == null ? null : Number(form.location_lat),
+        location_lng: form.location_lng === "" || form.location_lng == null ? null : Number(form.location_lng),
       };
       if (isEdit) {
-        const { error } = await supabase.from("clients").update(payload).eq("id", id!);
+        const { error } = await (supabase.from("clients") as any).update(payload).eq("id", id!);
         if (error) throw error;
         toast.success("Client updated");
       } else {
-        const { error } = await supabase.from("clients").insert(payload);
+        const { error } = await (supabase.from("clients") as any).insert(payload);
         if (error) throw error;
         toast.success("Client created");
       }
@@ -186,7 +193,50 @@ const ClientForm = () => {
             </div>
             <div className="space-y-1.5 md:col-span-2">
               <Label>Google Maps Link</Label>
-              <Input value={form.google_maps_link} onChange={(e) => update("google_maps_link", e.target.value)} />
+              <div className="flex gap-2">
+                <Input value={form.google_maps_link} onChange={(e) => update("google_maps_link", e.target.value)} />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={!form.google_maps_link}
+                  onClick={async () => {
+                    const url = String(form.google_maps_link || "").trim();
+                    if (!url) return;
+                    toast.message("Resolving coordinates…");
+                    const coords = await resolveMapsCoords(url);
+                    if (!coords) { toast.error("Could not extract coordinates from this link"); return; }
+                    update("location_lat", coords.lat);
+                    update("location_lng", coords.lng);
+                    toast.success(`Coordinates set: ${coords.lat.toFixed(6)}, ${coords.lng.toFixed(6)}`);
+                  }}
+                >
+                  <MapPin className="h-3 w-3" /> Resolve
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Used to auto-suggest this client when replacement workers report from nearby.
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Latitude</Label>
+              <Input
+                type="number"
+                step="0.000001"
+                value={form.location_lat}
+                onChange={(e) => update("location_lat", e.target.value)}
+                placeholder="e.g. 31.7683"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Longitude</Label>
+              <Input
+                type="number"
+                step="0.000001"
+                value={form.location_lng}
+                onChange={(e) => update("location_lng", e.target.value)}
+                placeholder="e.g. 35.2137"
+              />
             </div>
           </CardContent>
         </Card>

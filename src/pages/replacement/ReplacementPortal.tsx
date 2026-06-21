@@ -472,6 +472,16 @@ function ReportForm({
     if (!wage.trim() || wageNum <= 0) return toast.error(t("required", lang));
     if (!address.trim() && !mapsLink.trim()) return toast.error(t("locationRequired", lang));
     setLoading(true);
+    // Try to resolve coordinates from the maps link so the office can auto-suggest a client.
+    let lat: number | null = null;
+    let lng: number | null = null;
+    if (mapsLink.trim()) {
+      try {
+        const { resolveMapsCoords } = await import("@/lib/geo");
+        const coords = await resolveMapsCoords(mapsLink.trim());
+        if (coords) { lat = coords.lat; lng = coords.lng; }
+      } catch { /* non-blocking */ }
+    }
     const { error } = await supabase.from("replacement_reports").insert({
       worker_id: worker.id,
       passport_number: worker.passport_number,
@@ -485,8 +495,10 @@ function ReportForm({
       workplace_description: desc.trim(),
       workplace_address: address.trim() || null,
       maps_link: mapsLink.trim() || null,
+      location_lat: lat,
+      location_lng: lng,
       notes: notes.trim() || null,
-    });
+    } as any);
     setLoading(false);
     if (error) return toast.error(error.message);
     toast.success(t("submitted", lang));

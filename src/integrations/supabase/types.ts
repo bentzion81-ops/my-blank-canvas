@@ -2040,6 +2040,15 @@ export type Database = {
         Args: { _report_id: string }
         Returns: undefined
       }
+      get_active_client_locations: {
+        Args: never
+        Returns: {
+          id: string
+          location_lat: number
+          location_lng: number
+          name: string
+        }[]
+      }
       has_permission: {
         Args: { _permission: string; _user_id: string }
         Returns: boolean

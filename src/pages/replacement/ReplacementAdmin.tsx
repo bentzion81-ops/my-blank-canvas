@@ -222,6 +222,8 @@ function ReportRow({ r, clients, onChanged, selectable, selected, onToggleSelect
     workplace_description: workplaceDesc.trim(),
     workplace_address: workplaceAddress.trim() || null,
     maps_link: mapsLink.trim() || null,
+    location_lat: reportCoords?.lat ?? null,
+    location_lng: reportCoords?.lng ?? null,
     notes: notes.trim() || null,
   });
 

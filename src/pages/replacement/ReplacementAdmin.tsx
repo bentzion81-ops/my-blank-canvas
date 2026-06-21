@@ -406,9 +406,13 @@ function ReportRow({ r, clients, onChanged, selectable, selected, onToggleSelect
 function useClients() {
   const [clients, setClients] = useState<Client[]>([]);
   useEffect(() => {
-    supabase.from("clients").select("id, name").order("name").then(({ data }) => {
-      setClients((data as Client[]) || []);
-    });
+    supabase
+      .from("clients")
+      .select("id, name, location_lat, location_lng" as any)
+      .order("name")
+      .then(({ data }) => {
+        setClients((data as Client[]) || []);
+      });
   }, []);
   return clients;
 }

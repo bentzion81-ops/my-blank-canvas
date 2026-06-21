@@ -60,15 +60,20 @@ export function distanceMeters(
 
 export type ClientLoc = { id: string; name: string; lat: number; lng: number };
 
-/** Returns the closest client to the given coords with the distance in meters. */
+const DEFAULT_MAX_DISTANCE_METERS = 100;
+
+/** Returns the closest client to the given coords with the distance in meters.
+ *  If a `maxMeters` threshold is provided, returns null when the nearest client is farther away. */
 export function findNearestClient(
   point: { lat: number; lng: number },
-  clients: ClientLoc[]
+  clients: ClientLoc[],
+  maxMeters: number = DEFAULT_MAX_DISTANCE_METERS
 ): { client: ClientLoc; meters: number } | null {
   let best: { client: ClientLoc; meters: number } | null = null;
   for (const c of clients) {
     const m = distanceMeters(point, { lat: c.lat, lng: c.lng });
     if (!best || m < best.meters) best = { client: c, meters: m };
   }
+  if (best && best.meters > maxMeters) return null;
   return best;
 }

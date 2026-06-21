@@ -584,22 +584,48 @@ function ReportForm({
 
 function ReportsList({ lang, worker, onBack }: { lang: Lang; worker: Worker; onBack: () => void }) {
   const [reports, setReports] = useState<Report[]>([]);
+  const [clients, setClients] = useState<ClientLoc[]>([]);
   const [loading, setLoading] = useState(true);
   const [changeFor, setChangeFor] = useState<Report | null>(null);
   const [changeText, setChangeText] = useState("");
 
   const load = async () => {
     setLoading(true);
-    const { data } = await supabase
-      .from("replacement_reports")
-      .select("*")
-      .eq("worker_id", worker.id)
-      .order("work_date", { ascending: false });
-    setReports((data as Report[]) || []);
+    const [reportsRes, clientsRes] = await Promise.all([
+      supabase
+        .from("replacement_reports")
+        .select("*")
+        .eq("worker_id", worker.id)
+        .order("work_date", { ascending: false }),
+      (supabase.rpc("get_active_client_locations") as any),
+    ]);
+    setReports((reportsRes.data as Report[]) || []);
+    const clientRows = (clientsRes.data || []) as { id: string; name: string; location_lat: number | null; location_lng: number | null }[];
+    setClients(
+      clientRows
+        .filter((c) => c.location_lat != null && c.location_lng != null)
+        .map((c) => ({ id: c.id, name: c.name, lat: Number(c.location_lat), lng: Number(c.location_lng) }))
+    );
     setLoading(false);
   };
 
   useEffect(() => { load(); }, []);
+
+  const likelyClientFor = (r: Report) => {
+    let point: { lat: number; lng: number } | null = null;
+    if (r.location_lat != null && r.location_lng != null) {
+      point = { lat: Number(r.location_lat), lng: Number(r.location_lng) };
+    } else if (r.maps_link) {
+      point = parseCoordsFromUrl(r.maps_link);
+    }
+    if (!point || clients.length === 0) return null;
+    return findNearestClient(point, clients);
+  };
+
+  const formatDistance = (meters: number) => {
+    if (meters >= 1000) return `${(meters / 1000).toFixed(1)} km`;
+    return `${Math.round(meters)} m`;
+  };
 
   const sendChange = async () => {
     if (!changeFor || !changeText.trim()) return;
@@ -635,25 +661,33 @@ function ReportsList({ lang, worker, onBack }: { lang: Lang; worker: Worker; onB
         ) : reports.length === 0 ? (
           <p className="text-center text-muted-foreground py-6">{t("noReports", lang)}</p>
         ) : (
-          reports.map((r) => (
-            <div key={r.id} className="border rounded-lg p-3 space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="font-medium">{r.work_date}</div>
-                <Badge variant="outline" className={statusColor[r.status]}>{t(r.status as any, lang)}</Badge>
+          reports.map((r) => {
+            const suggestion = likelyClientFor(r);
+            return (
+              <div key={r.id} className="border rounded-lg p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="font-medium">{r.work_date}</div>
+                  <Badge variant="outline" className={statusColor[r.status]}>{t(r.status as any, lang)}</Badge>
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  {r.check_in} → {r.check_out} · {Number(r.total_hours).toFixed(2)}h
+                </div>
+                <div className="text-sm">{r.workplace_description}</div>
+                {suggestion && (
+                  <div className="text-xs font-medium text-blue-700 dark:text-blue-400 bg-blue-500/10 border border-blue-500/30 rounded-md px-2 py-1 inline-block">
+                    {t("likelyClient", lang).replace("{client}", suggestion.client.name).replace("{distance}", formatDistance(suggestion.meters))}
+                  </div>
+                )}
+                {r.workplace_address && <div className="text-xs text-muted-foreground">{r.workplace_address}</div>}
+                {Number(r.total_payment) > 0 && (
+                  <div className="text-sm font-medium">{t("totalPayment", lang)}: {Number(r.total_payment).toFixed(2)}</div>
+                )}
+                <Button variant="outline" size="sm" onClick={() => setChangeFor(r)}>
+                  {t("requestChange", lang)}
+                </Button>
               </div>
-              <div className="text-sm text-muted-foreground">
-                {r.check_in} → {r.check_out} · {Number(r.total_hours).toFixed(2)}h
-              </div>
-              <div className="text-sm">{r.workplace_description}</div>
-              {r.workplace_address && <div className="text-xs text-muted-foreground">{r.workplace_address}</div>}
-              {Number(r.total_payment) > 0 && (
-                <div className="text-sm font-medium">{t("totalPayment", lang)}: {Number(r.total_payment).toFixed(2)}</div>
-              )}
-              <Button variant="outline" size="sm" onClick={() => setChangeFor(r)}>
-                {t("requestChange", lang)}
-              </Button>
-            </div>
-          ))
+            );
+          })
         )}
       </CardContent>
 

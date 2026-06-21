@@ -95,7 +95,7 @@ const ClientForm = () => {
     if (!form.name) { toast.error("Client name is required"); return; }
     setSaving(true);
     try {
-      const payload = {
+      const payload: any = {
         ...form,
         monthly_payment: Number(form.monthly_payment) || 0,
         hourly_rate: Number(form.hourly_rate) || 0,
@@ -105,13 +105,15 @@ const ClientForm = () => {
         daily_planned_hours: Number(form.daily_planned_hours) || 0,
         friday_hours: Number(form.friday_hours) || 0,
         saturday_hours: Number(form.saturday_hours) || 0,
+        location_lat: form.location_lat === "" || form.location_lat == null ? null : Number(form.location_lat),
+        location_lng: form.location_lng === "" || form.location_lng == null ? null : Number(form.location_lng),
       };
       if (isEdit) {
-        const { error } = await supabase.from("clients").update(payload).eq("id", id!);
+        const { error } = await (supabase.from("clients") as any).update(payload).eq("id", id!);
         if (error) throw error;
         toast.success("Client updated");
       } else {
-        const { error } = await supabase.from("clients").insert(payload);
+        const { error } = await (supabase.from("clients") as any).insert(payload);
         if (error) throw error;
         toast.success("Client created");
       }

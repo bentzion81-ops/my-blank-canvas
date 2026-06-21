@@ -470,6 +470,8 @@ export type Database = {
           include_friday: boolean
           include_saturday: boolean
           invoicing_company: string
+          location_lat: number | null
+          location_lng: number | null
           meckano_synced: boolean
           monthly_payment: number | null
           name: string
@@ -498,6 +500,8 @@ export type Database = {
           include_friday?: boolean
           include_saturday?: boolean
           invoicing_company?: string
+          location_lat?: number | null
+          location_lng?: number | null
           meckano_synced?: boolean
           monthly_payment?: number | null
           name: string
@@ -526,6 +530,8 @@ export type Database = {
           include_friday?: boolean
           include_saturday?: boolean
           invoicing_company?: string
+          location_lat?: number | null
+          location_lng?: number | null
           meckano_synced?: boolean
           monthly_payment?: number | null
           name?: string
@@ -1660,6 +1666,8 @@ export type Database = {
           created_at: string
           hourly_wage: number | null
           id: string
+          location_lat: number | null
+          location_lng: number | null
           maps_link: string | null
           notes: string | null
           passport_number: string
@@ -1684,6 +1692,8 @@ export type Database = {
           created_at?: string
           hourly_wage?: number | null
           id?: string
+          location_lat?: number | null
+          location_lng?: number | null
           maps_link?: string | null
           notes?: string | null
           passport_number: string
@@ -1708,6 +1718,8 @@ export type Database = {
           created_at?: string
           hourly_wage?: number | null
           id?: string
+          location_lat?: number | null
+          location_lng?: number | null
           maps_link?: string | null
           notes?: string | null
           passport_number?: string

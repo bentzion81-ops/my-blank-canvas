@@ -172,6 +172,44 @@ function ReportRow({ r, clients, onChanged, selectable, selected, onToggleSelect
   const wageNum = parseFloat(wage) || 0;
   const computedPayment = computedHours * wageNum;
 
+  // --- Likely client suggestion based on the report's coordinates ---
+  const [reportCoords, setReportCoords] = useState<{ lat: number; lng: number } | null>(
+    r.location_lat != null && r.location_lng != null
+      ? { lat: Number(r.location_lat), lng: Number(r.location_lng) }
+      : (mapsLink ? parseCoordsFromUrl(mapsLink) : null)
+  );
+  const [resolvingCoords, setResolvingCoords] = useState(false);
+
+  // Re-parse when the maps link changes; resolve short links on demand.
+  useEffect(() => {
+    if (r.location_lat != null && r.location_lng != null && mapsLink === (r.maps_link || "")) {
+      setReportCoords({ lat: Number(r.location_lat), lng: Number(r.location_lng) });
+      return;
+    }
+    if (!mapsLink) { setReportCoords(null); return; }
+    const local = parseCoordsFromUrl(mapsLink);
+    if (local) { setReportCoords(local); return; }
+    let cancelled = false;
+    setResolvingCoords(true);
+    resolveMapsCoords(mapsLink).then((c) => {
+      if (!cancelled) setReportCoords(c);
+    }).finally(() => { if (!cancelled) setResolvingCoords(false); });
+    return () => { cancelled = true; };
+  }, [mapsLink, r.location_lat, r.location_lng, r.maps_link]);
+
+  const clientsWithCoords = useMemo(
+    () => clients
+      .filter((c) => c.location_lat != null && c.location_lng != null)
+      .map((c) => ({ id: c.id, name: c.name, lat: Number(c.location_lat), lng: Number(c.location_lng) })),
+    [clients]
+  );
+
+  const suggestion = useMemo(() => {
+    if (!reportCoords) return null;
+    return findNearestClient(reportCoords, clientsWithCoords);
+  }, [reportCoords, clientsWithCoords]);
+
+
   const buildEditedPatch = () => ({
     work_date: workDate,
     worker_name: workerName.trim(),

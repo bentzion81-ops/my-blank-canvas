@@ -40,6 +40,8 @@ type Report = {
   notes: string | null;
   rejection_reason: string | null;
   created_at: string;
+  location_lat?: number | null;
+  location_lng?: number | null;
 };
 
 type Client = { id: string; name: string; location_lat?: number | null; location_lng?: number | null };

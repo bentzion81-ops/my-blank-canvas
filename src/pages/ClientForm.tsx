@@ -21,6 +21,8 @@ const defaultForm = {
   address: "",
   city: "",
   google_maps_link: "",
+  location_lat: "" as string | number,
+  location_lng: "" as string | number,
   billing_type: "fixed" as "fixed" | "hourly",
   monthly_payment: 0,
   hourly_rate: 0,

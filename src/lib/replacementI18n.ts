@@ -152,6 +152,7 @@ const dict: Dict = {
   changeRequested: e("בקשת השינוי נשלחה", "Change request sent", "ඉල්ලීම යවන ලදී"),
   noReports: e("אין דיווחים עדיין", "No reports yet", "තවම වාර්තා නැත"),
   workplace: e("מקום עבודה", "Workplace", "වැඩ ස්ථානය"),
+  likelyClient: e("לכאורה: {client} ({distance})", "Likely: {client} ({distance})", "වැඩි ඉඩක: {client} ({distance})"),
 };
 
 export function t(key: keyof typeof dict, lang: Lang): string {

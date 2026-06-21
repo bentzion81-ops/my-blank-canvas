@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { LANGS, Lang, dirFor, t } from "@/lib/replacementI18n";
 import { Loader2, MapPin, Plus, ArrowLeft, LogOut } from "lucide-react";
 import urbanLinkLogo from "@/assets/urbanlink-logo.jpeg";
+import { parseCoordsFromUrl, findNearestClient, type ClientLoc } from "@/lib/geo";
 
 type Worker = {
   id: string;

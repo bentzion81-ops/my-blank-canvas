@@ -40,7 +40,7 @@ type Report = {
   created_at: string;
 };
 
-type Client = { id: string; name: string };
+type Client = { id: string; name: string; location_lat?: number | null; location_lng?: number | null };
 type Worker = { id: string; full_name: string; passport_number: string; phone: string | null };
 type ChangeReq = {
   id: string;

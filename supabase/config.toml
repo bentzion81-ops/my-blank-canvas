@@ -2,3 +2,6 @@ project_id = "ykbgeenodrdefbokufpd"
 
 [functions.resolve-maps-coords]
 verify_jwt = false
+
+[functions.backfill-client-coords]
+verify_jwt = false

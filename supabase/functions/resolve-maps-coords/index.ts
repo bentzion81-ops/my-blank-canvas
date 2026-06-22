@@ -34,27 +34,35 @@ function parseCoords(url: string): { lat: number; lng: number } | null {
   return null;
 }
 
+/** Heuristic: real addresses contain spaces, commas, or non-ASCII; opaque
+ *  Google place/captcha tokens are long URL-safe base64-ish strings. */
+function looksLikeAddress(v: string): boolean {
+  if (!v) return false;
+  if (/^-?\d+\.\d+,-?\d+\.\d+$/.test(v)) return false; // coords, handled elsewhere
+  if (/[\s,]|[^\x00-\x7F]/.test(v)) return true;       // spaces / commas / unicode
+  // Pure URL-safe token like "EhAqBdAU..." → treat as opaque, not an address.
+  if (/^[A-Za-z0-9_-]{16,}$/.test(v)) return false;
+  return true;
+}
+
 /** Extract the textual destination from a redirected Google Maps URL.
  *  Handles `?q=Address`, `/maps/place/<address>/...`, and unwraps Google's
  *  `/sorry/index?continue=...` captcha pages by recursing into `continue`. */
 function extractAddress(url: string): string | null {
   try {
     const u = new URL(url);
-    // Skip Google's captcha interstitial — its `q=` is a captcha token, not an address.
-    // Recurse into the `continue` param so we still get the original destination.
     if (u.pathname.startsWith("/sorry")) {
       const cont = u.searchParams.get("continue");
       return cont ? extractAddress(cont) : null;
     }
     for (const key of ["q", "query", "destination"]) {
       const v = u.searchParams.get(key);
-      if (v && !/^-?\d+\.\d+,-?\d+\.\d+$/.test(v)) return v;
+      if (v && looksLikeAddress(v)) return v;
     }
-    // /maps/place/<address>/... or /maps/place/<address>/@lat,lng,...
     const placeMatch = u.pathname.match(/\/maps\/place\/([^/]+)/);
     if (placeMatch) {
       const decoded = decodeURIComponent(placeMatch[1]).replace(/\+/g, " ");
-      if (decoded && !/^-?\d+\.\d+,-?\d+\.\d+$/.test(decoded)) return decoded;
+      if (looksLikeAddress(decoded)) return decoded;
     }
   } catch (_) { /* ignore */ }
   return null;

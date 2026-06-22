@@ -60,7 +60,7 @@ export function distanceMeters(
 
 export type ClientLoc = { id: string; name: string; lat: number; lng: number };
 
-const DEFAULT_MAX_DISTANCE_METERS = 100;
+const DEFAULT_MAX_DISTANCE_METERS = 250;
 
 /** Returns the closest client to the given coords with the distance in meters.
  *  If a `maxMeters` threshold is provided, returns null when the nearest client is farther away. */

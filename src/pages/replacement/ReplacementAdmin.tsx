@@ -339,14 +339,18 @@ function ReportRow({ r, clients, onChanged, selectable, selected, onToggleSelect
             <div className="text-[11px] text-muted-foreground inline-flex items-center gap-1 mt-0.5">
               <Loader2 className="h-3 w-3 animate-spin" /> מזהה מיקום…
             </div>
-          ) : suggestion ? (
-            <div className="text-[11px] inline-flex items-center gap-1 mt-0.5">
-              <Sparkles className="h-3 w-3 text-primary" />
-              <span className="text-muted-foreground">לכאורה:</span>
-              <strong className="text-foreground truncate max-w-[140px]">{suggestion.client.name}</strong>
-              <span className="text-muted-foreground">
-                (~{suggestion.meters < 1000 ? `${Math.round(suggestion.meters)} מ׳` : `${(suggestion.meters / 1000).toFixed(2)} ק״מ`})
-              </span>
+          ) : suggestions.length > 0 ? (
+            <div className="text-[11px] mt-0.5 space-y-0.5">
+              {suggestions.slice(0, 3).map((s, i) => (
+                <div key={s.client.id} className="inline-flex items-center gap-1 mr-2">
+                  <Sparkles className={`h-3 w-3 ${i === 0 ? "text-primary" : "text-muted-foreground"}`} />
+                  <span className="text-muted-foreground">{i === 0 ? "לכאורה:" : "או:"}</span>
+                  <strong className="text-foreground truncate max-w-[140px]">{s.client.name}</strong>
+                  <span className="text-muted-foreground">
+                    (~{s.meters < 1000 ? `${Math.round(s.meters)} מ׳` : `${(s.meters / 1000).toFixed(2)} ק״מ`})
+                  </span>
+                </div>
+              ))}
             </div>
           ) : null}
         </TableCell>

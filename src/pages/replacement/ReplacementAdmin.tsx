@@ -204,10 +204,11 @@ function ReportRow({ r, clients, onChanged, selectable, selected, onToggleSelect
     [clients]
   );
 
-  const suggestion = useMemo(() => {
-    if (!reportCoords) return null;
-    return findNearestClient(reportCoords, clientsWithCoords);
+  const suggestions = useMemo(() => {
+    if (!reportCoords) return [];
+    return findNearbyClients(reportCoords, clientsWithCoords);
   }, [reportCoords, clientsWithCoords]);
+  const suggestion = suggestions[0] ?? null;
 
 
   const buildEditedPatch = () => ({

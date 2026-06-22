@@ -759,6 +759,9 @@ function HistoryView({ clients }: { clients: any[] }) {
               </SelectContent>
             </Select>
           </div>
+          <div className="ms-auto">
+            <MonthlyMissingReportDialog clients={clients} month={month} />
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           <Table>

@@ -984,7 +984,7 @@ function MonthlyMissingReportDialog({ clients, month }: { clients: any[]; month:
       d.setDate(0);
       const to = format(d, "yyyy-MM-dd");
       const today = format(new Date(), "yyyy-MM-dd");
-      const lastDay = Math.min(parseInt(to.slice(-2), 10), parseInt((to > today ? today : to).slice(-2), 10));
+      const lastDay = parseInt(to.slice(-2), 10);
 
       const activeClients = (clients || []).filter((c: any) => !c.exclude_from_daily_check);
 

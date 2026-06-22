@@ -34,13 +34,27 @@ function parseCoords(url: string): { lat: number; lng: number } | null {
   return null;
 }
 
-/** Extract the textual destination from a redirected Google Maps URL (e.g. `?q=Address`). */
+/** Extract the textual destination from a redirected Google Maps URL.
+ *  Handles `?q=Address`, `/maps/place/<address>/...`, and unwraps Google's
+ *  `/sorry/index?continue=...` captcha pages by recursing into `continue`. */
 function extractAddress(url: string): string | null {
   try {
     const u = new URL(url);
+    // Skip Google's captcha interstitial — its `q=` is a captcha token, not an address.
+    // Recurse into the `continue` param so we still get the original destination.
+    if (u.pathname.startsWith("/sorry")) {
+      const cont = u.searchParams.get("continue");
+      return cont ? extractAddress(cont) : null;
+    }
     for (const key of ["q", "query", "destination"]) {
       const v = u.searchParams.get(key);
       if (v && !/^-?\d+\.\d+,-?\d+\.\d+$/.test(v)) return v;
+    }
+    // /maps/place/<address>/... or /maps/place/<address>/@lat,lng,...
+    const placeMatch = u.pathname.match(/\/maps\/place\/([^/]+)/);
+    if (placeMatch) {
+      const decoded = decodeURIComponent(placeMatch[1]).replace(/\+/g, " ");
+      if (decoded && !/^-?\d+\.\d+,-?\d+\.\d+$/.test(decoded)) return decoded;
     }
   } catch (_) { /* ignore */ }
   return null;

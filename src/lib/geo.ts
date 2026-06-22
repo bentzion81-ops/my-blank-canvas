@@ -77,3 +77,16 @@ export function findNearestClient(
   if (best && best.meters > maxMeters) return null;
   return best;
 }
+
+/** Returns all clients within `maxMeters` of the point, sorted by distance ascending. */
+export function findNearbyClients(
+  point: { lat: number; lng: number },
+  clients: ClientLoc[],
+  maxMeters: number = DEFAULT_MAX_DISTANCE_METERS
+): Array<{ client: ClientLoc; meters: number }> {
+  return clients
+    .map((c) => ({ client: c, meters: distanceMeters(point, { lat: c.lat, lng: c.lng }) }))
+    .filter((x) => x.meters <= maxMeters)
+    .sort((a, b) => a.meters - b.meters);
+}
+

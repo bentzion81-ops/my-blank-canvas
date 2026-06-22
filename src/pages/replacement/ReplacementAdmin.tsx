@@ -17,7 +17,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { getShareableAppOrigin } from "@/lib/utils";
 import ApprovedEventsTab from "@/components/replacement/ApprovedEventsTab";
 import PlannedEventsTab from "@/components/replacement/PlannedEventsTab";
-import { parseCoordsFromUrl, resolveMapsCoords, findNearestClient } from "@/lib/geo";
+import { parseCoordsFromUrl, resolveMapsCoords, findNearbyClients } from "@/lib/geo";
 import { Sparkles } from "lucide-react";
 
 type Report = {
@@ -204,10 +204,11 @@ function ReportRow({ r, clients, onChanged, selectable, selected, onToggleSelect
     [clients]
   );
 
-  const suggestion = useMemo(() => {
-    if (!reportCoords) return null;
-    return findNearestClient(reportCoords, clientsWithCoords);
+  const suggestions = useMemo(() => {
+    if (!reportCoords) return [];
+    return findNearbyClients(reportCoords, clientsWithCoords);
   }, [reportCoords, clientsWithCoords]);
+  const suggestion = suggestions[0] ?? null;
 
 
   const buildEditedPatch = () => ({
@@ -338,14 +339,18 @@ function ReportRow({ r, clients, onChanged, selectable, selected, onToggleSelect
             <div className="text-[11px] text-muted-foreground inline-flex items-center gap-1 mt-0.5">
               <Loader2 className="h-3 w-3 animate-spin" /> מזהה מיקום…
             </div>
-          ) : suggestion ? (
-            <div className="text-[11px] inline-flex items-center gap-1 mt-0.5">
-              <Sparkles className="h-3 w-3 text-primary" />
-              <span className="text-muted-foreground">לכאורה:</span>
-              <strong className="text-foreground truncate max-w-[140px]">{suggestion.client.name}</strong>
-              <span className="text-muted-foreground">
-                (~{suggestion.meters < 1000 ? `${Math.round(suggestion.meters)} מ׳` : `${(suggestion.meters / 1000).toFixed(2)} ק״מ`})
-              </span>
+          ) : suggestions.length > 0 ? (
+            <div className="text-[11px] mt-0.5 space-y-0.5">
+              {suggestions.slice(0, 3).map((s, i) => (
+                <div key={s.client.id} className="inline-flex items-center gap-1 mr-2">
+                  <Sparkles className={`h-3 w-3 ${i === 0 ? "text-primary" : "text-muted-foreground"}`} />
+                  <span className="text-muted-foreground">{i === 0 ? "לכאורה:" : "או:"}</span>
+                  <strong className="text-foreground truncate max-w-[140px]">{s.client.name}</strong>
+                  <span className="text-muted-foreground">
+                    (~{s.meters < 1000 ? `${Math.round(s.meters)} מ׳` : `${(s.meters / 1000).toFixed(2)} ק״מ`})
+                  </span>
+                </div>
+              ))}
             </div>
           ) : null}
         </TableCell>
@@ -423,29 +428,33 @@ function ReportRow({ r, clients, onChanged, selectable, selected, onToggleSelect
                     </span>
                   ) : !reportCoords ? (
                     <span className="text-muted-foreground">לא זוהה מיקום מהקישור</span>
-                  ) : suggestion ? (
-                    <div className="flex items-center justify-between gap-2 flex-wrap">
-                      <span className="inline-flex items-center gap-1">
-                        <Sparkles className="h-3 w-3 text-primary" />
-                        <span className="text-muted-foreground">לכאורה:</span>
-                        <strong className="text-foreground">{suggestion.client.name}</strong>
-                        <span className="text-muted-foreground">
-                          (~{suggestion.meters < 1000
-                            ? `${Math.round(suggestion.meters)} מ׳`
-                            : `${(suggestion.meters / 1000).toFixed(2)} ק״מ`})
-                        </span>
-                      </span>
-                      {clientId !== suggestion.client.id && (
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          className="h-7 text-xs"
-                          onClick={() => setClientId(suggestion.client.id)}
-                        >
-                          שייך
-                        </Button>
-                      )}
+                  ) : suggestions.length > 0 ? (
+                    <div className="space-y-1">
+                      {suggestions.slice(0, 3).map((s, i) => (
+                        <div key={s.client.id} className="flex items-center justify-between gap-2 flex-wrap">
+                          <span className="inline-flex items-center gap-1">
+                            <Sparkles className={`h-3 w-3 ${i === 0 ? "text-primary" : "text-muted-foreground"}`} />
+                            <span className="text-muted-foreground">{i === 0 ? "לכאורה:" : "או:"}</span>
+                            <strong className="text-foreground">{s.client.name}</strong>
+                            <span className="text-muted-foreground">
+                              (~{s.meters < 1000
+                                ? `${Math.round(s.meters)} מ׳`
+                                : `${(s.meters / 1000).toFixed(2)} ק״מ`})
+                            </span>
+                          </span>
+                          {clientId !== s.client.id && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-xs"
+                              onClick={() => setClientId(s.client.id)}
+                            >
+                              שייך
+                            </Button>
+                          )}
+                        </div>
+                      ))}
                     </div>
                   ) : (
                     <span className="text-muted-foreground">אין לקוחות עם מיקום מוגדר להשוואה</span>

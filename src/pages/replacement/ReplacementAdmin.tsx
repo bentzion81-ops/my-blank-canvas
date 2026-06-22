@@ -17,7 +17,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { getShareableAppOrigin } from "@/lib/utils";
 import ApprovedEventsTab from "@/components/replacement/ApprovedEventsTab";
 import PlannedEventsTab from "@/components/replacement/PlannedEventsTab";
-import { parseCoordsFromUrl, resolveMapsCoords, findNearestClient } from "@/lib/geo";
+import { parseCoordsFromUrl, resolveMapsCoords, findNearbyClients } from "@/lib/geo";
 import { Sparkles } from "lucide-react";
 
 type Report = {

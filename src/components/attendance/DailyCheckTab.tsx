@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, RefreshCw, ChevronLeft, ChevronRight, Settings } from "lucide-react";
+import { Loader2, RefreshCw, ChevronLeft, ChevronRight, Settings, FileText, Download } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
@@ -759,6 +759,9 @@ function HistoryView({ clients }: { clients: any[] }) {
               </SelectContent>
             </Select>
           </div>
+          <div className="ms-auto">
+            <MonthlyMissingReportDialog clients={clients} month={month} />
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           <Table>
@@ -964,3 +967,168 @@ function ExclusionsDialog({ onChanged }: { onChanged: () => void }) {
     </Dialog>
   );
 }
+
+function MonthlyMissingReportDialog({ clients, month }: { clients: any[]; month: string }) {
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [data, setData] = useState<Array<{ clientId: string; clientName: string; missing: string[]; total: number }>>([]);
+
+  const monthLabel = month;
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const from = `${month}-01`;
+      const d = new Date(`${month}-01`);
+      d.setMonth(d.getMonth() + 1);
+      d.setDate(0);
+      const to = format(d, "yyyy-MM-dd");
+      const today = format(new Date(), "yyyy-MM-dd");
+      const lastDay = parseInt(to.slice(-2), 10);
+
+      const activeClients = (clients || []).filter((c: any) => !c.exclude_from_daily_check);
+
+      const [logsRes, wdRes] = await Promise.all([
+        supabase
+          .from("daily_check_logs" as any)
+          .select("check_date, client_id, status")
+          .gte("check_date", from)
+          .lte("check_date", to)
+          .in("status", ["ok", "no_work"]),
+        supabase
+          .from("client_working_days" as any)
+          .select("client_id, day"),
+      ]);
+
+      const completed = new Set<string>();
+      ((logsRes.data as any[]) || []).forEach((r) => {
+        completed.add(`${r.client_id}::${r.check_date}`);
+      });
+
+      const workingByClient = new Map<string, Set<string>>();
+      ((wdRes.data as any[]) || []).forEach((r: any) => {
+        if (!workingByClient.has(r.client_id)) workingByClient.set(r.client_id, new Set());
+        workingByClient.get(r.client_id)!.add(String(r.day).toLowerCase());
+      });
+
+      const result = activeClients.map((c: any) => {
+        const missing: string[] = [];
+        const wd = workingByClient.get(c.id);
+        for (let day = 1; day <= lastDay; day++) {
+          const ds = `${month}-${String(day).padStart(2, "0")}`;
+          if (ds > today) break;
+          const dow = dayNames[new Date(ds).getDay()];
+          if (wd && wd.size > 0 && !wd.has(dow)) continue;
+          if (!completed.has(`${c.id}::${ds}`)) missing.push(ds);
+        }
+        return { clientId: c.id, clientName: c.name, missing, total: missing.length };
+      });
+
+      result.sort((a, b) => b.total - a.total);
+      setData(result);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (open) load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, month]);
+
+  const totalMissing = data.reduce((s, r) => s + r.total, 0);
+
+  const exportCsv = () => {
+    const lines = [["לקוח", "מספר ימים חסרים", "תאריכים חסרים"].join(",")];
+    data.forEach((r) => {
+      const dates = r.missing.map((d) => format(new Date(d), "dd/MM/yyyy")).join(" | ");
+      const safe = (s: string) => `"${String(s).replace(/"/g, '""')}"`;
+      lines.push([safe(r.clientName), String(r.total), safe(dates)].join(","));
+    });
+    const csv = "\uFEFF" + lines.join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `missing-days-${monthLabel}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const dayName = (ds: string) => ["א'","ב'","ג'","ד'","ה'","ו'","ש'"][new Date(ds).getDay()];
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline">
+          <FileText className="h-4 w-4 mr-1" />
+          דוח ימים חסרים
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-3xl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 flex-wrap">
+            ימים חסרים לכל לקוח — {monthLabel}
+            <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/20">
+              סה״כ {totalMissing}
+            </Badge>
+          </DialogTitle>
+        </DialogHeader>
+        <div className="flex justify-end">
+          <Button size="sm" variant="outline" onClick={exportCsv} disabled={loading || data.length === 0}>
+            <Download className="h-4 w-4 mr-1" />
+            ייצוא CSV
+          </Button>
+        </div>
+        <ScrollArea className="h-[480px] pr-2">
+          {loading ? (
+            <div className="text-sm text-muted-foreground py-6 text-center">טוען…</div>
+          ) : data.length === 0 ? (
+            <div className="text-sm text-muted-foreground py-6 text-center">אין לקוחות</div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>לקוח</TableHead>
+                  <TableHead className="w-20 text-center">חסרים</TableHead>
+                  <TableHead>תאריכים</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {data.map((r) => (
+                  <TableRow key={r.clientId}>
+                    <TableCell className="font-medium text-sm">{r.clientName}</TableCell>
+                    <TableCell className="text-center">
+                      {r.total === 0 ? (
+                        <Badge variant="outline" className="bg-success/10 text-success border-success/20">0</Badge>
+                      ) : (
+                        <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/20">{r.total}</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {r.missing.length === 0 ? (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      ) : (
+                        <div className="flex flex-wrap gap-1">
+                          {r.missing.map((ds) => (
+                            <Badge key={ds} variant="outline" className="bg-destructive/10 text-destructive border-destructive/20 text-xs">
+                              {dayName(ds)} {format(new Date(ds), "dd/MM")}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </ScrollArea>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setOpen(false)}>סגור</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+

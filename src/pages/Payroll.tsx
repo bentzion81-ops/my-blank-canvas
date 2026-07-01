@@ -53,13 +53,26 @@ const Payroll = () => {
   const { data: logs = [], isLoading } = useQuery({
     queryKey: ["payroll-work-logs", fromStr, toStr],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("work_logs_unified" as any)
-        .select("employee_id, client_id, client_name, custom_workplace, source, hours_worked, payment_amount, status, work_date")
-        .gte("work_date", fromStr)
-        .lte("work_date", toStr);
-      if (error) throw error;
-      return (data as any[]) || [];
+      const PAGE = 1000;
+      let all: any[] = [];
+      let from = 0;
+      // Paginate to bypass PostgREST's default 1000-row cap
+      // (a single month can easily exceed it across all employees).
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        const { data, error } = await supabase
+          .from("work_logs_unified" as any)
+          .select("employee_id, client_id, client_name, custom_workplace, source, hours_worked, payment_amount, status, work_date")
+          .gte("work_date", fromStr)
+          .lte("work_date", toStr)
+          .range(from, from + PAGE - 1);
+        if (error) throw error;
+        const chunk = (data as any[]) || [];
+        all = all.concat(chunk);
+        if (chunk.length < PAGE) break;
+        from += PAGE;
+      }
+      return all;
     },
   });
 

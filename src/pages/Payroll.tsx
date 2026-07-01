@@ -562,7 +562,20 @@ const Payroll = () => {
                           {!r.isPrimary && <span className="ml-2 text-[10px] text-muted-foreground">(also at {base.primarySiteName})</span>}
                         </TableCell>
                         <TableCell className="text-muted-foreground tabular-nums">{r.emp.passport_number || "—"}</TableCell>
-                        <TableCell className="text-right tabular-nums">{r.hoursAtSite.toFixed(1)}h</TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {r.isPrimary ? (
+                            <>
+                              {base.totalHours.toFixed(1)}h
+                              {base.sites.length > 1 && (
+                                <div className="text-[10px] text-muted-foreground font-normal">
+                                  ({r.hoursAtSite.toFixed(1)}h here)
+                                </div>
+                              )}
+                            </>
+                          ) : (
+                            <span className="text-muted-foreground">{r.hoursAtSite.toFixed(1)}h</span>
+                          )}
+                        </TableCell>
                         <TableCell className="text-right tabular-nums font-semibold">
                           {r.isPrimary ? fmt(base.totalDue) : <span className="text-muted-foreground">{fmt(r.grossAtSite)}</span>}
                         </TableCell>

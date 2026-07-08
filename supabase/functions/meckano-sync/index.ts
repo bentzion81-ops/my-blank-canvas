@@ -543,9 +543,17 @@ async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userI
       });
     }
 
-    const rowKey = (r: any) => `${r.employee_id}|${r.date}|${r.check_in ? new Date(r.check_in).toISOString() : "null"}`;
+    // Dedupe key: one Meckano row per employee per date. If Meckano returns
+    // multiple shifts for the same day (or an edit changed the check_in), we
+    // pick the shift with the most hours so manual edits don't create dupes.
+    const rowKey = (r: any) => `${r.employee_id}|${r.date}`;
     const uniqueRowsByKey = new Map<string, any>();
-    for (const row of toInsert) uniqueRowsByKey.set(rowKey(row), row);
+    for (const row of toInsert) {
+      const existing = uniqueRowsByKey.get(rowKey(row));
+      if (!existing || (row.hours_worked ?? 0) > (existing.hours_worked ?? 0)) {
+        uniqueRowsByKey.set(rowKey(row), row);
+      }
+    }
     const rowsToPersist = Array.from(uniqueRowsByKey.values());
 
     let existingRows: any[] = [];
@@ -568,6 +576,7 @@ async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userI
       const { error } = await admin.from("attendance_records")
         .update({
           client_id: row.client_id,
+          check_in: row.check_in,
           check_out: row.check_out,
           hours_worked: row.hours_worked,
           batch_id: row.batch_id,
@@ -583,7 +592,10 @@ async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userI
       const chunkSize = 500;
       for (let i = 0; i < newRows.length; i += chunkSize) {
         const chunk = newRows.slice(i, i + chunkSize);
-        const { data, error } = await admin.from("attendance_records").insert(chunk).select("id");
+        const { data, error } = await admin
+          .from("attendance_records")
+          .upsert(chunk, { onConflict: "employee_id,date", ignoreDuplicates: false })
+          .select("id");
         if (error) throw error;
         stored += data?.length ?? 0;
       }

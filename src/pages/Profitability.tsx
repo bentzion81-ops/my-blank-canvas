@@ -169,12 +169,15 @@ const Profitability = () => {
         const h = Number(l.hours_worked || 0);
         const emp = l.employee_id ? empMap.get(l.employee_id) : null;
         const reportedPay = Number(l.payment_amount || 0);
-        if (reportedPay > 0) {
+        const directRate = l.employee_id && l.client_id ? rateMap.get(`${l.employee_id}|${l.client_id}`) : undefined;
+        const fallbackRate = l.employee_id ? employeeFallbackRate.get(l.employee_id) : undefined;
+        const overrideRate = directRate ?? fallbackRate;
+        if (overrideRate != null) {
+          employeeCost += h * overrideRate;
+        } else if (reportedPay > 0) {
           employeeCost += reportedPay;
         } else {
-          const rate = (l.employee_id && l.client_id ? rateMap.get(`${l.employee_id}|${l.client_id}`) : undefined)
-            ?? Number(emp?.hourly_wage || 0);
-          employeeCost += h * rate;
+          employeeCost += h * Number(emp?.hourly_wage || 0);
         }
         if (l.employee_id) {
           empHoursAtClient.set(l.employee_id, (empHoursAtClient.get(l.employee_id) || 0) + h);

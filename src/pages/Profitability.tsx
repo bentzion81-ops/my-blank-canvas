@@ -54,7 +54,7 @@ const Profitability = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("employee_client_assignments")
-        .select("employee_id, client_id, employee_hourly_wage, end_date");
+        .select("employee_id, client_id, employee_hourly_wage, end_date, is_primary, start_date");
       if (error) throw error;
       return data || [];
     },
@@ -98,9 +98,24 @@ const Profitability = () => {
   const rateMap = useMemo(() => {
     const m = new Map<string, number>();
     for (const a of assignments as any[]) {
-      if (a.employee_hourly_wage != null && !a.end_date) {
+      if (a.employee_hourly_wage != null) {
         m.set(`${a.employee_id}|${a.client_id}`, Number(a.employee_hourly_wage));
       }
+    }
+    return m;
+  }, [assignments]);
+
+  // Fallback: any assignment rate for the employee (primary preferred, latest start)
+  const employeeFallbackRate = useMemo(() => {
+    const m = new Map<string, number>();
+    const sorted = [...(assignments as any[])]
+      .filter((a) => a.employee_hourly_wage != null)
+      .sort((a, b) => {
+        if (a.is_primary !== b.is_primary) return a.is_primary ? -1 : 1;
+        return (b.start_date || "").localeCompare(a.start_date || "");
+      });
+    for (const a of sorted) {
+      if (!m.has(a.employee_id)) m.set(a.employee_id, Number(a.employee_hourly_wage));
     }
     return m;
   }, [assignments]);
@@ -154,12 +169,15 @@ const Profitability = () => {
         const h = Number(l.hours_worked || 0);
         const emp = l.employee_id ? empMap.get(l.employee_id) : null;
         const reportedPay = Number(l.payment_amount || 0);
-        if (reportedPay > 0) {
+        const directRate = l.employee_id && l.client_id ? rateMap.get(`${l.employee_id}|${l.client_id}`) : undefined;
+        const fallbackRate = l.employee_id ? employeeFallbackRate.get(l.employee_id) : undefined;
+        const overrideRate = directRate ?? fallbackRate;
+        if (overrideRate != null) {
+          employeeCost += h * overrideRate;
+        } else if (reportedPay > 0) {
           employeeCost += reportedPay;
         } else {
-          const rate = (l.employee_id && l.client_id ? rateMap.get(`${l.employee_id}|${l.client_id}`) : undefined)
-            ?? Number(emp?.hourly_wage || 0);
-          employeeCost += h * rate;
+          employeeCost += h * Number(emp?.hourly_wage || 0);
         }
         if (l.employee_id) {
           empHoursAtClient.set(l.employee_id, (empHoursAtClient.get(l.employee_id) || 0) + h);
@@ -203,7 +221,7 @@ const Profitability = () => {
         totalCost, profit, margin,
       };
     });
-  }, [clients, workLogs, charges, rateMap, empMap, employeeAssignedClient]);
+  }, [clients, workLogs, charges, rateMap, employeeFallbackRate, empMap, employeeAssignedClient]);
 
   const totals = useMemo(() => {
     const revenue = rows.reduce((s, r) => s + r.revenue, 0);

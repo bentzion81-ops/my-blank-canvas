@@ -98,9 +98,24 @@ const Profitability = () => {
   const rateMap = useMemo(() => {
     const m = new Map<string, number>();
     for (const a of assignments as any[]) {
-      if (a.employee_hourly_wage != null && !a.end_date) {
+      if (a.employee_hourly_wage != null) {
         m.set(`${a.employee_id}|${a.client_id}`, Number(a.employee_hourly_wage));
       }
+    }
+    return m;
+  }, [assignments]);
+
+  // Fallback: any assignment rate for the employee (primary preferred, latest start)
+  const employeeFallbackRate = useMemo(() => {
+    const m = new Map<string, number>();
+    const sorted = [...(assignments as any[])]
+      .filter((a) => a.employee_hourly_wage != null)
+      .sort((a, b) => {
+        if (a.is_primary !== b.is_primary) return a.is_primary ? -1 : 1;
+        return (b.start_date || "").localeCompare(a.start_date || "");
+      });
+    for (const a of sorted) {
+      if (!m.has(a.employee_id)) m.set(a.employee_id, Number(a.employee_hourly_wage));
     }
     return m;
   }, [assignments]);

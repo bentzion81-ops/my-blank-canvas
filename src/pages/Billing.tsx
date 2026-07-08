@@ -53,13 +53,26 @@ const Billing = () => {
   const { data: workLogs = [] } = useQuery({
     queryKey: ["billing-work-logs", fromStr, toStr],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("work_logs_unified" as any)
-        .select("employee_id, client_id, hours_worked, status")
-        .gte("work_date", fromStr)
-        .lte("work_date", toStr);
-      if (error) throw error;
-      return (data as any[]) || [];
+      const PAGE = 1000;
+      let all: any[] = [];
+      let from = 0;
+      // Paginate to bypass PostgREST's default 1000-row cap so hours totals
+      // match Payroll (which also paginates over the same dataset).
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        const { data, error } = await supabase
+          .from("work_logs_unified" as any)
+          .select("employee_id, client_id, hours_worked, status")
+          .gte("work_date", fromStr)
+          .lte("work_date", toStr)
+          .range(from, from + PAGE - 1);
+        if (error) throw error;
+        const chunk = (data as any[]) || [];
+        all = all.concat(chunk);
+        if (chunk.length < PAGE) break;
+        from += PAGE;
+      }
+      return all;
     },
   });
 

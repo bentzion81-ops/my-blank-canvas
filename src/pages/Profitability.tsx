@@ -63,13 +63,23 @@ const Profitability = () => {
   const { data: workLogs = [], isLoading: loadingLogs } = useQuery({
     queryKey: ["profit-logs", fromStr, toStr],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("work_logs_unified" as any)
-        .select("client_id, employee_id, hours_worked, payment_amount, status")
-        .gte("work_date", fromStr)
-        .lte("work_date", toStr);
-      if (error) throw error;
-      return (data as any[]) || [];
+      const pageSize = 1000;
+      let from = 0;
+      const all: any[] = [];
+      while (true) {
+        const { data, error } = await supabase
+          .from("work_logs_unified" as any)
+          .select("client_id, employee_id, hours_worked, payment_amount, status")
+          .gte("work_date", fromStr)
+          .lte("work_date", toStr)
+          .range(from, from + pageSize - 1);
+        if (error) throw error;
+        const chunk = (data as any[]) || [];
+        all.push(...chunk);
+        if (chunk.length < pageSize) break;
+        from += pageSize;
+      }
+      return all;
     },
   });
 

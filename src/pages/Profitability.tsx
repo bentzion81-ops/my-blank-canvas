@@ -54,7 +54,7 @@ const Profitability = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("employee_client_assignments")
-        .select("employee_id, client_id, employee_hourly_wage, end_date");
+        .select("employee_id, client_id, employee_hourly_wage, end_date, is_primary, start_date");
       if (error) throw error;
       return data || [];
     },

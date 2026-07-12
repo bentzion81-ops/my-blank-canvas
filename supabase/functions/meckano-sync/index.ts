@@ -382,34 +382,25 @@ async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userI
       }));
     if (rawRows.length) {
       const reportIds = rawRows.map((row) => row.meckano_report_id);
-      const { data: existingRawRows, error: existingRawError } = await admin
-        .from("meckano_attendance_raw")
-        .select("id, meckano_report_id")
-        .in("meckano_report_id", reportIds);
-      if (existingRawError) throw existingRawError;
+      const existingRawRows: any[] = [];
+      const lookupChunkSize = 300;
+      for (let i = 0; i < reportIds.length; i += lookupChunkSize) {
+        const { data, error } = await admin
+          .from("meckano_attendance_raw")
+          .select("id, meckano_report_id")
+          .in("meckano_report_id", reportIds.slice(i, i + lookupChunkSize));
+        if (error) throw error;
+        existingRawRows.push(...(data ?? []));
+      }
 
       const existingRawByReportId = new Map(
-        (existingRawRows ?? []).map((row: any) => [String(row.meckano_report_id), row.id]),
+        existingRawRows.map((row: any) => [String(row.meckano_report_id), row.id]),
       );
       const rawRowsToInsert: any[] = [];
 
       for (const row of rawRows) {
         const existingId = existingRawByReportId.get(row.meckano_report_id);
-        if (existingId) {
-          const { error } = await admin
-            .from("meckano_attendance_raw")
-            .update({
-              meckano_employee_id: row.meckano_employee_id,
-              event_timestamp: row.event_timestamp,
-              event_type: row.event_type,
-              latitude: row.latitude,
-              longitude: row.longitude,
-              address: row.address,
-              raw_payload: row.raw_payload,
-            })
-            .eq("id", existingId);
-          if (error) throw error;
-        } else {
+        if (!existingId) {
           rawRowsToInsert.push(row);
         }
       }
@@ -600,7 +591,7 @@ async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userI
     let existingRows: any[] = [];
     if (matchedEmpIds.length) {
       const { data, error } = await admin.from("attendance_records")
-        .select("id, employee_id, date, check_in")
+        .select("id, employee_id, client_id, date, check_in, check_out, hours_worked, notes")
         .in("employee_id", matchedEmpIds)
         .gte("date", dFrom)
         .lte("date", dTo)
@@ -608,12 +599,20 @@ async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userI
       if (error) throw error;
       existingRows = data ?? [];
     }
-    const existingByKey = new Map(existingRows.map((r: any) => [rowKey(r), r.id]));
+    const existingByKey = new Map(existingRows.map((r: any) => [rowKey(r), r]));
     const incomingKeys = new Set(rowsToPersist.map(rowKey));
 
     for (const row of rowsToPersist) {
-      const existingId = existingByKey.get(rowKey(row));
-      if (!existingId) continue;
+      const existing = existingByKey.get(rowKey(row));
+      if (!existing) continue;
+      const sameClient = (existing.client_id ?? null) === (row.client_id ?? null);
+      const sameCheckIn = new Date(existing.check_in).toISOString() === row.check_in;
+      const sameCheckOut = existing.check_out === row.check_out || (
+        existing.check_out && row.check_out && new Date(existing.check_out).toISOString() === row.check_out
+      );
+      const sameHours = Number(existing.hours_worked ?? 0) === Number(row.hours_worked ?? 0);
+      const sameNotes = (existing.notes ?? null) === (row.notes ?? null);
+      if (sameClient && sameCheckIn && sameCheckOut && sameHours && sameNotes) continue;
       const { error } = await admin.from("attendance_records")
         .update({
           client_id: row.client_id,
@@ -623,7 +622,7 @@ async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userI
           batch_id: row.batch_id,
           notes: row.notes,
         })
-        .eq("id", existingId);
+        .eq("id", existing.id);
       if (error) throw error;
       updated++;
     }

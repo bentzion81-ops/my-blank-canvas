@@ -594,7 +594,7 @@ async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userI
         const chunk = newRows.slice(i, i + chunkSize);
         const { data, error } = await admin
           .from("attendance_records")
-          .upsert(chunk, { onConflict: "employee_id,date", ignoreDuplicates: false })
+          .insert(chunk)
           .select("id");
         if (error) throw error;
         stored += data?.length ?? 0;

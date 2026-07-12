@@ -381,7 +381,48 @@ async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userI
         raw_payload: e,
       }));
     if (rawRows.length) {
-      await admin.from("meckano_attendance_raw").upsert(rawRows, { onConflict: "meckano_report_id" });
+      const reportIds = rawRows.map((row) => row.meckano_report_id);
+      const { data: existingRawRows, error: existingRawError } = await admin
+        .from("meckano_attendance_raw")
+        .select("id, meckano_report_id")
+        .in("meckano_report_id", reportIds);
+      if (existingRawError) throw existingRawError;
+
+      const existingRawByReportId = new Map(
+        (existingRawRows ?? []).map((row: any) => [String(row.meckano_report_id), row.id]),
+      );
+      const rawRowsToInsert: any[] = [];
+
+      for (const row of rawRows) {
+        const existingId = existingRawByReportId.get(row.meckano_report_id);
+        if (existingId) {
+          const { error } = await admin
+            .from("meckano_attendance_raw")
+            .update({
+              meckano_employee_id: row.meckano_employee_id,
+              event_timestamp: row.event_timestamp,
+              event_type: row.event_type,
+              latitude: row.latitude,
+              longitude: row.longitude,
+              address: row.address,
+              raw_payload: row.raw_payload,
+            })
+            .eq("id", existingId);
+          if (error) throw error;
+        } else {
+          rawRowsToInsert.push(row);
+        }
+      }
+
+      if (rawRowsToInsert.length) {
+        const chunkSize = 500;
+        for (let i = 0; i < rawRowsToInsert.length; i += chunkSize) {
+          const { error } = await admin
+            .from("meckano_attendance_raw")
+            .insert(rawRowsToInsert.slice(i, i + chunkSize));
+          if (error) throw error;
+        }
+      }
     }
 
     // Group punches by employee (ALL days together) so we can pair shifts that

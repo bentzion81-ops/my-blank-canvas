@@ -143,8 +143,8 @@ async function syncDepartments(isCron: boolean, userId: string | null) {
     });
     return { ok: true, used_path: usedPath, total: list.length, created, skipped };
   } catch (e) {
-    await endLog(logId, { status: "error", error_message: String(e) });
-    return { ok: false, error: String(e) };
+    await endLog(logId, { status: "error", error_message: (e instanceof Error ? e.message : (e && typeof e === "object" ? JSON.stringify(e) : String(e))) });
+    return { ok: false, error: (e instanceof Error ? e.message : (e && typeof e === "object" ? JSON.stringify(e) : String(e))) };
   }
 }
 
@@ -289,8 +289,8 @@ async function syncEmployees(isCron: boolean, userId: string | null) {
     });
     return { ok: true, fetched: list.length, created, updated, links_created: linksCreated, links_skipped: linksSkipped };
   } catch (e) {
-    await endLog(logId, { status: "error", error_message: String(e) });
-    return { ok: false, error: String(e) };
+    await endLog(logId, { status: "error", error_message: (e instanceof Error ? e.message : (e && typeof e === "object" ? JSON.stringify(e) : String(e))) });
+    return { ok: false, error: (e instanceof Error ? e.message : (e && typeof e === "object" ? JSON.stringify(e) : String(e))) };
   }
 }
 
@@ -620,8 +620,8 @@ async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userI
     });
     return { ok: true, raw_events: entries.length, shifts: shifts.length, stored, updated, retained_missing: retainedMissing, unmatched, skipped_not_synced: skippedNotSynced };
   } catch (e) {
-    await endLog(logId, { status: "error", error_message: String(e) });
-    return { ok: false, error: String(e) };
+    await endLog(logId, { status: "error", error_message: (e instanceof Error ? e.message : (e && typeof e === "object" ? JSON.stringify(e) : String(e))) });
+    return { ok: false, error: (e instanceof Error ? e.message : (e && typeof e === "object" ? JSON.stringify(e) : String(e))) };
   }
 }
 
@@ -679,7 +679,7 @@ Deno.serve(async (req) => {
               : r.data,
         };
       } catch (e) {
-        results[`REST ${p}`] = { error: String(e) };
+        results[`REST ${p}`] = { error: (e instanceof Error ? e.message : (e && typeof e === "object" ? JSON.stringify(e) : String(e))) };
       }
     }
     for (const p of restPutProbes) {
@@ -695,7 +695,7 @@ Deno.serve(async (req) => {
               : { keys: Object.keys(r.data ?? {}), first: Array.isArray((r.data as any)?.data) ? (r.data as any).data[0] : (r.data as any)?.data },
         };
       } catch (e) {
-        results[`REST PUT ${p.path}`] = { error: String(e) };
+        results[`REST PUT ${p.path}`] = { error: (e instanceof Error ? e.message : (e && typeof e === "object" ? JSON.stringify(e) : String(e))) };
       }
     }
     // Also probe documented API
@@ -716,7 +716,7 @@ Deno.serve(async (req) => {
             sample: typeof r.data === "string" ? r.data.slice(0, 300) : r.data,
           };
         } catch (e) {
-          results[`API ${a.method} ${a.path}`] = { error: String(e) };
+          results[`API ${a.method} ${a.path}`] = { error: (e instanceof Error ? e.message : (e && typeof e === "object" ? JSON.stringify(e) : String(e))) };
         }
       }
     } else {

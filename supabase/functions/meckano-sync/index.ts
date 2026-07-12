@@ -382,14 +382,19 @@ async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userI
       }));
     if (rawRows.length) {
       const reportIds = rawRows.map((row) => row.meckano_report_id);
-      const { data: existingRawRows, error: existingRawError } = await admin
-        .from("meckano_attendance_raw")
-        .select("id, meckano_report_id")
-        .in("meckano_report_id", reportIds);
-      if (existingRawError) throw existingRawError;
+      const existingRawRows: any[] = [];
+      const lookupChunkSize = 300;
+      for (let i = 0; i < reportIds.length; i += lookupChunkSize) {
+        const { data, error } = await admin
+          .from("meckano_attendance_raw")
+          .select("id, meckano_report_id")
+          .in("meckano_report_id", reportIds.slice(i, i + lookupChunkSize));
+        if (error) throw error;
+        existingRawRows.push(...(data ?? []));
+      }
 
       const existingRawByReportId = new Map(
-        (existingRawRows ?? []).map((row: any) => [String(row.meckano_report_id), row.id]),
+        existingRawRows.map((row: any) => [String(row.meckano_report_id), row.id]),
       );
       const rawRowsToInsert: any[] = [];
 

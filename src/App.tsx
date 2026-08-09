@@ -18,6 +18,7 @@ import ClientProfile from "./pages/ClientProfile";
 import Billing from "./pages/Billing";
 import Payroll from "./pages/Payroll";
 import Profitability from "./pages/Profitability";
+import Partners from "./pages/Partners";
 import Reports from "./pages/Reports";
 import Documents from "./pages/Documents";
 import UserManagement from "./pages/UserManagement";

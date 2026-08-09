@@ -1235,6 +1235,87 @@ export type Database = {
         }
         Relationships: []
       }
+      partner_clients: {
+        Row: {
+          client_id: string
+          commission_type: string
+          commission_value: number
+          created_at: string
+          id: string
+          notes: string | null
+          partner_id: string
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          commission_type?: string
+          commission_value?: number
+          created_at?: string
+          id?: string
+          notes?: string | null
+          partner_id: string
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          commission_type?: string
+          commission_value?: number
+          created_at?: string
+          id?: string
+          notes?: string | null
+          partner_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "partner_clients_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "partner_clients_partner_id_fkey"
+            columns: ["partner_id"]
+            isOneToOne: false
+            referencedRelation: "partners"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      partners: {
+        Row: {
+          created_at: string
+          email: string | null
+          id: string
+          is_active: boolean
+          name: string
+          notes: string | null
+          phone: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          notes?: string | null
+          phone?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          notes?: string | null
+          phone?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       payroll_adjustments: {
         Row: {
           amount: number

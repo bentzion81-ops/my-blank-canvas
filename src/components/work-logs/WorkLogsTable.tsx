@@ -210,6 +210,13 @@ export function WorkLogsTable({ scope = "global", employeeId, clientId, defaultR
     });
   }, [logs, search, empFilter, clientFilter, sourceFilter, statusFilter]);
 
+  const totalHoursFiltered = useMemo(
+    () => filtered.reduce((s, l) => s + Number(l.hours_worked || 0), 0),
+    [filtered],
+  );
+
+
+
   async function approveReport(id: string) {
     const { error } = await supabase
       .from("replacement_reports")

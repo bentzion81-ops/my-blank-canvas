@@ -126,18 +126,29 @@ export function WorkLogsTable({ scope = "global", employeeId, clientId, defaultR
     queryKey: ["work-logs-unified", fromStr, toStr, employeeId, clientId],
     queryFn: async () => {
       if (!fromStr || !toStr) return [];
-      let q = supabase
-        .from("work_logs_unified" as any)
-        .select("*")
-        .gte("work_date", fromStr)
-        .lte("work_date", toStr)
-        .order("work_date", { ascending: false });
-      if (employeeId) q = q.eq("employee_id", employeeId);
-      if (clientId) q = q.eq("client_id", clientId);
-      const { data, error } = await q;
-      if (error) throw error;
-      return (data || []) as unknown as WorkLog[];
+      const pageSize = 1000;
+      let start = 0;
+      const all: any[] = [];
+      while (true) {
+        let q = supabase
+          .from("work_logs_unified" as any)
+          .select("*")
+          .gte("work_date", fromStr)
+          .lte("work_date", toStr)
+          .order("work_date", { ascending: false })
+          .range(start, start + pageSize - 1);
+        if (employeeId) q = q.eq("employee_id", employeeId);
+        if (clientId) q = q.eq("client_id", clientId);
+        const { data, error } = await q;
+        if (error) throw error;
+        const chunk = (data as any[]) || [];
+        all.push(...chunk);
+        if (chunk.length < pageSize) break;
+        start += pageSize;
+      }
+      return all as unknown as WorkLog[];
     },
+
     enabled: !!fromStr && !!toStr,
   });
 
@@ -198,6 +209,13 @@ export function WorkLogsTable({ scope = "global", employeeId, clientId, defaultR
       return true;
     });
   }, [logs, search, empFilter, clientFilter, sourceFilter, statusFilter]);
+
+  const totalHoursFiltered = useMemo(
+    () => filtered.reduce((s, l) => s + Number(l.hours_worked || 0), 0),
+    [filtered],
+  );
+
+
 
   async function approveReport(id: string) {
     const { error } = await supabase
@@ -284,7 +302,13 @@ export function WorkLogsTable({ scope = "global", employeeId, clientId, defaultR
         <CardHeader className="pb-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <CardTitle className="text-base">Work Logs</CardTitle>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="rounded-md border bg-muted/40 px-3 py-1.5 text-sm">
+                <span className="text-muted-foreground">Total hours </span>
+                <span className="font-semibold tabular-nums">{totalHoursFiltered.toFixed(2)}</span>
+                <span className="text-muted-foreground"> · {filtered.length} entries</span>
+              </div>
+
               <Button size="sm" variant="outline" onClick={handlePrint}>
                 <Printer className="h-4 w-4 mr-1" /> Print
               </Button>

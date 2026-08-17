@@ -302,7 +302,13 @@ export function WorkLogsTable({ scope = "global", employeeId, clientId, defaultR
         <CardHeader className="pb-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <CardTitle className="text-base">Work Logs</CardTitle>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="rounded-md border bg-muted/40 px-3 py-1.5 text-sm">
+                <span className="text-muted-foreground">Total hours </span>
+                <span className="font-semibold tabular-nums">{totalHoursFiltered.toFixed(2)}</span>
+                <span className="text-muted-foreground"> · {filtered.length} entries</span>
+              </div>
+
               <Button size="sm" variant="outline" onClick={handlePrint}>
                 <Printer className="h-4 w-4 mr-1" /> Print
               </Button>

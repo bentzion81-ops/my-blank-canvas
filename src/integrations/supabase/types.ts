@@ -2163,6 +2163,7 @@ export type Database = {
         Args: { _month: string }
         Returns: undefined
       }
+      restore_deleted_row: { Args: { _snapshot_id: string }; Returns: string }
     }
     Enums: {
       absence_status:

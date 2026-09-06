@@ -182,55 +182,67 @@ const CashFlow = () => {
       amount: number;
       kind: string;
       isPaid: boolean;
+      paidAmount: number | null;
       notes: string | null;
     }[] = [];
 
     for (const it of items as any[]) {
       if (it.is_active === false) continue;
+      const multi = Number(it.installments_count || 1) > 1;
+      const itemInst = (installments as any[]).filter((i) => i.item_id === it.id);
+      const monthInst = itemInst.find((i) => i.due_month === month);
+
       if (it.recurrence === "monthly") {
         const startsOk = !it.start_month || it.start_month <= month;
         const endsOk = !it.end_month || it.end_month >= month;
         if (startsOk && endsOk) {
           rows.push({
             id: it.id,
+            installmentId: monthInst?.id,
             direction: it.direction,
             name: it.name,
             category: it.category,
             amount: Number(it.amount || 0),
             kind: it.direction === "income" ? "הכנסה קבועה" : "הוצאה קבועה",
-            isPaid: false,
+            isPaid: !!monthInst?.is_paid,
+            paidAmount: monthInst?.paid_amount != null ? Number(monthInst.paid_amount) : null,
             notes: it.notes,
           });
         }
         continue;
       }
-      const itemInst = (installments as any[]).filter((i) => i.item_id === it.id);
-      if (itemInst.length > 0) {
-        for (const inst of itemInst.filter((i) => i.due_month === month)) {
-          const idx = itemInst.findIndex((i) => i.id === inst.id) + 1;
+
+      if (multi && itemInst.length > 0) {
+        const sorted = [...itemInst].sort((a, b) => (a.due_month < b.due_month ? -1 : 1));
+        for (const inst of sorted.filter((i) => i.due_month === month)) {
+          const idx = sorted.findIndex((i) => i.id === inst.id) + 1;
           rows.push({
             id: it.id,
             installmentId: inst.id,
             direction: it.direction,
-            name: `${it.name} (תשלום ${idx}/${itemInst.length})`,
+            name: `${it.name} (תשלום ${idx}/${sorted.length})`,
             category: it.category,
             amount: Number(inst.amount || 0),
             kind: it.direction === "income" ? "הכנסה בתשלומים" : "הוצאה בתשלומים",
             isPaid: !!inst.is_paid,
+            paidAmount: inst.paid_amount != null ? Number(inst.paid_amount) : null,
             notes: inst.notes || it.notes,
           });
         }
         continue;
       }
+
       if (it.due_month === month) {
         rows.push({
           id: it.id,
+          installmentId: monthInst?.id,
           direction: it.direction,
           name: it.name,
           category: it.category,
           amount: Number(it.amount || 0),
           kind: it.direction === "income" ? "הכנסה חד פעמית" : "הוצאה חד פעמית",
-          isPaid: false,
+          isPaid: !!monthInst?.is_paid,
+          paidAmount: monthInst?.paid_amount != null ? Number(monthInst.paid_amount) : null,
           notes: it.notes,
         });
       }
@@ -238,8 +250,12 @@ const CashFlow = () => {
     return rows;
   }, [items, installments, month]);
 
-  const otherIncome = monthItems.filter((r) => r.direction === "income").reduce((s, r) => s + r.amount, 0);
-  const otherExpenses = monthItems.filter((r) => r.direction === "expense").reduce((s, r) => s + r.amount, 0);
+  // Actual settled amount wins over the planned amount
+  const effective = (r: { isPaid: boolean; paidAmount: number | null; amount: number }) =>
+    r.isPaid && r.paidAmount != null ? r.paidAmount : r.amount;
+
+  const otherIncome = monthItems.filter((r) => r.direction === "income").reduce((s, r) => s + effective(r), 0);
+  const otherExpenses = monthItems.filter((r) => r.direction === "expense").reduce((s, r) => s + effective(r), 0);
 
   const totalIn = clientIncome.totalDue + otherIncome;
   const totalOut = payrollExpected + vatPayable + otherExpenses;
@@ -345,14 +361,30 @@ const CashFlow = () => {
     qc.invalidateQueries({ queryKey: ["cashflow-installments"] });
   };
 
-  const togglePaid = async (installmentId: string, isPaid: boolean) => {
-    const { error } = await supabase
-      .from("cash_flow_installments" as any)
-      .update({ is_paid: isPaid, paid_date: isPaid ? format(new Date(), "yyyy-MM-dd") : null })
-      .eq("id", installmentId);
+  // Mark a row as actually settled (came in / went out) with the real amount
+  const settle = async (
+    row: { id: string; installmentId?: string; amount: number; paidAmount: number | null },
+    isPaid: boolean,
+    actual?: number | null,
+  ) => {
+    const paidAmount = isPaid ? (actual ?? row.paidAmount ?? row.amount) : null;
+    const payload = {
+      is_paid: isPaid,
+      paid_amount: paidAmount,
+      paid_date: isPaid ? format(new Date(), "yyyy-MM-dd") : null,
+    };
+    const { error } = row.installmentId
+      ? await supabase.from("cash_flow_installments" as any).update(payload).eq("id", row.installmentId)
+      : await supabase.from("cash_flow_installments" as any).insert({
+          item_id: row.id,
+          due_month: month,
+          amount: row.amount,
+          ...payload,
+        });
     if (error) return toast.error(error.message);
     qc.invalidateQueries({ queryKey: ["cashflow-installments"] });
   };
+
 
   return (
     <div className="flex flex-col">
@@ -457,8 +489,9 @@ const CashFlow = () => {
                     <TableHead>שם</TableHead>
                     <TableHead>סוג</TableHead>
                     <TableHead>קטגוריה</TableHead>
-                    <TableHead className="text-end">סכום</TableHead>
-                    <TableHead>שולם</TableHead>
+                    <TableHead className="text-end">סכום מתוכנן</TableHead>
+                    <TableHead>בוצע</TableHead>
+                    <TableHead className="text-end">סכום בפועל</TableHead>
                     <TableHead />
                   </TableRow>
                 </TableHeader>
@@ -474,11 +507,28 @@ const CashFlow = () => {
                       <TableCell className="text-muted-foreground">{r.category || "—"}</TableCell>
                       <TableCell className={`text-end tabular-nums ${r.direction === "income" ? "text-success" : "text-destructive"}`}>{fmt(r.amount)}</TableCell>
                       <TableCell>
-                        {r.installmentId ? (
-                          <Checkbox checked={r.isPaid} onCheckedChange={(v) => togglePaid(r.installmentId!, !!v)} />
-                        ) : (
-                          <span className="text-muted-foreground text-xs">—</span>
-                        )}
+                        <div className="flex items-center gap-2">
+                          <Checkbox checked={r.isPaid} onCheckedChange={(v) => settle(r, !!v)} />
+                          <span className="text-xs text-muted-foreground">
+                            {r.isPaid ? (r.direction === "income" ? "נכנס" : "יצא") : "ממתין"}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-end">
+                        <Input
+                          type="number"
+                          step="0.01"
+                          className="h-8 w-28 text-end tabular-nums ms-auto"
+                          placeholder={String(r.amount)}
+                          defaultValue={r.paidAmount ?? ""}
+                          key={`${r.installmentId || r.id}-${r.paidAmount ?? "empty"}`}
+                          onBlur={(e) => {
+                            const v = e.target.value.trim();
+                            const num = v === "" ? null : Number(v);
+                            if (num === (r.paidAmount ?? null)) return;
+                            settle(r, true, num);
+                          }}
+                        />
                       </TableCell>
                       <TableCell className="text-end">
                         <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => remove(r.id)}>

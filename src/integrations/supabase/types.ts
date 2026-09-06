@@ -201,33 +201,39 @@ export type Database = {
         Row: {
           amount: number
           created_at: string
+          direction: string | null
           due_month: string
           id: string
           is_paid: boolean
           item_id: string
           notes: string | null
+          paid_amount: number | null
           paid_date: string | null
           updated_at: string
         }
         Insert: {
           amount?: number
           created_at?: string
+          direction?: string | null
           due_month: string
           id?: string
           is_paid?: boolean
           item_id: string
           notes?: string | null
+          paid_amount?: number | null
           paid_date?: string | null
           updated_at?: string
         }
         Update: {
           amount?: number
           created_at?: string
+          direction?: string | null
           due_month?: string
           id?: string
           is_paid?: boolean
           item_id?: string
           notes?: string | null
+          paid_amount?: number | null
           paid_date?: string | null
           updated_at?: string
         }

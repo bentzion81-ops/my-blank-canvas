@@ -65,6 +65,11 @@ const CashFlow = () => {
   // ---- Expected client income (mirrors Billing math) ----
   const { byClient, isLoading: loadingProfit } = useClientProfitability(fromStr, toStr);
 
+  // VAT is remitted to the authorities one month after it is billed
+  const prevMonth = format(startOfMonth(subMonths(new Date(month), 1)), "yyyy-MM-dd");
+  const prevMonthEnd = format(endOfMonth(subMonths(new Date(month), 1)), "yyyy-MM-dd");
+  const { byClient: prevByClient } = useClientProfitability(prevMonth, prevMonthEnd);
+
   const { data: billingClients = [] } = useQuery({
     queryKey: ["cashflow-clients"],
     queryFn: async () => {
@@ -143,6 +148,17 @@ const CashFlow = () => {
     const totalDue = net + vat - withholding;
     return { net, vat, withholding, totalDue, collected, outstanding: Math.max(totalDue - collected, 0) };
   }, [billingClients, byClient, invoices]);
+
+  // VAT actually leaving this month = VAT billed in the previous month
+  const vatPayable = useMemo(() => {
+    let vat = 0;
+    for (const c of billingClients as any[]) {
+      const revenue = Number(prevByClient.get(c.id)?.revenue || 0);
+      if (revenue <= 0) continue;
+      vat += revenue * (Number(c.vat_rate ?? 18) / 100);
+    }
+    return vat;
+  }, [billingClients, prevByClient]);
 
   const payrollExpected = useMemo(() => {
     let cost = 0;
@@ -226,7 +242,7 @@ const CashFlow = () => {
   const otherExpenses = monthItems.filter((r) => r.direction === "expense").reduce((s, r) => s + r.amount, 0);
 
   const totalIn = clientIncome.totalDue + otherIncome;
-  const totalOut = payrollExpected + clientIncome.vat + otherExpenses;
+  const totalOut = payrollExpected + vatPayable + otherExpenses;
   const net = totalIn - totalOut;
   const ratio = totalOut > 0 ? totalIn / totalOut : 0;
 
@@ -261,7 +277,7 @@ const CashFlow = () => {
         else exp += amount;
       }
       const baseIn = k === 0 ? clientIncome.totalDue : 0;
-      const baseOut = k === 0 ? payrollExpected + clientIncome.vat : 0;
+      const baseOut = k === 0 ? payrollExpected + vatPayable : k === 1 ? clientIncome.vat : 0;
       return {
         month: m,
         label: format(new Date(m), "MMM yyyy"),
@@ -270,7 +286,7 @@ const CashFlow = () => {
         net: inc + baseIn - exp - baseOut,
       };
     });
-  }, [items, installments, month, clientIncome, payrollExpected]);
+  }, [items, installments, month, clientIncome, vatPayable, payrollExpected]);
 
   const save = async () => {
     const amount = Number(draft.amount);
@@ -369,7 +385,7 @@ const CashFlow = () => {
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <KpiCard title="צפוי להיכנס" value={fmt(totalIn)} subtitle={`מלקוחות ${fmt(clientIncome.totalDue)} · אחר ${fmt(otherIncome)}`} icon={TrendingUp} variant="success" />
-          <KpiCard title="צפוי לצאת" value={fmt(totalOut)} subtitle={`משכורות ${fmt(payrollExpected)} · מע״מ ${fmt(clientIncome.vat)} · אחר ${fmt(otherExpenses)}`} icon={TrendingDown} variant="destructive" />
+          <KpiCard title="צפוי לצאת" value={fmt(totalOut)} subtitle={`משכורות ${fmt(payrollExpected)} · מע״מ ${fmt(vatPayable)} · אחר ${fmt(otherExpenses)}`} icon={TrendingDown} variant="destructive" />
           <KpiCard title="תזרים נטו" value={fmt(net)} subtitle={`יחס כיסוי ${ratio ? ratio.toFixed(2) : "—"}`} icon={Wallet} variant={net >= 0 ? "success" : "destructive"} />
           <KpiCard title="נותר לגבייה" value={fmt(clientIncome.outstanding)} subtitle={`נגבה ${fmt(clientIncome.collected)}`} icon={Receipt} variant="warning" />
         </div>
@@ -386,7 +402,8 @@ const CashFlow = () => {
                   <TableRow><TableCell>הכנסות נוספות</TableCell><TableCell className="text-end tabular-nums">{fmt(otherIncome)}</TableCell></TableRow>
                   <TableRow className="font-medium bg-muted/40"><TableCell>סך כל הכנסות צפויות</TableCell><TableCell className="text-end tabular-nums">{fmt(totalIn)}</TableCell></TableRow>
                   <TableRow><TableCell>משכורות ועלויות עובדים</TableCell><TableCell className="text-end tabular-nums text-destructive">{fmt(payrollExpected)}</TableCell></TableRow>
-                  <TableRow><TableCell>מע״מ להעברה לרשויות</TableCell><TableCell className="text-end tabular-nums text-destructive">{fmt(clientIncome.vat)}</TableCell></TableRow>
+                  <TableRow><TableCell>מע״מ להעברה לרשויות <span className="text-xs text-muted-foreground">(של {format(new Date(prevMonth), "MMMM yyyy")})</span></TableCell><TableCell className="text-end tabular-nums text-destructive">{fmt(vatPayable)}</TableCell></TableRow>
+                  <TableRow><TableCell className="text-muted-foreground text-xs">מע״מ של החודש הזה — ישולם בחודש הבא</TableCell><TableCell className="text-end tabular-nums text-xs text-muted-foreground">{fmt(clientIncome.vat)}</TableCell></TableRow>
                   <TableRow><TableCell>הוצאות נוספות</TableCell><TableCell className="text-end tabular-nums text-destructive">{fmt(otherExpenses)}</TableCell></TableRow>
                   <TableRow className="font-medium bg-muted/40"><TableCell>סך כל הוצאות צפויות</TableCell><TableCell className="text-end tabular-nums">{fmt(totalOut)}</TableCell></TableRow>
                   <TableRow className="font-semibold"><TableCell>תזרים נטו</TableCell><TableCell className={`text-end tabular-nums ${net >= 0 ? "text-success" : "text-destructive"}`}>{fmt(net)}</TableCell></TableRow>

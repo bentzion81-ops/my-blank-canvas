@@ -361,14 +361,30 @@ const CashFlow = () => {
     qc.invalidateQueries({ queryKey: ["cashflow-installments"] });
   };
 
-  const togglePaid = async (installmentId: string, isPaid: boolean) => {
-    const { error } = await supabase
-      .from("cash_flow_installments" as any)
-      .update({ is_paid: isPaid, paid_date: isPaid ? format(new Date(), "yyyy-MM-dd") : null })
-      .eq("id", installmentId);
+  // Mark a row as actually settled (came in / went out) with the real amount
+  const settle = async (
+    row: { id: string; installmentId?: string; amount: number; paidAmount: number | null },
+    isPaid: boolean,
+    actual?: number | null,
+  ) => {
+    const paidAmount = isPaid ? (actual ?? row.paidAmount ?? row.amount) : null;
+    const payload = {
+      is_paid: isPaid,
+      paid_amount: paidAmount,
+      paid_date: isPaid ? format(new Date(), "yyyy-MM-dd") : null,
+    };
+    const { error } = row.installmentId
+      ? await supabase.from("cash_flow_installments" as any).update(payload).eq("id", row.installmentId)
+      : await supabase.from("cash_flow_installments" as any).insert({
+          item_id: row.id,
+          due_month: month,
+          amount: row.amount,
+          ...payload,
+        });
     if (error) return toast.error(error.message);
     qc.invalidateQueries({ queryKey: ["cashflow-installments"] });
   };
+
 
   return (
     <div className="flex flex-col">

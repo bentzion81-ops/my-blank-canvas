@@ -197,6 +197,104 @@ export type Database = {
         }
         Relationships: []
       }
+      cash_flow_installments: {
+        Row: {
+          amount: number
+          created_at: string
+          due_month: string
+          id: string
+          is_paid: boolean
+          item_id: string
+          notes: string | null
+          paid_date: string | null
+          updated_at: string
+        }
+        Insert: {
+          amount?: number
+          created_at?: string
+          due_month: string
+          id?: string
+          is_paid?: boolean
+          item_id: string
+          notes?: string | null
+          paid_date?: string | null
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          due_month?: string
+          id?: string
+          is_paid?: boolean
+          item_id?: string
+          notes?: string | null
+          paid_date?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cash_flow_installments_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "cash_flow_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cash_flow_items: {
+        Row: {
+          amount: number
+          category: string | null
+          created_at: string
+          created_by: string | null
+          direction: string
+          due_month: string | null
+          end_month: string | null
+          id: string
+          installments_count: number
+          is_active: boolean
+          name: string
+          notes: string | null
+          recurrence: string
+          start_month: string | null
+          updated_at: string
+        }
+        Insert: {
+          amount?: number
+          category?: string | null
+          created_at?: string
+          created_by?: string | null
+          direction: string
+          due_month?: string | null
+          end_month?: string | null
+          id?: string
+          installments_count?: number
+          is_active?: boolean
+          name: string
+          notes?: string | null
+          recurrence?: string
+          start_month?: string | null
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          category?: string | null
+          created_at?: string
+          created_by?: string | null
+          direction?: string
+          due_month?: string | null
+          end_month?: string | null
+          id?: string
+          installments_count?: number
+          is_active?: boolean
+          name?: string
+          notes?: string | null
+          recurrence?: string
+          start_month?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       change_snapshots: {
         Row: {
           audit_log_id: string | null

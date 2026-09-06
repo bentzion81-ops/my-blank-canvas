@@ -46,6 +46,7 @@ const mainItems = [
   { title: "Billing", url: "/billing", icon: Receipt },
   { title: "Payroll", url: "/payroll", icon: Wallet },
   { title: "Profitability", url: "/profitability", icon: TrendingUp },
+  { title: "Cash Flow", url: "/cash-flow", icon: Wallet },
   { title: "Partners", url: "/partners", icon: Handshake },
   { title: "Reports", url: "/reports", icon: BarChart3 },
   { title: "Documents", url: "/documents", icon: FileText },

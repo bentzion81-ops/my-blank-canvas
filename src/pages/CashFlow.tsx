@@ -489,8 +489,9 @@ const CashFlow = () => {
                     <TableHead>שם</TableHead>
                     <TableHead>סוג</TableHead>
                     <TableHead>קטגוריה</TableHead>
-                    <TableHead className="text-end">סכום</TableHead>
-                    <TableHead>שולם</TableHead>
+                    <TableHead className="text-end">סכום מתוכנן</TableHead>
+                    <TableHead>בוצע</TableHead>
+                    <TableHead className="text-end">סכום בפועל</TableHead>
                     <TableHead />
                   </TableRow>
                 </TableHeader>
@@ -506,11 +507,28 @@ const CashFlow = () => {
                       <TableCell className="text-muted-foreground">{r.category || "—"}</TableCell>
                       <TableCell className={`text-end tabular-nums ${r.direction === "income" ? "text-success" : "text-destructive"}`}>{fmt(r.amount)}</TableCell>
                       <TableCell>
-                        {r.installmentId ? (
-                          <Checkbox checked={r.isPaid} onCheckedChange={(v) => togglePaid(r.installmentId!, !!v)} />
-                        ) : (
-                          <span className="text-muted-foreground text-xs">—</span>
-                        )}
+                        <div className="flex items-center gap-2">
+                          <Checkbox checked={r.isPaid} onCheckedChange={(v) => settle(r, !!v)} />
+                          <span className="text-xs text-muted-foreground">
+                            {r.isPaid ? (r.direction === "income" ? "נכנס" : "יצא") : "ממתין"}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-end">
+                        <Input
+                          type="number"
+                          step="0.01"
+                          className="h-8 w-28 text-end tabular-nums ms-auto"
+                          placeholder={String(r.amount)}
+                          defaultValue={r.paidAmount ?? ""}
+                          key={`${r.installmentId || r.id}-${r.paidAmount ?? "empty"}`}
+                          onBlur={(e) => {
+                            const v = e.target.value.trim();
+                            const num = v === "" ? null : Number(v);
+                            if (num === (r.paidAmount ?? null)) return;
+                            settle(r, true, num);
+                          }}
+                        />
                       </TableCell>
                       <TableCell className="text-end">
                         <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => remove(r.id)}>

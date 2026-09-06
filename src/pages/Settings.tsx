@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { MeckanoSyncPanel } from "@/components/settings/MeckanoSyncPanel";
+import { DeletedRecordsPanel } from "@/components/settings/DeletedRecordsPanel";
 
 const SettingsPage = () => {
   return (
@@ -19,6 +20,7 @@ const SettingsPage = () => {
             <TabsTrigger value="payroll">Payroll</TabsTrigger>
             <TabsTrigger value="billing">Billing</TabsTrigger>
             <TabsTrigger value="notifications">Notifications</TabsTrigger>
+            <TabsTrigger value="restore">שחזור מחיקות</TabsTrigger>
           </TabsList>
 
           <TabsContent value="general">
@@ -44,6 +46,10 @@ const SettingsPage = () => {
 
           <TabsContent value="attendance">
             <MeckanoSyncPanel />
+          </TabsContent>
+
+          <TabsContent value="restore">
+            <DeletedRecordsPanel />
           </TabsContent>
 
           {["calendar", "payroll", "billing", "notifications"].map((tab) => (

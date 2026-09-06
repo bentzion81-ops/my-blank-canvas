@@ -7,6 +7,7 @@ export const ALL_NAV_ITEMS = [
   "Billing",
   "Payroll",
   "Profitability",
+  "Cash Flow",
   "Partners",
   "Reports",
   "Documents",

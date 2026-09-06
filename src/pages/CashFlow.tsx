@@ -182,55 +182,67 @@ const CashFlow = () => {
       amount: number;
       kind: string;
       isPaid: boolean;
+      paidAmount: number | null;
       notes: string | null;
     }[] = [];
 
     for (const it of items as any[]) {
       if (it.is_active === false) continue;
+      const multi = Number(it.installments_count || 1) > 1;
+      const itemInst = (installments as any[]).filter((i) => i.item_id === it.id);
+      const monthInst = itemInst.find((i) => i.due_month === month);
+
       if (it.recurrence === "monthly") {
         const startsOk = !it.start_month || it.start_month <= month;
         const endsOk = !it.end_month || it.end_month >= month;
         if (startsOk && endsOk) {
           rows.push({
             id: it.id,
+            installmentId: monthInst?.id,
             direction: it.direction,
             name: it.name,
             category: it.category,
             amount: Number(it.amount || 0),
             kind: it.direction === "income" ? "הכנסה קבועה" : "הוצאה קבועה",
-            isPaid: false,
+            isPaid: !!monthInst?.is_paid,
+            paidAmount: monthInst?.paid_amount != null ? Number(monthInst.paid_amount) : null,
             notes: it.notes,
           });
         }
         continue;
       }
-      const itemInst = (installments as any[]).filter((i) => i.item_id === it.id);
-      if (itemInst.length > 0) {
-        for (const inst of itemInst.filter((i) => i.due_month === month)) {
-          const idx = itemInst.findIndex((i) => i.id === inst.id) + 1;
+
+      if (multi && itemInst.length > 0) {
+        const sorted = [...itemInst].sort((a, b) => (a.due_month < b.due_month ? -1 : 1));
+        for (const inst of sorted.filter((i) => i.due_month === month)) {
+          const idx = sorted.findIndex((i) => i.id === inst.id) + 1;
           rows.push({
             id: it.id,
             installmentId: inst.id,
             direction: it.direction,
-            name: `${it.name} (תשלום ${idx}/${itemInst.length})`,
+            name: `${it.name} (תשלום ${idx}/${sorted.length})`,
             category: it.category,
             amount: Number(inst.amount || 0),
             kind: it.direction === "income" ? "הכנסה בתשלומים" : "הוצאה בתשלומים",
             isPaid: !!inst.is_paid,
+            paidAmount: inst.paid_amount != null ? Number(inst.paid_amount) : null,
             notes: inst.notes || it.notes,
           });
         }
         continue;
       }
+
       if (it.due_month === month) {
         rows.push({
           id: it.id,
+          installmentId: monthInst?.id,
           direction: it.direction,
           name: it.name,
           category: it.category,
           amount: Number(it.amount || 0),
           kind: it.direction === "income" ? "הכנסה חד פעמית" : "הוצאה חד פעמית",
-          isPaid: false,
+          isPaid: !!monthInst?.is_paid,
+          paidAmount: monthInst?.paid_amount != null ? Number(monthInst.paid_amount) : null,
           notes: it.notes,
         });
       }
@@ -238,8 +250,12 @@ const CashFlow = () => {
     return rows;
   }, [items, installments, month]);
 
-  const otherIncome = monthItems.filter((r) => r.direction === "income").reduce((s, r) => s + r.amount, 0);
-  const otherExpenses = monthItems.filter((r) => r.direction === "expense").reduce((s, r) => s + r.amount, 0);
+  // Actual settled amount wins over the planned amount
+  const effective = (r: { isPaid: boolean; paidAmount: number | null; amount: number }) =>
+    r.isPaid && r.paidAmount != null ? r.paidAmount : r.amount;
+
+  const otherIncome = monthItems.filter((r) => r.direction === "income").reduce((s, r) => s + effective(r), 0);
+  const otherExpenses = monthItems.filter((r) => r.direction === "expense").reduce((s, r) => s + effective(r), 0);
 
   const totalIn = clientIncome.totalDue + otherIncome;
   const totalOut = payrollExpected + vatPayable + otherExpenses;

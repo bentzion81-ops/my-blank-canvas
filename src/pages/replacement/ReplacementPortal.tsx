@@ -464,8 +464,10 @@ function ReportForm({
   const totalHours = useMemo(() => {
     const [h1, m1] = checkIn.split(":").map(Number);
     const [h2, m2] = checkOut.split(":").map(Number);
-    const mins = h2 * 60 + m2 - (h1 * 60 + m1);
-    return Math.max(0, mins / 60);
+    if ([h1, m1, h2, m2].some((n) => isNaN(n))) return 0;
+    let mins = h2 * 60 + m2 - (h1 * 60 + m1);
+    if (mins < 0) mins += 24 * 60; // overnight shift
+    return mins / 60;
   }, [checkIn, checkOut]);
 
   const wageNum = parseFloat(wage) || 0;

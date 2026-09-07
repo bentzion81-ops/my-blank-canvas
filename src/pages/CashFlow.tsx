@@ -257,10 +257,23 @@ const CashFlow = () => {
   const otherIncome = monthItems.filter((r) => r.direction === "income").reduce((s, r) => s + effective(r), 0);
   const otherExpenses = monthItems.filter((r) => r.direction === "expense").reduce((s, r) => s + effective(r), 0);
 
+  // Only rows explicitly marked as settled count towards the actual cash flow
+  const actualOtherIncome = monthItems
+    .filter((r) => r.direction === "income" && r.isPaid)
+    .reduce((s, r) => s + effective(r), 0);
+  const actualOtherExpenses = monthItems
+    .filter((r) => r.direction === "expense" && r.isPaid)
+    .reduce((s, r) => s + effective(r), 0);
+
   const totalIn = clientIncome.totalDue + otherIncome;
   const totalOut = payrollExpected + vatPayable + otherExpenses;
   const net = totalIn - totalOut;
   const ratio = totalOut > 0 ? totalIn / totalOut : 0;
+
+  const actualIn = clientIncome.collected + actualOtherIncome;
+  const actualOut = payrollPaid + actualOtherExpenses;
+  const actualNet = actualIn - actualOut;
+  const actualRatio = actualOut > 0 ? actualIn / actualOut : 0;
 
   const health = net >= 0 && ratio >= 1.15
     ? { label: "תזרים בריא", variant: "success" as const, icon: CheckCircle2 }

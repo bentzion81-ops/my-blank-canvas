@@ -431,9 +431,14 @@ const CashFlow = () => {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <KpiCard title="צפוי להיכנס" value={fmt(totalIn)} subtitle={`מלקוחות ${fmt(clientIncome.totalDue)} · אחר ${fmt(otherIncome)}`} icon={TrendingUp} variant="success" />
           <KpiCard title="צפוי לצאת" value={fmt(totalOut)} subtitle={`משכורות ${fmt(payrollExpected)} · מע״מ ${fmt(vatPayable)} · אחר ${fmt(otherExpenses)}`} icon={TrendingDown} variant="destructive" />
-          <KpiCard title="תזרים נטו" value={fmt(net)} subtitle={`יחס כיסוי ${ratio ? ratio.toFixed(2) : "—"}`} icon={Wallet} variant={net >= 0 ? "success" : "destructive"} />
+          <KpiCard title="תזרים נטו צפוי" value={fmt(net)} subtitle={`יחס כיסוי ${ratio ? ratio.toFixed(2) : "—"}`} icon={Wallet} variant={net >= 0 ? "success" : "destructive"} />
           <KpiCard title="נותר לגבייה" value={fmt(clientIncome.outstanding)} subtitle={`נגבה ${fmt(clientIncome.collected)}`} icon={Receipt} variant="warning" />
+          <KpiCard title="נכנס בפועל" value={fmt(actualIn)} subtitle={`גבייה מלקוחות ${fmt(clientIncome.collected)} · אחר ${fmt(actualOtherIncome)}`} icon={TrendingUp} variant="success" />
+          <KpiCard title="יצא בפועל" value={fmt(actualOut)} subtitle={`משכורות ${fmt(payrollPaid)} · אחר ${fmt(actualOtherExpenses)}`} icon={TrendingDown} variant="destructive" />
+          <KpiCard title="תזרים נטו בפועל" value={fmt(actualNet)} subtitle={`יחס כיסוי ${actualRatio ? actualRatio.toFixed(2) : "—"}`} icon={Wallet} variant={actualNet >= 0 ? "success" : "destructive"} />
+          <KpiCard title="פער מול הצפי" value={fmt(actualNet - net)} subtitle={`צפוי ${fmt(net)} · בפועל ${fmt(actualNet)}`} icon={CalendarClock} variant={actualNet - net >= 0 ? "success" : "warning"} />
         </div>
+
 
         <div className="grid gap-4 lg:grid-cols-2">
           <Card className="border-0 shadow-sm">

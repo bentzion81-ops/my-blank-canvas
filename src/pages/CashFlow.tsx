@@ -257,10 +257,23 @@ const CashFlow = () => {
   const otherIncome = monthItems.filter((r) => r.direction === "income").reduce((s, r) => s + effective(r), 0);
   const otherExpenses = monthItems.filter((r) => r.direction === "expense").reduce((s, r) => s + effective(r), 0);
 
+  // Only rows explicitly marked as settled count towards the actual cash flow
+  const actualOtherIncome = monthItems
+    .filter((r) => r.direction === "income" && r.isPaid)
+    .reduce((s, r) => s + effective(r), 0);
+  const actualOtherExpenses = monthItems
+    .filter((r) => r.direction === "expense" && r.isPaid)
+    .reduce((s, r) => s + effective(r), 0);
+
   const totalIn = clientIncome.totalDue + otherIncome;
   const totalOut = payrollExpected + vatPayable + otherExpenses;
   const net = totalIn - totalOut;
   const ratio = totalOut > 0 ? totalIn / totalOut : 0;
+
+  const actualIn = clientIncome.collected + actualOtherIncome;
+  const actualOut = payrollPaid + actualOtherExpenses;
+  const actualNet = actualIn - actualOut;
+  const actualRatio = actualOut > 0 ? actualIn / actualOut : 0;
 
   const health = net >= 0 && ratio >= 1.15
     ? { label: "תזרים בריא", variant: "success" as const, icon: CheckCircle2 }
@@ -418,30 +431,43 @@ const CashFlow = () => {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <KpiCard title="צפוי להיכנס" value={fmt(totalIn)} subtitle={`מלקוחות ${fmt(clientIncome.totalDue)} · אחר ${fmt(otherIncome)}`} icon={TrendingUp} variant="success" />
           <KpiCard title="צפוי לצאת" value={fmt(totalOut)} subtitle={`משכורות ${fmt(payrollExpected)} · מע״מ ${fmt(vatPayable)} · אחר ${fmt(otherExpenses)}`} icon={TrendingDown} variant="destructive" />
-          <KpiCard title="תזרים נטו" value={fmt(net)} subtitle={`יחס כיסוי ${ratio ? ratio.toFixed(2) : "—"}`} icon={Wallet} variant={net >= 0 ? "success" : "destructive"} />
+          <KpiCard title="תזרים נטו צפוי" value={fmt(net)} subtitle={`יחס כיסוי ${ratio ? ratio.toFixed(2) : "—"}`} icon={Wallet} variant={net >= 0 ? "success" : "destructive"} />
           <KpiCard title="נותר לגבייה" value={fmt(clientIncome.outstanding)} subtitle={`נגבה ${fmt(clientIncome.collected)}`} icon={Receipt} variant="warning" />
+          <KpiCard title="נכנס בפועל" value={fmt(actualIn)} subtitle={`גבייה מלקוחות ${fmt(clientIncome.collected)} · אחר ${fmt(actualOtherIncome)}`} icon={TrendingUp} variant="success" />
+          <KpiCard title="יצא בפועל" value={fmt(actualOut)} subtitle={`משכורות ${fmt(payrollPaid)} · אחר ${fmt(actualOtherExpenses)}`} icon={TrendingDown} variant="destructive" />
+          <KpiCard title="תזרים נטו בפועל" value={fmt(actualNet)} subtitle={`יחס כיסוי ${actualRatio ? actualRatio.toFixed(2) : "—"}`} icon={Wallet} variant={actualNet >= 0 ? "success" : "destructive"} />
+          <KpiCard title="פער מול הצפי" value={fmt(actualNet - net)} subtitle={`צפוי ${fmt(net)} · בפועל ${fmt(actualNet)}`} icon={CalendarClock} variant={actualNet - net >= 0 ? "success" : "warning"} />
         </div>
+
 
         <div className="grid gap-4 lg:grid-cols-2">
           <Card className="border-0 shadow-sm">
-            <CardHeader><CardTitle className="text-sm">פירוט צפי לחודש</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-sm">צפוי מול בפועל לחודש</CardTitle></CardHeader>
             <CardContent className="p-0">
               <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>סעיף</TableHead>
+                    <TableHead className="text-end">צפוי</TableHead>
+                    <TableHead className="text-end">בפועל</TableHead>
+                  </TableRow>
+                </TableHeader>
                 <TableBody>
-                  <TableRow><TableCell>הכנסות מלקוחות (לפני מע״מ)</TableCell><TableCell className="text-end tabular-nums">{fmt(clientIncome.net)}</TableCell></TableRow>
-                  <TableRow><TableCell>מע״מ שייגבה מהלקוחות</TableCell><TableCell className="text-end tabular-nums">{fmt(clientIncome.vat)}</TableCell></TableRow>
-                  <TableRow><TableCell>ניכוי מס במקור</TableCell><TableCell className="text-end tabular-nums text-destructive">-{fmt(clientIncome.withholding)}</TableCell></TableRow>
-                  <TableRow><TableCell>הכנסות נוספות</TableCell><TableCell className="text-end tabular-nums">{fmt(otherIncome)}</TableCell></TableRow>
-                  <TableRow className="font-medium bg-muted/40"><TableCell>סך כל הכנסות צפויות</TableCell><TableCell className="text-end tabular-nums">{fmt(totalIn)}</TableCell></TableRow>
-                  <TableRow><TableCell>משכורות ועלויות עובדים</TableCell><TableCell className="text-end tabular-nums text-destructive">{fmt(payrollExpected)}</TableCell></TableRow>
-                  <TableRow><TableCell>מע״מ להעברה לרשויות <span className="text-xs text-muted-foreground">(של {format(new Date(prevMonth), "MMMM yyyy")})</span></TableCell><TableCell className="text-end tabular-nums text-destructive">{fmt(vatPayable)}</TableCell></TableRow>
-                  <TableRow><TableCell className="text-muted-foreground text-xs">מע״מ של החודש הזה — ישולם בחודש הבא</TableCell><TableCell className="text-end tabular-nums text-xs text-muted-foreground">{fmt(clientIncome.vat)}</TableCell></TableRow>
-                  <TableRow><TableCell>הוצאות נוספות</TableCell><TableCell className="text-end tabular-nums text-destructive">{fmt(otherExpenses)}</TableCell></TableRow>
-                  <TableRow className="font-medium bg-muted/40"><TableCell>סך כל הוצאות צפויות</TableCell><TableCell className="text-end tabular-nums">{fmt(totalOut)}</TableCell></TableRow>
-                  <TableRow className="font-semibold"><TableCell>תזרים נטו</TableCell><TableCell className={`text-end tabular-nums ${net >= 0 ? "text-success" : "text-destructive"}`}>{fmt(net)}</TableCell></TableRow>
-                  <TableRow><TableCell className="text-muted-foreground text-xs">שולם בפועל למשכורות</TableCell><TableCell className="text-end tabular-nums text-xs text-muted-foreground">{fmt(payrollPaid)}</TableCell></TableRow>
+                  <TableRow><TableCell>הכנסות מלקוחות (לפני מע״מ)</TableCell><TableCell className="text-end tabular-nums">{fmt(clientIncome.net)}</TableCell><TableCell className="text-end tabular-nums text-muted-foreground">—</TableCell></TableRow>
+                  <TableRow><TableCell>מע״מ שייגבה מהלקוחות</TableCell><TableCell className="text-end tabular-nums">{fmt(clientIncome.vat)}</TableCell><TableCell className="text-end tabular-nums text-muted-foreground">—</TableCell></TableRow>
+                  <TableRow><TableCell>ניכוי מס במקור</TableCell><TableCell className="text-end tabular-nums text-destructive">-{fmt(clientIncome.withholding)}</TableCell><TableCell className="text-end tabular-nums text-muted-foreground">—</TableCell></TableRow>
+                  <TableRow><TableCell>גבייה מלקוחות</TableCell><TableCell className="text-end tabular-nums">{fmt(clientIncome.totalDue)}</TableCell><TableCell className="text-end tabular-nums">{fmt(clientIncome.collected)}</TableCell></TableRow>
+                  <TableRow><TableCell>הכנסות נוספות</TableCell><TableCell className="text-end tabular-nums">{fmt(otherIncome)}</TableCell><TableCell className="text-end tabular-nums">{fmt(actualOtherIncome)}</TableCell></TableRow>
+                  <TableRow className="font-medium bg-muted/40"><TableCell>סך כל הכנסות</TableCell><TableCell className="text-end tabular-nums">{fmt(totalIn)}</TableCell><TableCell className="text-end tabular-nums">{fmt(actualIn)}</TableCell></TableRow>
+                  <TableRow><TableCell>משכורות ועלויות עובדים</TableCell><TableCell className="text-end tabular-nums text-destructive">{fmt(payrollExpected)}</TableCell><TableCell className="text-end tabular-nums text-destructive">{fmt(payrollPaid)}</TableCell></TableRow>
+                  <TableRow><TableCell>מע״מ להעברה לרשויות <span className="text-xs text-muted-foreground">(של {format(new Date(prevMonth), "MMMM yyyy")})</span></TableCell><TableCell className="text-end tabular-nums text-destructive">{fmt(vatPayable)}</TableCell><TableCell className="text-end tabular-nums text-muted-foreground">—</TableCell></TableRow>
+                  <TableRow><TableCell className="text-muted-foreground text-xs">מע״מ של החודש הזה — ישולם בחודש הבא</TableCell><TableCell className="text-end tabular-nums text-xs text-muted-foreground">{fmt(clientIncome.vat)}</TableCell><TableCell className="text-end tabular-nums text-muted-foreground">—</TableCell></TableRow>
+                  <TableRow><TableCell>הוצאות נוספות</TableCell><TableCell className="text-end tabular-nums text-destructive">{fmt(otherExpenses)}</TableCell><TableCell className="text-end tabular-nums text-destructive">{fmt(actualOtherExpenses)}</TableCell></TableRow>
+                  <TableRow className="font-medium bg-muted/40"><TableCell>סך כל הוצאות</TableCell><TableCell className="text-end tabular-nums">{fmt(totalOut)}</TableCell><TableCell className="text-end tabular-nums">{fmt(actualOut)}</TableCell></TableRow>
+                  <TableRow className="font-semibold"><TableCell>תזרים נטו</TableCell><TableCell className={`text-end tabular-nums ${net >= 0 ? "text-success" : "text-destructive"}`}>{fmt(net)}</TableCell><TableCell className={`text-end tabular-nums ${actualNet >= 0 ? "text-success" : "text-destructive"}`}>{fmt(actualNet)}</TableCell></TableRow>
                 </TableBody>
               </Table>
+
             </CardContent>
           </Card>
 

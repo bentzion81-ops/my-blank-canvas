@@ -442,24 +442,32 @@ const CashFlow = () => {
 
         <div className="grid gap-4 lg:grid-cols-2">
           <Card className="border-0 shadow-sm">
-            <CardHeader><CardTitle className="text-sm">פירוט צפי לחודש</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-sm">צפוי מול בפועל לחודש</CardTitle></CardHeader>
             <CardContent className="p-0">
               <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>סעיף</TableHead>
+                    <TableHead className="text-end">צפוי</TableHead>
+                    <TableHead className="text-end">בפועל</TableHead>
+                  </TableRow>
+                </TableHeader>
                 <TableBody>
-                  <TableRow><TableCell>הכנסות מלקוחות (לפני מע״מ)</TableCell><TableCell className="text-end tabular-nums">{fmt(clientIncome.net)}</TableCell></TableRow>
-                  <TableRow><TableCell>מע״מ שייגבה מהלקוחות</TableCell><TableCell className="text-end tabular-nums">{fmt(clientIncome.vat)}</TableCell></TableRow>
-                  <TableRow><TableCell>ניכוי מס במקור</TableCell><TableCell className="text-end tabular-nums text-destructive">-{fmt(clientIncome.withholding)}</TableCell></TableRow>
-                  <TableRow><TableCell>הכנסות נוספות</TableCell><TableCell className="text-end tabular-nums">{fmt(otherIncome)}</TableCell></TableRow>
-                  <TableRow className="font-medium bg-muted/40"><TableCell>סך כל הכנסות צפויות</TableCell><TableCell className="text-end tabular-nums">{fmt(totalIn)}</TableCell></TableRow>
-                  <TableRow><TableCell>משכורות ועלויות עובדים</TableCell><TableCell className="text-end tabular-nums text-destructive">{fmt(payrollExpected)}</TableCell></TableRow>
-                  <TableRow><TableCell>מע״מ להעברה לרשויות <span className="text-xs text-muted-foreground">(של {format(new Date(prevMonth), "MMMM yyyy")})</span></TableCell><TableCell className="text-end tabular-nums text-destructive">{fmt(vatPayable)}</TableCell></TableRow>
-                  <TableRow><TableCell className="text-muted-foreground text-xs">מע״מ של החודש הזה — ישולם בחודש הבא</TableCell><TableCell className="text-end tabular-nums text-xs text-muted-foreground">{fmt(clientIncome.vat)}</TableCell></TableRow>
-                  <TableRow><TableCell>הוצאות נוספות</TableCell><TableCell className="text-end tabular-nums text-destructive">{fmt(otherExpenses)}</TableCell></TableRow>
-                  <TableRow className="font-medium bg-muted/40"><TableCell>סך כל הוצאות צפויות</TableCell><TableCell className="text-end tabular-nums">{fmt(totalOut)}</TableCell></TableRow>
-                  <TableRow className="font-semibold"><TableCell>תזרים נטו</TableCell><TableCell className={`text-end tabular-nums ${net >= 0 ? "text-success" : "text-destructive"}`}>{fmt(net)}</TableCell></TableRow>
-                  <TableRow><TableCell className="text-muted-foreground text-xs">שולם בפועל למשכורות</TableCell><TableCell className="text-end tabular-nums text-xs text-muted-foreground">{fmt(payrollPaid)}</TableCell></TableRow>
+                  <TableRow><TableCell>הכנסות מלקוחות (לפני מע״מ)</TableCell><TableCell className="text-end tabular-nums">{fmt(clientIncome.net)}</TableCell><TableCell className="text-end tabular-nums text-muted-foreground">—</TableCell></TableRow>
+                  <TableRow><TableCell>מע״מ שייגבה מהלקוחות</TableCell><TableCell className="text-end tabular-nums">{fmt(clientIncome.vat)}</TableCell><TableCell className="text-end tabular-nums text-muted-foreground">—</TableCell></TableRow>
+                  <TableRow><TableCell>ניכוי מס במקור</TableCell><TableCell className="text-end tabular-nums text-destructive">-{fmt(clientIncome.withholding)}</TableCell><TableCell className="text-end tabular-nums text-muted-foreground">—</TableCell></TableRow>
+                  <TableRow><TableCell>גבייה מלקוחות</TableCell><TableCell className="text-end tabular-nums">{fmt(clientIncome.totalDue)}</TableCell><TableCell className="text-end tabular-nums">{fmt(clientIncome.collected)}</TableCell></TableRow>
+                  <TableRow><TableCell>הכנסות נוספות</TableCell><TableCell className="text-end tabular-nums">{fmt(otherIncome)}</TableCell><TableCell className="text-end tabular-nums">{fmt(actualOtherIncome)}</TableCell></TableRow>
+                  <TableRow className="font-medium bg-muted/40"><TableCell>סך כל הכנסות</TableCell><TableCell className="text-end tabular-nums">{fmt(totalIn)}</TableCell><TableCell className="text-end tabular-nums">{fmt(actualIn)}</TableCell></TableRow>
+                  <TableRow><TableCell>משכורות ועלויות עובדים</TableCell><TableCell className="text-end tabular-nums text-destructive">{fmt(payrollExpected)}</TableCell><TableCell className="text-end tabular-nums text-destructive">{fmt(payrollPaid)}</TableCell></TableRow>
+                  <TableRow><TableCell>מע״מ להעברה לרשויות <span className="text-xs text-muted-foreground">(של {format(new Date(prevMonth), "MMMM yyyy")})</span></TableCell><TableCell className="text-end tabular-nums text-destructive">{fmt(vatPayable)}</TableCell><TableCell className="text-end tabular-nums text-muted-foreground">—</TableCell></TableRow>
+                  <TableRow><TableCell className="text-muted-foreground text-xs">מע״מ של החודש הזה — ישולם בחודש הבא</TableCell><TableCell className="text-end tabular-nums text-xs text-muted-foreground">{fmt(clientIncome.vat)}</TableCell><TableCell className="text-end tabular-nums text-muted-foreground">—</TableCell></TableRow>
+                  <TableRow><TableCell>הוצאות נוספות</TableCell><TableCell className="text-end tabular-nums text-destructive">{fmt(otherExpenses)}</TableCell><TableCell className="text-end tabular-nums text-destructive">{fmt(actualOtherExpenses)}</TableCell></TableRow>
+                  <TableRow className="font-medium bg-muted/40"><TableCell>סך כל הוצאות</TableCell><TableCell className="text-end tabular-nums">{fmt(totalOut)}</TableCell><TableCell className="text-end tabular-nums">{fmt(actualOut)}</TableCell></TableRow>
+                  <TableRow className="font-semibold"><TableCell>תזרים נטו</TableCell><TableCell className={`text-end tabular-nums ${net >= 0 ? "text-success" : "text-destructive"}`}>{fmt(net)}</TableCell><TableCell className={`text-end tabular-nums ${actualNet >= 0 ? "text-success" : "text-destructive"}`}>{fmt(actualNet)}</TableCell></TableRow>
                 </TableBody>
               </Table>
+
             </CardContent>
           </Card>
 

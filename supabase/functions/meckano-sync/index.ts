@@ -440,7 +440,7 @@ async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userI
 
     // Max plausible shift length in hours — anything longer is treated as an
     // unpaired in (likely a forgotten clock-out) so we don't merge unrelated shifts.
-    const MAX_SHIFT_HOURS = 16;
+    const MAX_SHIFT_HOURS = 22;
 
     const shifts: Array<{ meckEmp: string; date: string; checkIn: Date; checkOut: Date | null; hours: number }> = [];
     for (const [meckEmp, punches] of byEmp) {

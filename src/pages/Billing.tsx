@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Receipt, DollarSign, AlertTriangle, Users, RefreshCw, Plus, Loader2, FileDown, Eye, ListChecks, Trash2 } from "lucide-react";
+import { Receipt, DollarSign, AlertTriangle, Users, RefreshCw, Plus, Loader2, FileDown, Eye, ListChecks, Trash2, Wallet, Landmark } from "lucide-react";
 import { toast } from "sonner";
 
 const fmt = (n: number) => `₪${Math.round(n).toLocaleString()}`;
@@ -210,6 +210,9 @@ const Billing = () => {
     paid: rows.reduce((s, r) => s + r.paid, 0),
     balance: rows.reduce((s, r) => s + r.balance, 0),
     debtors: rows.filter((r) => r.balance > 0).length,
+    subtotal: rows.reduce((s, r) => s + r.subtotal, 0),
+    vat: rows.reduce((s, r) => s + r.vat, 0),
+    withholding: rows.reduce((s, r) => s + r.withholding, 0),
   }), [rows]);
 
   const balanceByCompany = useMemo(() => {
@@ -383,6 +386,23 @@ const Billing = () => {
           <KpiCard title="Paid" value={fmt(totals.paid)} icon={DollarSign} variant="success" />
           <KpiCard title="Outstanding" value={fmt(totals.balance)} icon={DollarSign} variant="warning" />
           <KpiCard title="Clients with Debt" value={String(totals.debtors)} icon={AlertTriangle} variant="destructive" />
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <KpiCard
+            title={'לתשלום ללא מע"מ'}
+            value={fmt(totals.subtotal)}
+            subtitle={'בסיס + חיובים נוספים · לפני מע"מ'}
+            icon={Wallet}
+            variant="info"
+          />
+          <KpiCard
+            title="ניכוי מס במקור"
+            value={fmt(totals.withholding)}
+            subtitle="נךיין מהקרן, לפני המע״מ"
+            icon={Landmark}
+            variant="warning"
+          />
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">

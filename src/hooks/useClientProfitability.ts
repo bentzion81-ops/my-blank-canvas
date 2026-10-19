@@ -194,6 +194,17 @@ export function useClientProfitability(fromStr: string, toStr: string) {
             Number(emp.other_expenses || 0)) * ratio;
       }
 
+      // Additional items actually paid to (or withheld from) the employee,
+      // prorated by their share of hours at this client.
+      for (const [empId, hAtClient] of empHoursAtClient) {
+        const totalH = empTotalHours.get(empId) || hAtClient;
+        if (totalH <= 0) continue;
+        const items = empItemsMap.get(empId);
+        if (!items) continue;
+        const ratio = hAtClient / totalH;
+        employeeCost += ratio * items.expense - ratio * items.deduction;
+      }
+
       const cCharges = (charges as any[]).filter((ch) => ch.client_id === c.id);
       const additionalRevenue = cCharges.reduce(
         (s, ch) => s + (Number(ch.total_charge) || Number(ch.quantity) * Number(ch.unit_charge) || 0),

@@ -399,7 +399,7 @@ const Billing = () => {
           <KpiCard
             title="ניכוי מס במקור"
             value={fmt(totals.withholding)}
-            subtitle="נךיין מהקרן, לפני המע״מ"
+            subtitle="מנוך מהקרן, לפני המע״מ"
             icon={Landmark}
             variant="warning"
           />

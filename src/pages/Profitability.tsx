@@ -95,18 +95,6 @@ const Profitability = () => {
     },
   });
 
-  const { data: additionalItems = [] } = useQuery({
-    queryKey: ["profit-additional-items", fromStr],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("employee_additional_items" as any)
-        .select("employee_id, type, amount, month")
-        .or(`month.is.null,month.eq.${fromStr}`);
-      if (error) throw error;
-      return (data as any[]) || [];
-    },
-  });
-
   const rateMap = useMemo(() => {
     const m = new Map<string, number>();
     for (const a of assignments as any[]) {
@@ -169,15 +157,6 @@ const Profitability = () => {
       empTotalHours.set(l.employee_id, (empTotalHours.get(l.employee_id) || 0) + Number(l.hours_worked || 0));
     }
 
-    const empItemsMap = new Map<string, { expense: number; deduction: number }>();
-    for (const it of additionalItems as any[]) {
-      const cur = empItemsMap.get(it.employee_id) || { expense: 0, deduction: 0 };
-      const amt = Number(it.amount || 0);
-      if (it.type === "expense") cur.expense += amt;
-      else if (it.type === "deduction") cur.deduction += amt;
-      empItemsMap.set(it.employee_id, cur);
-    }
-
     return clients.map((c: any) => {
       const cLogs = resolvedLogs.filter((l) => l.client_id === c.id);
       const hours = cLogs.reduce((s, l) => s + Number(l.hours_worked || 0), 0);
@@ -219,17 +198,6 @@ const Profitability = () => {
         overheadCost += overhead;
       }
 
-      // Additional items actually paid to (or withheld from) the employee,
-      // prorated by their share of hours at this client.
-      for (const [empId, hAtClient] of empHoursAtClient) {
-        const totalH = empTotalHours.get(empId) || hAtClient;
-        if (totalH <= 0) continue;
-        const items = empItemsMap.get(empId);
-        if (!items) continue;
-        const ratio = hAtClient / totalH;
-        employeeCost += ratio * items.expense - ratio * items.deduction;
-      }
-
       const cCharges = charges.filter((ch) => ch.client_id === c.id);
       const additionalRevenue = cCharges.reduce(
         (s, ch) => s + (Number(ch.total_charge) || (Number(ch.quantity) * Number(ch.unit_charge)) || 0),
@@ -253,7 +221,7 @@ const Profitability = () => {
         totalCost, profit, margin,
       };
     });
-  }, [clients, workLogs, charges, additionalItems, rateMap, employeeFallbackRate, empMap, employeeAssignedClient]);
+  }, [clients, workLogs, charges, rateMap, employeeFallbackRate, empMap, employeeAssignedClient]);
 
   const totals = useMemo(() => {
     const revenue = rows.reduce((s, r) => s + r.revenue, 0);

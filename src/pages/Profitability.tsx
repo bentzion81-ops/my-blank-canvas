@@ -95,6 +95,18 @@ const Profitability = () => {
     },
   });
 
+  const { data: additionalItems = [] } = useQuery({
+    queryKey: ["profit-additional-items", fromStr],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("employee_additional_items" as any)
+        .select("employee_id, type, amount, month")
+        .or(`month.is.null,month.eq.${fromStr}`);
+      if (error) throw error;
+      return (data as any[]) || [];
+    },
+  });
+
   const rateMap = useMemo(() => {
     const m = new Map<string, number>();
     for (const a of assignments as any[]) {

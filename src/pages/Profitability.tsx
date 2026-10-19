@@ -169,6 +169,15 @@ const Profitability = () => {
       empTotalHours.set(l.employee_id, (empTotalHours.get(l.employee_id) || 0) + Number(l.hours_worked || 0));
     }
 
+    const empItemsMap = new Map<string, { expense: number; deduction: number }>();
+    for (const it of additionalItems as any[]) {
+      const cur = empItemsMap.get(it.employee_id) || { expense: 0, deduction: 0 };
+      const amt = Number(it.amount || 0);
+      if (it.type === "expense") cur.expense += amt;
+      else if (it.type === "deduction") cur.deduction += amt;
+      empItemsMap.set(it.employee_id, cur);
+    }
+
     return clients.map((c: any) => {
       const cLogs = resolvedLogs.filter((l) => l.client_id === c.id);
       const hours = cLogs.reduce((s, l) => s + Number(l.hours_worked || 0), 0);

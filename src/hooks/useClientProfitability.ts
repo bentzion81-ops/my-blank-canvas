@@ -232,7 +232,7 @@ export function useClientProfitability(fromStr: string, toStr: string) {
         margin: revenue > 0 ? (profit / revenue) * 100 : 0,
       };
     });
-  }, [clients, employees, assignments, workLogs, charges]);
+  }, [clients, employees, assignments, workLogs, charges, additionalItems]);
 
   const byClient = useMemo(() => {
     const m = new Map<string, ClientProfitRow>();

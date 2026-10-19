@@ -253,7 +253,7 @@ const Profitability = () => {
         totalCost, profit, margin,
       };
     });
-  }, [clients, workLogs, charges, rateMap, employeeFallbackRate, empMap, employeeAssignedClient]);
+  }, [clients, workLogs, charges, additionalItems, rateMap, employeeFallbackRate, empMap, employeeAssignedClient]);
 
   const totals = useMemo(() => {
     const revenue = rows.reduce((s, r) => s + r.revenue, 0);

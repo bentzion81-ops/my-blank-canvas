@@ -3,6 +3,7 @@
 // Auth: logged-in user (JWT) OR cron header `x-cron-secret: <SERVICE_ROLE_KEY>`
 
 import { createClient } from "npm:@supabase/supabase-js@2.45.0";
+import { aggregateDailyShifts } from "./shift-segments.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -297,8 +298,8 @@ async function syncEmployees(isCron: boolean, userId: string | null) {
 // ---------- ATTENDANCE (real punches via GET /rest/time-entry?start=&end=) ----------
 // Returns raw clock events (each entry: {id, userId, ts, isOut, dateStr, timeStr}).
 // We pair them into shifts (in→out) per employee per day to get real check-in/out times.
-async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userId: string | null) {
-  const logId = await startLog("attendance", isCron, userId, { from: dFrom, to: dTo });
+async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userId: string | null, employeeId?: string) {
+  const logId = await startLog("attendance", isCron, userId, { from: dFrom, to: dTo, employee_id: employeeId });
   try {
     if (!MECKANO_KEY) throw new Error("MECKANO_API_KEY is not configured");
 
@@ -307,9 +308,15 @@ async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userI
 
     const r = await meckanoFetch(`/time-entry?start=${startTs}&end=${endTs}`);
     if (!r.ok) throw new Error(`/time-entry returned ${r.status}: ${r.raw.slice(0, 300)}`);
-    const entries: any[] = Array.isArray(r.data)
+    let entries: any[] = Array.isArray(r.data)
       ? r.data
       : ((r.data as any)?.data ?? []);
+    if (employeeId) {
+      const { data: employee, error } = await admin.from("employees")
+        .select("meckano_employee_id").eq("id", employeeId).single();
+      if (error || !employee?.meckano_employee_id) throw new Error("Employee is not linked to Meckano");
+      entries = entries.filter((entry) => String(entry.userId) === String(employee.meckano_employee_id));
+    }
 
     // SAFE STRATEGY: Meckano provides `dateStr` (DD.MM.YYYY) and `timeStr` (HH:mm)
     // representing exactly what Meckano displays in Israel local time.
@@ -458,7 +465,7 @@ async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userI
             const checkIn = new Date(meckanoToUtcMs(openIn.raw));
             const checkOut = new Date(meckanoToUtcMs(p.raw));
             const hours = (checkOut.getTime() - checkIn.getTime()) / 3600000;
-            if (hours <= MAX_SHIFT_HOURS) {
+            if (hours > 0 && hours <= MAX_SHIFT_HOURS) {
               shifts.push({ meckEmp, date: openIn.date, checkIn, checkOut, hours });
               openIn = null;
             } else {
@@ -575,23 +582,14 @@ async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userI
       });
     }
 
-    // Dedupe key: one Meckano row per employee per date. If Meckano returns
-    // multiple shifts for the same day (or an edit changed the check_in), we
-    // pick the shift with the most hours so manual edits don't create dupes.
+    // One row per employee/day with all actual intervals; gaps are not work.
     const rowKey = (r: any) => `${r.employee_id}|${r.date}`;
-    const uniqueRowsByKey = new Map<string, any>();
-    for (const row of toInsert) {
-      const existing = uniqueRowsByKey.get(rowKey(row));
-      if (!existing || (row.hours_worked ?? 0) > (existing.hours_worked ?? 0)) {
-        uniqueRowsByKey.set(rowKey(row), row);
-      }
-    }
-    const rowsToPersist = Array.from(uniqueRowsByKey.values());
+    const rowsToPersist = aggregateDailyShifts(toInsert);
 
     let existingRows: any[] = [];
     if (matchedEmpIds.length) {
       const { data, error } = await admin.from("attendance_records")
-        .select("id, employee_id, client_id, date, check_in, check_out, hours_worked, notes")
+        .select("id, employee_id, client_id, date, check_in, check_out, hours_worked, notes, work_segments")
         .in("employee_id", matchedEmpIds)
         .gte("date", dFrom)
         .lte("date", dTo)
@@ -612,13 +610,15 @@ async function syncAttendance(dFrom: string, dTo: string, isCron: boolean, userI
       );
       const sameHours = Number(existing.hours_worked ?? 0) === Number(row.hours_worked ?? 0);
       const sameNotes = (existing.notes ?? null) === (row.notes ?? null);
-      if (sameClient && sameCheckIn && sameCheckOut && sameHours && sameNotes) continue;
+      const sameSegments = JSON.stringify(existing.work_segments ?? null) === JSON.stringify(row.work_segments);
+      if (sameClient && sameCheckIn && sameCheckOut && sameHours && sameNotes && sameSegments) continue;
       const { error } = await admin.from("attendance_records")
         .update({
           client_id: row.client_id,
           check_in: row.check_in,
           check_out: row.check_out,
           hours_worked: row.hours_worked,
+          work_segments: row.work_segments,
           batch_id: row.batch_id,
           notes: row.notes,
         })
@@ -775,7 +775,7 @@ Deno.serve(async (req) => {
 
   if (action === "sync_departments") return jres(await syncDepartments(isCron, userId));
   if (action === "sync_employees")   return jres(await syncEmployees(isCron, userId));
-  if (action === "sync_attendance")  return jres(await syncAttendance(body.from ?? today, body.to ?? today, isCron, userId));
+  if (action === "sync_attendance")  return jres(await syncAttendance(body.from ?? today, body.to ?? today, isCron, userId, body.employee_id));
 
   if (action === "sync_all") {
     const dep = await syncDepartments(isCron, userId);

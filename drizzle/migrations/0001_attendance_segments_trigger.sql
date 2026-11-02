@@ -1,0 +1,1 @@
+CREATE OR REPLACE TRIGGER trg_compute_attendance_hours BEFORE INSERT OR UPDATE OF check_in, check_out, work_segments ON public.attendance_records FOR EACH ROW EXECUTE FUNCTION public.compute_attendance_hours();

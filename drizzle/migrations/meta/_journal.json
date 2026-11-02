@@ -8,6 +8,13 @@
       "when": 1793610463166,
       "tag": "0000_attendance_work_segments",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1793610517532,
+      "tag": "0001_attendance_segments_trigger",
+      "breakpoints": true
     }
   ]
 }

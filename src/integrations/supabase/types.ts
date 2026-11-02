@@ -105,6 +105,7 @@ export type Database = {
           notes: string | null
           source: Database["public"]["Enums"]["attendance_source"]
           updated_at: string
+          work_segments: Json | null
         }
         Insert: {
           batch_id?: string | null
@@ -119,6 +120,7 @@ export type Database = {
           notes?: string | null
           source?: Database["public"]["Enums"]["attendance_source"]
           updated_at?: string
+          work_segments?: Json | null
         }
         Update: {
           batch_id?: string | null
@@ -133,6 +135,7 @@ export type Database = {
           notes?: string | null
           source?: Database["public"]["Enums"]["attendance_source"]
           updated_at?: string
+          work_segments?: Json | null
         }
         Relationships: [
           {

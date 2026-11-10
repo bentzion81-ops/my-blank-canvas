@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Clock, Wallet, DollarSign, TrendingDown, Plus, Loader2, ChevronDown, ChevronRight, Search, Trash2, Printer } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
+import { matchesPayrollPaymentFilter, type PayrollPaymentFilter } from "@/lib/payroll-filters";
 
 const fmt = (n: number) => `₪${Math.round(n).toLocaleString()}`;
 
@@ -26,6 +27,7 @@ const Payroll = () => {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState<"site" | "name">("site");
+  const [paymentFilter, setPaymentFilter] = useState<PayrollPaymentFilter>("all");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const toggleRow = (id: string) => setExpanded((p) => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const toggleSelect = (id: string) => setSelected((p) => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
@@ -315,6 +317,7 @@ const Payroll = () => {
 
     const q = search.toLowerCase();
     return siteRows
+      .filter((r) => matchesPayrollPaymentFilter(r.base.balance, paymentFilter))
       .filter((r) =>
         `${r.emp.first_name} ${r.emp.last_name} ${r.emp.passport_number || ""} ${r.emp.israeli_phone || ""} ${r.siteName}`
           .toLowerCase()
@@ -336,7 +339,7 @@ const Payroll = () => {
         if (a.isPrimary !== b.isPrimary) return a.isPrimary ? -1 : 1;
         return `${a.emp.first_name} ${a.emp.last_name}`.localeCompare(`${b.emp.first_name} ${b.emp.last_name}`);
       });
-  }, [employees, extEmployees, logs, extLogs, payments, rateMap, employeeFallbackRate, additionalItems, search, sortBy]);
+  }, [employees, extEmployees, logs, extLogs, payments, rateMap, employeeFallbackRate, additionalItems, search, sortBy, paymentFilter]);
 
   const totals = useMemo(() => ({
     hours: rows.reduce((s, r) => s + r.hoursAtSite, 0),
@@ -488,6 +491,13 @@ const Payroll = () => {
             <SelectContent>
               <SelectItem value="site">Sort by site</SelectItem>
               <SelectItem value="name">Sort by name</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={paymentFilter} onValueChange={(v) => setPaymentFilter(v as PayrollPaymentFilter)}>
+            <SelectTrigger className="w-48 h-9" aria-label="Payment balance filter"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All employees</SelectItem>
+              <SelectItem value="outstanding">Balance due only</SelectItem>
             </SelectContent>
           </Select>
           <div className="flex items-center gap-2">

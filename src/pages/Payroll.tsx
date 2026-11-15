@@ -15,7 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Clock, Wallet, DollarSign, TrendingDown, Plus, Loader2, ChevronDown, ChevronRight, Search, Trash2, Printer } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { matchesPayrollPaymentFilter, type PayrollPaymentFilter } from "@/lib/payroll-filters";
+import { matchesPayrollPaymentFilter, payrollBalanceDue, type PayrollPaymentFilter } from "@/lib/payroll-filters";
 
 const fmt = (n: number) => `₪${Math.round(n).toLocaleString()}`;
 
@@ -346,7 +346,7 @@ const Payroll = () => {
     gross: rows.reduce((s, r) => s + r.grossAtSite, 0),
     deductions: rows.reduce((s, r) => s + (r.isPrimary ? r.base.deductions : 0), 0),
     paid: rows.reduce((s, r) => s + (r.isPrimary ? r.base.paid : 0), 0),
-    balance: rows.reduce((s, r) => s + (r.isPrimary ? r.base.balance : 0), 0),
+    balance: rows.reduce((s, r) => s + (r.isPrimary ? payrollBalanceDue(r.base.balance) : 0), 0),
   }), [rows]);
 
   async function recordPayment() {
@@ -393,7 +393,7 @@ const Payroll = () => {
     const chosen = primaryRows.filter((r) => selected.has(r.emp.id));
     return {
       count: chosen.length,
-      balance: chosen.reduce((s, r) => s + r.base.balance, 0),
+      balance: chosen.reduce((s, r) => s + payrollBalanceDue(r.base.balance), 0),
       totalDue: chosen.reduce((s, r) => s + r.base.totalDue, 0),
       paid: chosen.reduce((s, r) => s + r.base.paid, 0),
     };
@@ -403,7 +403,7 @@ const Payroll = () => {
     const chosen = primaryRows.filter((r) => selected.has(r.emp.id));
     if (chosen.length === 0) return toast.error("Select at least one employee");
     const monthLabel = format(new Date(month), "MMMM yyyy");
-    const totalBalance = chosen.reduce((s, r) => s + r.base.balance, 0);
+    const totalBalance = chosen.reduce((s, r) => s + payrollBalanceDue(r.base.balance), 0);
     const totalDueAll = chosen.reduce((s, r) => s + r.base.totalDue, 0);
     const totalPaidAll = chosen.reduce((s, r) => s + r.base.paid, 0);
     const rowsHtml = chosen.map((r) => {

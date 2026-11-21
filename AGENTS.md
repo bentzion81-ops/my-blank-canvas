@@ -4,3 +4,4 @@
 - Attendance resync supports an optional internal employee ID and retains unmatched existing records; use scoped resyncs for individual corrections to avoid changing unrelated payroll data.
 - Payroll payment filtering uses a shared, tested balance predicate on every employee site row before totals and selection, so outstanding employees retain their workplace breakdown.
 - Payroll balance-due summaries (page, selection, print) sum positive employee balances once; retain signed balances on individual rows so credits never offset wages owed to other employees.
+- Reference-month attendance comparisons use a shared pure classifier for UI and CSV, deduplicate employee/client pairs, and match Meckano events by internal or external ID within Israel calendar-day boundaries so missing reports remain distinct from missing linkage.

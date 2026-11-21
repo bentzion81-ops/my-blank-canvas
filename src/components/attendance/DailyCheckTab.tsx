@@ -16,6 +16,7 @@ import { Loader2, RefreshCw, ChevronLeft, ChevronRight, Settings, FileText, Down
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
+import { MeckanoComparisonDialog } from "./MeckanoComparisonDialog";
 
 interface Props {
   selectedDate: Date;
@@ -421,7 +422,8 @@ export function DailyCheckTab({ selectedDate, onDateChange }: Props) {
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <MeckanoComparisonDialog selectedDate={selectedDate} />
                 <ExclusionsDialog onChanged={() => setRefreshKey((k) => k + 1)} />
                 <Button size="sm" onClick={handleSyncMeckano} disabled={syncing}>
                   {syncing ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-1" />}
